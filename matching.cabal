@@ -17,6 +17,7 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
+    CHANGELOG.md
 
 source-repository head
   type: git
@@ -24,8 +25,12 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
-      Matching2
+      MicroMath
+      MicroMath.Eval
+      MicroMath.Expr
+      MicroMath.Pat
+      MicroMath.PPrint
+      MicroMath.Util
   other-modules:
       Paths_matching
   autogen-modules:
@@ -57,7 +62,7 @@ executable matching-exe
 
 test-suite matching-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: MicroMath/Test.hs
   other-modules:
       Paths_matching
   autogen-modules:

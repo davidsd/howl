@@ -1,232 +1,42 @@
+{-# LANGUAGE NoFieldSelectors    #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE NoFieldSelectors    #-}
+{-# LANGUAGE PatternSynonyms     #-}
 
-module Matching2 where
+module MicroMath.Eval
+  ( Rule(..)
+  , pattern (:=)
+  , Context(..)
+  , SymbolRecord(..)
+  , emptyContext
+  , SubstitutionSet(..)
+  , emptySubstitutionSet
+  , applySubstitutions
+  , solveMatch
+  , eval
+  ) where
 
-import Data.String (IsString(..))
-import Data.Text (Text)
-import Data.Text qualified as Text
-import Data.Set (Set)
-import Data.Set qualified as Set
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
-import Data.Ratio (numerator, denominator)
-import Data.List (intercalate, sort)
 import Control.Applicative (Alternative, empty)
-import Control.Monad (guard, foldM)
-
-class PPrint a where
-  pPrint :: a -> String
-
-newtype Symbol = MkSymbol Text
-  deriving (Eq, Ord, Show)
-
-instance PPrint Symbol where
-  pPrint (MkSymbol s) = Text.unpack s
-
-instance IsString Symbol where
-  fromString = MkSymbol . fromString
-
-data Literal
-  = LitInteger Integer
-  | LitRational Rational
-  | LitString Text
-  | LitSymbol Symbol
-  deriving (Eq, Ord, Show)
-
-instance IsString Literal where
-  fromString = LitSymbol . fromString
-
-showRational :: Rational -> String
-showRational r =
-  show (numerator r) ++
-  if denominator r == 1
-  then ""
-  else "/" ++ show (denominator r)
-
-instance PPrint Literal where
-  pPrint (LitInteger i)  = show i
-  pPrint (LitRational r) = showRational r
-  pPrint (LitString s)   = show s
-  pPrint (LitSymbol s)   = pPrint s
-
-data Expr
-  = ExprAtom Literal
-  | ExprApp Expr [Expr]
-  deriving (Eq, Ord, Show)
-
-instance IsString Expr where
-  fromString = ExprAtom . fromString
-
-unary :: Expr -> Expr -> Expr
-unary e x = e![x]
-
-binary :: Expr -> Expr -> Expr -> Expr
-binary e x y = e![x,y]
-
-instance Num Expr where
-  (+) = binary "Plus"
-  (*) = binary "Times"
-  negate x = (-1)*x
-  abs = unary "Abs"
-  signum = unary "Signum"
-  fromInteger = ExprAtom . LitInteger
-
-instance Fractional Expr where
-  recip x = "Power"![x,-1]
-  fromRational = ExprAtom . LitRational
-
-instance Floating Expr where
-  pi = "Pi"
-  exp = unary "Exp"
-  log = unary "Log"
-  sqrt x = "Power"![x, fromRational (1/2)]
-  logBase = binary "Log"
-  (**) = binary "Power"
-  sin = unary "Sin"
-  cos = unary "Cos"
-  tan = unary "Tan"
-  asin = unary "ArcSin"
-  acos = unary "ArcCos"
-  atan = unary "ArcTan"
-  sinh = unary "Sinh"
-  cosh = unary "Cosh"
-  tanh = unary "Tanh"
-  asinh = unary "ArcSinh"
-  acosh = unary "ArcCosh"
-  atanh = unary "ArcTanh"
-
-instance PPrint Expr where
-  pPrint (ExprAtom l) = pPrint l
-  pPrint (ExprApp f args) =
-    mconcat
-    [ pPrint f
-    , "["
-    , intercalate ", " (map pPrint args)
-    , "]"
-    ]
-
--- | Map a function over the symbols present in an expression
-mapSymbols :: (Symbol -> Expr) -> Expr -> Expr
-mapSymbols f expr = case expr of
-  ExprAtom (LitSymbol s) -> f s
-  ExprAtom _             -> expr
-  ExprApp h cs           -> ExprApp (mapSymbols f h) (map (mapSymbols f) cs)
-
-{- | TODO:
-
-Composite Patterns
-- p..(Repeated), p...(RepeatedNull)
-- Except
-- Longest
-- Shortest
-- OptionsPattern, PatternSequence, Verbatim, HoldPattern
-- OrderlessPatternSequence
-- KeyValuePattern
-
-Restrictions on Patterns
-
-- PatternTest (?) -- Can be implemented in terms of Condition
-
-Pattern Defaults
-_:e (Optional) pattern that defaults to e if omitted
-_. (Optional) pattern with predefined default
-Default - predefined default arguments for a function
-
--}
-
--- | Pat: A pattern. Each constructor takes a [Symbol] argument, which
--- is a list of variables, each of which should be bound to the result
--- of the pattern match. We need a list because we can have something
--- like x:(y:(z:_)). If the list is empty, the pattern is unnamed.
-data Pat
-  = PatAtom [Symbol] Literal
-    -- | The second argument is an optional head constraint.
-  | PatVar [Symbol] (Maybe Symbol)
-  | PatSeqVar [Symbol] SeqType
-  | PatApp [Symbol] Pat [Pat]
-  | PatAlt [Symbol] Pat Pat
-  | PatCondition [Symbol] Pat Expr
-  deriving (Eq, Ord, Show)
-
-instance IsString Pat where
-  fromString = PatAtom [] . fromString
-
-mapNames :: ([Symbol] -> [Symbol]) -> Pat -> Pat
-mapNames f pat = case pat of
-  PatAtom      names l      -> PatAtom      (f names) l
-  PatVar       names h      -> PatVar       (f names) h
-  PatSeqVar    names ty     -> PatSeqVar    (f names) ty
-  PatApp       names h cs   -> PatApp       (f names) h cs
-  PatAlt       names p1 p2  -> PatAlt       (f names) p1 p2
-  PatCondition names p expr -> PatCondition (f names) p expr
-
-addNames :: [Symbol] -> Pat -> Pat
-addNames xs = mapNames (xs++)
-
-data SeqType = ZeroOrMore | OneOrMore
-  deriving (Eq, Ord, Show)
-
-pPrintNamed :: [Symbol] -> String -> String
-pPrintNamed [] s = s
-pPrintNamed (x:xs) s = concat
-  [ pPrint x
-  , ":("
-  , pPrintNamed xs s
-  , ")"
-  ]
-
-instance PPrint Pat where
-  pPrint (PatAtom names l) = pPrintNamed names (pPrint l)
-  pPrint (PatVar names h) =
-    let blankStr = "_" <> maybe "" pPrint h
-    in case names of
-      []  -> blankStr
-      [x] -> pPrint x <> blankStr
-      _   -> pPrintNamed names blankStr
-  pPrint (PatSeqVar names seqTy) =
-    let blankStr = case seqTy of
-          ZeroOrMore -> "___"
-          OneOrMore  -> "__"
-    in case names of
-      []  -> blankStr
-      [x] -> pPrint x <> blankStr
-      _   -> pPrintNamed names blankStr
-  pPrint (PatApp names f args) = pPrintNamed names $
-    concat
-    [ pPrint f
-    , "["
-    , intercalate ", " (map pPrint args)
-    , "]"
-    ]
-  pPrint (PatAlt names p1 p2) = pPrintNamed names $
-    pPrint p1 ++ "|" ++ pPrint p2
-  pPrint (PatCondition names p t) = pPrintNamed names $
-    pPrint p ++ "/;" ++ pPrint t
-
-{-
-exprToPat :: Expr -> Maybe Pat
-exprToPat = undefined
--}
-
-data Marking
-  = Mark0
-  | Mark1
-  deriving (Eq, Ord, Show)
-
--- | For an associative head, we store the symbol inside the AppType
-data AppType
-  = AppFree
-  | AppC
-  | AppA Symbol (Maybe Marking)
-  | AppAC Symbol (Maybe Marking)
-    deriving (Eq, Ord, Show)
+import Control.Monad       (foldM, guard)
+import Data.List           (sort)
+import Data.Map.Strict     (Map)
+import Data.Map.Strict     qualified as Map
+import Data.Set            (Set)
+import Data.Set            qualified as Set
+import MicroMath.Expr      (Expr (..), HasApp (..), Literal (..), Symbol,
+                            flattenSequences, flattenWithHead, mapSymbols)
+import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
+import MicroMath.Util      (splits, splits1, subSequences)
 
 data Rule
   = PatRule Pat Expr
   | BuiltinRule (Expr -> Maybe Expr)
 
+pattern (:=) :: Pat -> Expr -> Rule
+pattern p := e = PatRule p e
+infixr 1 :=
+
+-- | TODO: Add Protected, NumericFunction, OneIdentity
 data Attribute
   = Flat
   | Orderless
@@ -252,13 +62,26 @@ lookupSymbol s (MkContext ctx) = Map.lookup s ctx
 
 lookupAttributes :: Symbol -> Context -> Set Attribute
 lookupAttributes s ctx = case lookupSymbol s ctx of
-  Nothing -> Set.empty
+  Nothing     -> Set.empty
   Just record -> record.attributes
 
 allRules :: Context -> [Rule]
 allRules (MkContext ctx) = do
   record <- Map.elems ctx
   record.downValues <> record.upValues
+
+data Marking
+  = Mark0
+  | Mark1
+  deriving (Eq, Ord, Show)
+
+-- | For an associative head, we store the symbol inside the AppType
+data AppType
+  = AppFree
+  | AppC
+  | AppA Symbol (Maybe Marking)
+  | AppAC Symbol (Maybe Marking)
+    deriving (Eq, Ord, Show)
 
 symbolAppType :: Context -> Symbol -> AppType
 symbolAppType ctx s =
@@ -274,15 +97,12 @@ exprAppType :: Context -> Expr -> AppType
 exprAppType ctx (ExprAtom (LitSymbol s)) = symbolAppType ctx s
 exprAppType _   _                        = AppFree
 
-data Binding
-  = BindSingle Expr
-  | BindSequence [Expr]
+data Substitution = MkSubstitution Symbol Expr
   deriving (Eq, Ord, Show)
 
-data Substitution = MkSubstitution Symbol Binding
-  deriving (Eq, Ord, Show)
-
-newtype SubstitutionSet = MkSubstitutionSet (Map Symbol Binding)
+-- | A set of substitutions, with at most one substitution for each
+-- symbol.
+newtype SubstitutionSet = MkSubstitutionSet (Map Symbol Expr)
   deriving (Eq, Ord, Show)
 
 emptySubstitutionSet :: SubstitutionSet
@@ -308,25 +128,22 @@ insertSubstitutions subs set =
 
 -- | Lookup the Binding corresponding to a Symbol in the given
 -- SubstitutionSet
-lookupBinding :: Symbol -> SubstitutionSet -> Maybe Binding
+lookupBinding :: Symbol -> SubstitutionSet -> Maybe Expr
 lookupBinding s (MkSubstitutionSet m) = Map.lookup s m
 
 -- | Replace the Symbols in the given Expr with their corresponding
--- Bindings in 'substSet'. If the binding is a BindSequence, we wrap
--- the given exprs in 'Sequence', which should be flattened by the
--- evaluator.
+-- Bindings in 'substSet'.
 applySubstitutions :: SubstitutionSet -> Expr -> Expr
 applySubstitutions substSet = mapSymbols $ \s ->
   case lookupBinding s substSet of
     Nothing -> ExprAtom (LitSymbol s)
-    Just (BindSingle expr) -> expr
-    Just (BindSequence exprs) -> ExprApp "Sequence" exprs
+    Just b  -> b
 
 bindVars :: [Symbol] -> Expr -> [Substitution]
-bindVars xs t = [MkSubstitution x (BindSingle t) | x <- xs]
+bindVars xs t = [MkSubstitution x t | x <- xs]
 
 bindSeqVars :: [Symbol] -> [Expr] -> [Substitution]
-bindSeqVars xs ts = [MkSubstitution x (BindSequence ts) | x <- xs]
+bindSeqVars xs ts = [MkSubstitution x ("Sequence"!ts) | x <- xs]
 
 guardSeqTy :: Alternative f => SeqType -> [a] -> f ()
 guardSeqTy OneOrMore [] = empty
@@ -336,41 +153,6 @@ data MatchingEq
   = SingleEq Pat Expr
   | SeqEq AppType [Pat] [Expr]
   deriving (Eq, Ord, Show)
-
--- | All splits of xs into (t1,t2) where xs == t1++t2
--- 
--- Examples:
--- > split [2,3] = ([],[2,3]), ([2],[3]), ([2,3],[])
--- > split [1,2,3] = ([],[1,2,3]), ([1],[2,3]), ([1,2],[3]), ([1,2,3],[])
-split :: [a] -> [([a],[a])]
-split [] = [([], [])]
-split (x:xs) = ([], x:xs) : do
-  (xs', ys') <- split xs
-  pure (x : xs', ys')
-
--- | All splits of xs into (t1, t, t2) where xs == t1++[t]++t2.
---
--- Examples:
--- > split1 [1,2] = ([],1,[2]), ([1],2,[])
-split1 :: [a] -> [([a], a, [a])]
-split1 xs = do
-  (l, x:r) <- split xs
-  pure (l,x,r)
-
--- | Split xs into all pairs (subSeq,rest) where subSeq is a
--- subsequence of xs and rest are the remaining elements not in
--- subSeq, with order preserved.
---
--- Examples:
--- > subSequences [1,2] = [([], [1,2]), ([1],[2]), ([2],[1]), ([1,2],[])]
---
--- Note that the number of return values is 2^(length xs). This could
--- introduce performance issues, so should be used with care.
-subSequences :: [a] -> [([a], [a])]
-subSequences [] = [([], [])]
-subSequences (x:xs) = do
-  (s,rest) <- subSequences xs
-  [(x:s, rest), (s, x:rest)]
 
 data MatchStep
   = MatchBranch [Substitution] [MatchingEq]
@@ -384,13 +166,13 @@ data MatchStep
 checkHead :: Maybe Symbol -> Expr -> a -> [a]
 checkHead h expr x = if matchesHead h expr then [x] else []
   where
-    matchesHead Nothing _ = True
+    matchesHead Nothing _                                      = True
     matchesHead (Just s) (ExprApp (ExprAtom (LitSymbol s')) _) = s == s'
     matchesHead (Just "Integer")  (ExprAtom (LitInteger _))    = True
     matchesHead (Just "Rational") (ExprAtom (LitRational _))   = True
     matchesHead (Just "String")   (ExprAtom (LitString _))     = True
     matchesHead (Just "Symbol")   (ExprAtom (LitSymbol _))     = True
-    matchesHead _ _ = False
+    matchesHead _ _                                            = False
 
 transformMatch :: Context -> MatchingEq -> [MatchStep]
 transformMatch ctx eq = case eq of
@@ -439,7 +221,7 @@ transformMatch ctx eq = case eq of
 
   -- | SVE: Sequence variable elimination (applies under any head)
   SeqEq appTy (PatSeqVar x seqTy : ss) ts -> do
-    (ts1, ts2) <- split ts
+    (ts1, ts2) <- splits ts
     guardSeqTy seqTy ts1
     pure $ MatchBranch (bindSeqVars x ts1) [SeqEq appTy ss ts2]
 
@@ -454,7 +236,7 @@ transformMatch ctx eq = case eq of
   --
   -- | Dec-C: Decomposition under commutative head
   SeqEq AppC (s : ss) ts -> do
-    (ts1, t, ts2) <- split1 ts
+    (ts1, t, ts2) <- splits1 ts
     pure $ MatchBranch [] [SingleEq s t, SeqEq AppFree ss (ts1 <> ts2)]
 
   SeqEq AppC _ _ -> []
@@ -504,7 +286,7 @@ transformMatch ctx eq = case eq of
         -- - If unmarked and ts1 has length 1, mark by 1
         -- - otherwise retain the marking
         PatVar x xHead -> do
-          (ts1@(_:_), ts2) <- split ts
+          (ts1@(_:_), ts2) <- splits ts
           guard $ not $ marking == Just Mark0 && length ts1 <= 1
           let
             xExpr = ExprApp (ExprAtom (LitSymbol f)) ts1
@@ -528,19 +310,19 @@ transformMatch ctx eq = case eq of
   -- head. This rule is absent in Mathematica's matching algorithm.
   --
   -- TODO: These rules are very similar to the AppA rules, with the
-  -- only differences being uncons vs split1 for Dec-A vs Dec-AC, and
-  -- split vs subSequences for IVE-A-strict vs IVE-AC-strict. We could
+  -- only differences being uncons vs splits1 for Dec-A vs Dec-AC, and
+  -- splits vs subSequences for IVE-A-strict vs IVE-AC-strict. We could
   -- try to deduplicate the code.
   --
   SeqEq (AppAC f marking) (s : ss) ts ->
     concat
     [
       -- | Dec-AC: Decomposition under AC head. Marking rules the same as AppA.
-      -- TODO: Is this already strict? 
+      -- TODO: Is this already strict?
       case marking of
         Just Mark1 -> []
         _ -> do
-          (ts1, t, ts2) <- split1 ts
+          (ts1, t, ts2) <- splits1 ts
           let
             newMarking = case marking of
               Nothing -> Just Mark0
@@ -609,26 +391,9 @@ Out[1] := TerminatedEvaluation[RecursionLimit]
 tryApplyRule :: Context -> Rule -> Expr -> Maybe Expr
 tryApplyRule ctx rule expr = case rule of
   PatRule pat rhs -> case solveMatch ctx (SingleEq pat expr) of
-    []              -> Nothing
+    []             -> Nothing
     (substSet : _) -> Just (applySubstitutions substSet rhs)
   BuiltinRule f -> f expr
-
-flattenWithHead :: Expr -> [Expr] -> [Expr]
-flattenWithHead h exprs = do
-  expr <- exprs
-  case expr of
-    ExprApp h' args | h' == h -> flattenWithHead h args
-    _                         -> pure expr
-
--- | Flatten any occurrences of Sequence[...] in the given list of
--- expressions. Note that this works with nested Sequence as well,
--- e.g.  flattenSequences [Sequence[Sequence[a]],b] -> [a,b]
-flattenSequences :: [Expr] -> [Expr]
-flattenSequences exprs = do
-  expr <- exprs
-  case expr of
-    ExprApp "Sequence" seqExprs -> flattenSequences seqExprs
-    _                           -> pure expr
 
 eval :: Context -> Expr -> Expr
 eval ctx expr = case expr of
@@ -664,7 +429,7 @@ eval ctx expr = case expr of
         _ -> cs'
 
       expr' = ExprApp h' cs''
-      
+
       tryRules [] = Nothing
       tryRules (rule : rules) = case tryApplyRule ctx rule expr' of
         -- Check that the transformation doesn't result in an
@@ -697,90 +462,5 @@ eval ctx expr = case expr of
       -- associate this with the pattern and the expression, and this
       -- helps narrow down the lookup.
       case tryRules (allRules ctx) of
-        Nothing -> expr'
+        Nothing              -> expr'
         Just transformedExpr -> eval ctx transformedExpr
-
-rational :: Rational -> Expr
-rational = ExprAtom . LitRational
-
-var :: Text -> Pat
-var name = PatVar [MkSymbol name] Nothing
-
-blankVar :: Pat
-blankVar = PatVar [] Nothing
-
-myExpr :: Expr
-myExpr =
-  ExprApp
-  "a"
-  [ 12
-  , "c"
-  , ExprApp
-    "d"
-    [ rational (17/2)
-    ]
-  ]
-
-myPat :: Pat
-myPat =
-  PatApp ["y"]
-  (var "x")
-  [ blankVar
-  , PatSeqVar ["A","A1"] OneOrMore
-  , PatSeqVar ["B"] ZeroOrMore
-  ]
-
-(!) :: Expr -> [Expr] -> Expr
-(!) = ExprApp
-
-(!>) :: Pat -> [Pat] -> Pat
-(!>) = PatApp []
-
-myRHS :: Expr
-myRHS = "y"!["A", "foo", "B"]
-
-mySubstSet :: SubstitutionSet
-mySubstSet = MkSubstitutionSet $
-  Map.insert "c" (BindSequence ["e", "f"]) Map.empty
-
-myRule :: Rule
-myRule = PatRule lhs rhs
-  where
-    lhs = "f"!>[var "x"]
-    rhs = "Plus"!["x", 12]
-
-myRule2 :: Rule
-myRule2 = BuiltinRule f
-  where
-    f expr = case expr of
-      (ExprApp "Plus"
-        [ExprAtom (LitInteger i), ExprAtom (LitInteger j)]) -> Just (ExprAtom (LitInteger (i+j)))
-      _ -> Nothing
-
-myContext :: Context
-myContext = MkContext $ Map.fromList
-  [ ( "f"
-    ,  MkSymbolRecord
-      { ownValue = Nothing
-      , downValues = [myRule]
-      , upValues = []
-      , attributes = Set.empty
-      }
-    )
-  , ( "Plus"
-    ,  MkSymbolRecord
-      { ownValue = Nothing
-      , downValues = [myRule2]
-      , upValues = []
-      , attributes = Set.fromList [Flat, Orderless]
-      }
-    )
-  , ( "Times"
-    ,  MkSymbolRecord
-      { ownValue = Nothing
-      , downValues = []
-      , upValues = []
-      , attributes = Set.fromList [Flat, Orderless]
-      }
-    )
-  ]

@@ -44,7 +44,7 @@ executables:
 
 tests:
   matching-test:
-    main:                Spec.hs
+    main:                MicroMath/Test.hs
     source-dirs:         test
     ghc-options:
     - -threaded
