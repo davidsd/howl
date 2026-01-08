@@ -4,12 +4,7 @@
 {-# LANGUAGE PatternSynonyms     #-}
 
 module MicroMath.Eval
-  ( Rule(..)
-  , Context(..)
-  , Attribute(..)
-  , SymbolRecord(..)
-  , emptyContext
-  , SubstitutionSet(..)
+  ( SubstitutionSet(..)
   , emptySubstitutionSet
   , applySubstitutions
   , solveMatch
@@ -25,46 +20,9 @@ import Data.Set            (Set)
 import Data.Set            qualified as Set
 import MicroMath.Expr      (Expr (..), Literal (..), Symbol,
                             flattenSequences, flattenWithHead, mapSymbols)
-import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
+import MicroMath.Pat       (Pat (..), SeqType (..), addNames, rootSymbol)
 import MicroMath.Util      (splits, splits1, subSequences)
-
-data Rule
-  = PatRule Pat Expr
-  | BuiltinRule (Expr -> Maybe Expr)
-
--- | TODO: Add Protected, NumericFunction, OneIdentity
-data Attribute
-  = Flat
-  | Orderless
-  deriving (Eq, Ord, Show)
-
-data SymbolRecord = MkSymbolRecord
-  { ownValue   :: Maybe Expr
-  , downValues :: [Rule] -- ^ A rule that matches expressions where
-                         -- the given symbol is the head
-  , upValues   :: [Rule] -- ^ A rule that matches expressions where
-                         -- the given symbol is 1 level below the
-                         -- head. (TODO: More cases?)
-  , attributes :: Set Attribute
-  }
-
-newtype Context = MkContext (Map Symbol SymbolRecord)
-
-emptyContext :: Context
-emptyContext = MkContext Map.empty
-
-lookupSymbol :: Symbol -> Context -> Maybe SymbolRecord
-lookupSymbol s (MkContext ctx) = Map.lookup s ctx
-
-lookupAttributes :: Symbol -> Context -> Set Attribute
-lookupAttributes s ctx = case lookupSymbol s ctx of
-  Nothing     -> Set.empty
-  Just record -> record.attributes
-
-allRules :: Context -> [Rule]
-allRules (MkContext ctx) = do
-  record <- Map.elems ctx
-  record.downValues <> record.upValues
+import MicroMath.Context (Context(..), Rule(..), allRules, Attribute(..), lookupAttributes, lookupSymbol, SymbolRecord(..))
 
 data Marking
   = Mark0

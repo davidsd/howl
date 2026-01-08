@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module MicroMath.Pat
@@ -5,12 +6,14 @@ module MicroMath.Pat
   , SeqType(..)
   , mapNames
   , addNames
+  , rootSymbol
   ) where
 
-import Data.List        (intercalate)
-import Data.String      (IsString (..))
-import MicroMath.Expr   (Expr (..), Literal (..), Symbol)
-import MicroMath.PPrint (PPrint (..))
+import Control.Applicative ((<|>))
+import Data.List           (intercalate)
+import Data.String         (IsString (..))
+import MicroMath.Expr      (Expr (..), Literal (..), Symbol)
+import MicroMath.PPrint    (PPrint (..))
 
 {- | TODO:
 
@@ -55,7 +58,7 @@ instance IsString Pat where
   fromString = PatAtom [] . fromString
 
 mapNames :: ([Symbol] -> [Symbol]) -> Pat -> Pat
-mapNames f pat = case pat of
+mapNames f = \case
   PatAtom      names l      -> PatAtom      (f names) l
   PatVar       names h      -> PatVar       (f names) h
   PatSeqVar    names ty     -> PatSeqVar    (f names) ty
@@ -102,3 +105,14 @@ instance PPrint Pat where
     pPrint p1 ++ "|" ++ pPrint p2
   pPrint (PatCondition names p t) = pPrintNamed names $
     pPrint p ++ "/;" ++ pPrint t
+
+-- | The rootSymbol is the repeated head. If the rootSymbol is a Symbol,
+-- return it, otherwise return nothing. This function is needed for
+-- automatically deducing which symbol to associate a rule to.
+rootSymbol :: Pat -> Maybe Symbol
+rootSymbol = \case
+  PatAtom _ (LitSymbol s) -> Just s
+  PatApp _ h _            -> rootSymbol h
+  PatAlt _ p1 p2          -> rootSymbol p1 <|> rootSymbol p2
+  PatCondition _ p _      -> rootSymbol p
+  _ -> Nothing

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms   #-}
 
 {- | HsSyntax
 
@@ -17,9 +17,8 @@ In Haskell we can define the Rule
 
 module MicroMath.HsSyntax where
 
-import MicroMath.Expr (Expr(..), Symbol(..))
-import MicroMath.Pat (Pat(..), SeqType(..), addNames)
-import MicroMath.Eval (Rule(..))
+import MicroMath (Expr (..), Pat (..), Rule (..), SeqType (..), Symbol (..),
+                  addNames)
 
 class HasApp a where
   (!) :: a -> [a] -> a
