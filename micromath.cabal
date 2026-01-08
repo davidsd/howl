@@ -6,7 +6,7 @@ cabal-version: 2.2
 
 name:           micromath
 version:        0.1.0.0
-description:    An implementation of the subset of the Wolfram language in Haskell
+description:    An implementation of a small subset of the Wolfram language in Haskell
 homepage:       https://github.com/davidsd/micromath#readme
 bug-reports:    https://github.com/davidsd/micromath/issues
 author:         David Simmons-Duffin

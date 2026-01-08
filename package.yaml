@@ -10,7 +10,7 @@ language: GHC2021
 extra-source-files:
 - README.md
 
-description:         An implementation of the subset of the Wolfram language in Haskell
+description:         An implementation of a small subset of the Wolfram language in Haskell
 
 dependencies:
 - base >= 4.7 && < 5
@@ -40,7 +40,6 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - micromath
-
 
 # tests:
 #   micromath-test:
