@@ -5,8 +5,8 @@
 
 module MicroMath.Eval
   ( Rule(..)
-  , pattern (:=)
   , Context(..)
+  , Attribute(..)
   , SymbolRecord(..)
   , emptyContext
   , SubstitutionSet(..)
@@ -23,7 +23,7 @@ import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
 import Data.Set            (Set)
 import Data.Set            qualified as Set
-import MicroMath.Expr      (Expr (..), HasApp (..), Literal (..), Symbol,
+import MicroMath.Expr      (Expr (..), Literal (..), Symbol,
                             flattenSequences, flattenWithHead, mapSymbols)
 import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
 import MicroMath.Util      (splits, splits1, subSequences)
@@ -31,10 +31,6 @@ import MicroMath.Util      (splits, splits1, subSequences)
 data Rule
   = PatRule Pat Expr
   | BuiltinRule (Expr -> Maybe Expr)
-
-pattern (:=) :: Pat -> Expr -> Rule
-pattern p := e = PatRule p e
-infixr 1 :=
 
 -- | TODO: Add Protected, NumericFunction, OneIdentity
 data Attribute
@@ -143,7 +139,7 @@ bindVars :: [Symbol] -> Expr -> [Substitution]
 bindVars xs t = [MkSubstitution x t | x <- xs]
 
 bindSeqVars :: [Symbol] -> [Expr] -> [Substitution]
-bindSeqVars xs ts = [MkSubstitution x ("Sequence"!ts) | x <- xs]
+bindSeqVars xs ts = [MkSubstitution x (ExprApp "Sequence" ts) | x <- xs]
 
 guardSeqTy :: Alternative f => SeqType -> [a] -> f ()
 guardSeqTy OneOrMore [] = empty

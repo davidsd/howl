@@ -4,7 +4,6 @@ module MicroMath.Expr
   ( Symbol(..)
   , Literal(..)
   , Expr(..)
-  , HasApp(..)
   , unary
   , binary
   , mapSymbols
@@ -12,18 +11,12 @@ module MicroMath.Expr
   , flattenSequences
   ) where
 
-import Data.String (IsString(..))
-import Data.Text (Text)
-import Data.Text qualified as Text
-import Data.Set (Set)
-import Data.Set qualified as Set
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
-import Data.Ratio (numerator, denominator)
-import Data.List (intercalate, sort)
-import Control.Applicative (Alternative, empty)
-import Control.Monad (guard, foldM)
-import MicroMath.PPrint (PPrint(..))
+import Data.List        (intercalate)
+import Data.Ratio       (denominator, numerator)
+import Data.String      (IsString (..))
+import Data.Text        (Text)
+import Data.Text        qualified as Text
+import MicroMath.PPrint (PPrint (..))
 
 newtype Symbol = MkSymbol Text
   deriving (Eq, Ord, Show)
@@ -65,17 +58,11 @@ data Expr
 instance IsString Expr where
   fromString = ExprAtom . fromString
 
-class HasApp a where
-  (!) :: a -> [a] -> a
-
-instance HasApp Expr where
-  (!) = ExprApp
-
 unary :: Expr -> Expr -> Expr
-unary e x = e![x]
+unary e x = ExprApp e [x]
 
 binary :: Expr -> Expr -> Expr -> Expr
-binary e x y = e![x,y]
+binary e x y = ExprApp e [x,y]
 
 instance Num Expr where
   (+) = binary "Plus"
@@ -86,14 +73,14 @@ instance Num Expr where
   fromInteger = ExprAtom . LitInteger
 
 instance Fractional Expr where
-  recip x = "Power"![x,-1]
+  recip x = ExprApp "Power" [x,-1]
   fromRational = ExprAtom . LitRational
 
 instance Floating Expr where
   pi = "Pi"
   exp = unary "Exp"
   log = unary "Log"
-  sqrt x = "Power"![x, fromRational (1/2)]
+  sqrt x = x ** fromRational (1/2)
   logBase = binary "Log"
   (**) = binary "Power"
   sin = unary "Sin"

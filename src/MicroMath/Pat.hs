@@ -9,7 +9,7 @@ module MicroMath.Pat
 
 import Data.List        (intercalate)
 import Data.String      (IsString (..))
-import MicroMath.Expr   (Expr (..), HasApp (..), Literal (..), Symbol)
+import MicroMath.Expr   (Expr (..), Literal (..), Symbol)
 import MicroMath.PPrint (PPrint (..))
 
 {- | TODO:
@@ -53,9 +53,6 @@ data SeqType = ZeroOrMore | OneOrMore
 
 instance IsString Pat where
   fromString = PatAtom [] . fromString
-
-instance HasApp Pat where
-  (!) = PatApp []
 
 mapNames :: ([Symbol] -> [Symbol]) -> Pat -> Pat
 mapNames f pat = case pat of

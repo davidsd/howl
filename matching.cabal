@@ -28,8 +28,10 @@ library
       MicroMath
       MicroMath.Eval
       MicroMath.Expr
+      MicroMath.HsSyntax
       MicroMath.Pat
       MicroMath.PPrint
+      MicroMath.Test
       MicroMath.Util
   other-modules:
       Paths_matching
@@ -52,23 +54,6 @@ executable matching-exe
       Paths_matching
   hs-source-dirs:
       app
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      base >=4.7 && <5
-    , containers
-    , matching
-    , text
-  default-language: GHC2021
-
-test-suite matching-test
-  type: exitcode-stdio-1.0
-  main-is: MicroMath/Test.hs
-  other-modules:
-      Paths_matching
-  autogen-modules:
-      Paths_matching
-  hs-source-dirs:
-      test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5

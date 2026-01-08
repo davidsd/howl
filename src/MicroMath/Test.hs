@@ -1,24 +1,21 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module MicroMath.Test where
 
 import MicroMath
+import MicroMath.HsSyntax
+
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 
 main :: IO ()
 main = putStrLn "Test suite not yet implemented"
-
-var :: Symbol -> Pat
-var name = PatVar (if name == "" then [] else [name]) Nothing
 
 myExpr :: Expr
 myExpr = "a"![12, "c", "d"![fromRational $ 17/2]]
 
 myPat :: Pat
-myPat =
-  addNames ["y"] $
-  (var "x")!
-  [ var ""
-  , PatSeqVar ["A","A1"] OneOrMore
-  , PatSeqVar ["B"] ZeroOrMore
-  ]
+myPat = "y".:(v"x" ! [v"", "A".:"A1".:__, "B".:___])
 
 myRHS :: Expr
 myRHS = "y"!["A", "foo", "B"]
@@ -28,7 +25,7 @@ mySubstSet = MkSubstitutionSet $
   Map.insert "c" ("Sequence"!["e", "f"]) Map.empty
 
 myRule :: Rule
-myRule = "f"![var "x"] := "x" + 12
+myRule = "f"![v"x"] := "x" + 12
 
 myRule2 :: Rule
 myRule2 = BuiltinRule f
