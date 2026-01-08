@@ -17,8 +17,8 @@ In Haskell we can define the Rule
 
 module MicroMath.HsSyntax where
 
-import MicroMath (Expr (..), Pat (..), Rule (..), SeqType (..), Symbol (..),
-                  addNames)
+import MicroMath (ContextM, Expr (..), Pat (..), Rule (..), SeqType (..),
+                  Symbol (..), addNames, addPatRule)
 
 class HasApp a where
   (!) :: a -> [a] -> a
@@ -41,6 +41,10 @@ infixl 5 .|
 (.:) :: Symbol -> Pat -> Pat
 s .: p = addNames [s] p
 infixr 8 .:
+
+(.=) :: Pat -> Expr -> ContextM ()
+(.=) = addPatRule
+infixl 1 .=
 
 pattern (:=) :: Pat -> Expr -> Rule
 pattern p := e = PatRule p e

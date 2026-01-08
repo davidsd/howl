@@ -113,6 +113,5 @@ rootSymbol :: Pat -> Maybe Symbol
 rootSymbol = \case
   PatAtom _ (LitSymbol s) -> Just s
   PatApp _ h _            -> rootSymbol h
-  PatAlt _ p1 p2          -> rootSymbol p1 <|> rootSymbol p2
   PatCondition _ p _      -> rootSymbol p
   _ -> Nothing

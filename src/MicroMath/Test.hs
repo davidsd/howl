@@ -3,7 +3,6 @@
 module MicroMath.Test where
 
 import Data.Map.Strict    qualified as Map
-import Data.Set           qualified as Set
 import MicroMath
 import MicroMath.HsSyntax
 
@@ -20,9 +19,6 @@ mySubstSet :: SubstitutionSet
 mySubstSet = MkSubstitutionSet $
   Map.insert "c" ("Sequence"!["e", "f"]) Map.empty
 
-myRule :: Rule
-myRule = "f"![v"x"] := "x" + 12
-
 myRule2 :: Rule
 myRule2 = BuiltinRule f
   where
@@ -32,29 +28,8 @@ myRule2 = BuiltinRule f
       _ -> Nothing
 
 myContext :: Context
-myContext = MkContext $ Map.fromList
-  [ ( "f"
-    ,  MkSymbolRecord
-      { ownValue = Nothing
-      , downValues = [myRule]
-      , upValues = []
-      , attributes = Set.empty
-      }
-    )
-  , ( "Plus"
-    ,  MkSymbolRecord
-      { ownValue = Nothing
-      , downValues = [myRule2]
-      , upValues = []
-      , attributes = Set.fromList [Flat, Orderless]
-      }
-    )
-  , ( "Times"
-    ,  MkSymbolRecord
-      { ownValue = Nothing
-      , downValues = []
-      , upValues = []
-      , attributes = Set.fromList [Flat, Orderless]
-      }
-    )
-  ]
+myContext = createContext $ do
+  setAttributes "Plus" [Flat, Orderless]
+  setAttributes "Times" [Flat, Orderless]
+  addDownValue "Plus" myRule2
+  "f"![v"x"] .= "x" + 12

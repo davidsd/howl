@@ -25,6 +25,7 @@ source-repository head
 library
   exposed-modules:
       MicroMath
+      MicroMath.Context
       MicroMath.Eval
       MicroMath.Expr
       MicroMath.HsSyntax
@@ -42,6 +43,7 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , mtl
     , text
   default-language: GHC2021
 
@@ -58,5 +60,6 @@ executable micromath-exe
       base >=4.7 && <5
     , containers
     , micromath
+    , mtl
     , text
   default-language: GHC2021

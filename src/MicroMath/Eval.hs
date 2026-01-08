@@ -16,13 +16,14 @@ import Control.Monad       (foldM, guard)
 import Data.List           (sort)
 import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
-import Data.Set            (Set)
 import Data.Set            qualified as Set
-import MicroMath.Expr      (Expr (..), Literal (..), Symbol,
-                            flattenSequences, flattenWithHead, mapSymbols)
-import MicroMath.Pat       (Pat (..), SeqType (..), addNames, rootSymbol)
+import MicroMath.Context   (Attribute (..), Context (..), Rule (..),
+                            SymbolRecord (..), allRules, lookupAttributes,
+                            lookupSymbol)
+import MicroMath.Expr      (Expr (..), Literal (..), Symbol, flattenSequences,
+                            flattenWithHead, mapSymbols)
+import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
 import MicroMath.Util      (splits, splits1, subSequences)
-import MicroMath.Context (Context(..), Rule(..), allRules, Attribute(..), lookupAttributes, lookupSymbol, SymbolRecord(..))
 
 data Marking
   = Mark0
