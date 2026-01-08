@@ -1,6 +1,6 @@
-name:                matching
+name:                micromath
 version:             0.1.0.0
-github:              "githubuser/matching"
+github:              "davidsd/micromath"
 license:             BSD-3-Clause
 author:              "David Simmons-Duffin"
 maintainer:          "dsd@caltech.edu"
@@ -9,7 +9,6 @@ language: GHC2021
 
 extra-source-files:
 - README.md
-- CHANGELOG.md
 
 description:         An implementation of the subset of the Wolfram language in Haskell
 
@@ -32,7 +31,7 @@ library:
   source-dirs: src
 
 executables:
-  matching-exe:
+  micromath-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -40,11 +39,11 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - matching
+    - micromath
 
 
 # tests:
-#   matching-test:
+#   micromath-test:
 #     main:                MicroMath/Test.hs
 #     source-dirs:         test
 #     ghc-options:
@@ -52,4 +51,4 @@ executables:
 #     - -rtsopts
 #     - -with-rtsopts=-N
 #     dependencies:
-#     - matching
+#     - micromath

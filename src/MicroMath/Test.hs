@@ -2,14 +2,10 @@
 
 module MicroMath.Test where
 
+import Data.Map.Strict    qualified as Map
+import Data.Set           qualified as Set
 import MicroMath
 import MicroMath.HsSyntax
-
-import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
-
-main :: IO ()
-main = putStrLn "Test suite not yet implemented"
 
 myExpr :: Expr
 myExpr = "a"![12, "c", "d"![fromRational $ 17/2]]

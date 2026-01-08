@@ -4,11 +4,11 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 
-name:           matching
+name:           micromath
 version:        0.1.0.0
 description:    An implementation of the subset of the Wolfram language in Haskell
-homepage:       https://github.com/githubuser/matching#readme
-bug-reports:    https://github.com/githubuser/matching/issues
+homepage:       https://github.com/davidsd/micromath#readme
+bug-reports:    https://github.com/davidsd/micromath/issues
 author:         David Simmons-Duffin
 maintainer:     dsd@caltech.edu
 copyright:      2026 David Simmons-Duffin
@@ -17,11 +17,10 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
-    CHANGELOG.md
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/matching
+  location: https://github.com/davidsd/micromath
 
 library
   exposed-modules:
@@ -34,9 +33,9 @@ library
       MicroMath.Test
       MicroMath.Util
   other-modules:
-      Paths_matching
+      Paths_micromath
   autogen-modules:
-      Paths_matching
+      Paths_micromath
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
@@ -46,18 +45,18 @@ library
     , text
   default-language: GHC2021
 
-executable matching-exe
+executable micromath-exe
   main-is: Main.hs
   other-modules:
-      Paths_matching
+      Paths_micromath
   autogen-modules:
-      Paths_matching
+      Paths_micromath
   hs-source-dirs:
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , containers
-    , matching
+    , micromath
     , text
   default-language: GHC2021
