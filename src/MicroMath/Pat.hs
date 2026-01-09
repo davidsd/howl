@@ -9,7 +9,6 @@ module MicroMath.Pat
   , rootSymbol
   ) where
 
-import Control.Applicative ((<|>))
 import Data.List           (intercalate)
 import Data.String         (IsString (..))
 import MicroMath.Expr      (Expr (..), Literal (..), Symbol)

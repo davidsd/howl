@@ -112,10 +112,10 @@ modifyAttributes :: Symbol -> (Set Attribute -> Set Attribute) -> ContextM ()
 modifyAttributes sym f = modifyRecord sym (modifyRecordAttributes f)
 
 addDownValue :: Symbol -> Rule -> ContextM ()
-addDownValue sym rule = modifyDownValues sym (rule :)
+addDownValue sym rule = modifyDownValues sym (++ [rule])
 
 addUpValue :: Symbol -> Rule -> ContextM ()
-addUpValue sym rule = modifyUpValues sym (rule :)
+addUpValue sym rule = modifyUpValues sym (++ [rule])
 
 addPatRule :: Pat -> Expr -> ContextM ()
 addPatRule pat expr
