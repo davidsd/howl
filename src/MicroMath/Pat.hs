@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms   #-}
 
 module MicroMath.Pat
   ( Pat(..)
@@ -11,10 +12,13 @@ module MicroMath.Pat
   , setDelayedFromExpr
   ) where
 
-import Data.List           (intercalate)
-import Data.String         (IsString (..))
-import MicroMath.Expr      (Expr (..), Literal (..), Symbol)
-import MicroMath.PPrint    (PPrint (..))
+import Data.Foldable    qualified as Foldable
+import Data.List        (intercalate)
+import Data.Sequence    (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence    qualified as Seq
+import Data.String      (IsString (..))
+import MicroMath.Expr   (Expr (..), Literal (..), Symbol)
+import MicroMath.PPrint (PPrint (..))
 
 {- | TODO:
 
@@ -47,7 +51,7 @@ data Pat
     -- | The second argument is an optional head constraint.
   | PatVar [Symbol] (Maybe Symbol)
   | PatSeqVar [Symbol] SeqType
-  | PatApp [Symbol] Pat [Pat]
+  | PatApp [Symbol] Pat (Seq Pat)
   | PatAlt [Symbol] Pat Pat
   | PatCondition [Symbol] Pat Expr
   deriving (Eq, Ord, Show)
@@ -102,7 +106,7 @@ instance PPrint Pat where
     concat
     [ pPrint f
     , "["
-    , intercalate ", " (map pPrint args)
+    , intercalate ", " (map pPrint (Foldable.toList args))
     , "]"
     ]
   pPrint (PatAlt names p1 p2) = pPrintNamed names $
@@ -122,20 +126,21 @@ rootSymbol = \case
 
 patFromExpr :: Expr -> Pat
 patFromExpr expr = case expr of
-  ExprApp "Pattern" [ExprAtom (LitSymbol x), expr'] ->
+  ExprApp "Pattern" (ExprAtom (LitSymbol x) :<| expr' :<| Empty) ->
     addName x $ patFromExpr expr'
-  ExprApp "Blank" [] -> PatVar [] Nothing
-  ExprApp "Blank" [ExprAtom (LitSymbol h)] -> PatVar [] (Just h)
-  ExprApp "BlankSequence" [] -> PatSeqVar [] OneOrMore
-  ExprApp "BlankNullSequence" [] -> PatSeqVar [] ZeroOrMore
-  ExprApp "Alternatives" pExprs@(_:_) ->
-    foldr1 (PatAlt []) $ map patFromExpr pExprs
-  ExprApp "Test" [pExpr, cond] -> PatCondition [] (patFromExpr pExpr) cond
+  ExprApp "Blank" Empty -> PatVar [] Nothing
+  ExprApp "Blank" (ExprAtom (LitSymbol h) :<| Empty) -> PatVar [] (Just h)
+  ExprApp "BlankSequence" Empty -> PatSeqVar [] OneOrMore
+  ExprApp "BlankNullSequence" Empty -> PatSeqVar [] ZeroOrMore
+  ExprApp "Alternatives" pExprs@(_ :<| _) ->
+    foldr1 (PatAlt []) $ fmap patFromExpr pExprs
+  ExprApp "Test" (pExpr :<| cond :<| Empty) -> PatCondition [] (patFromExpr pExpr) cond
   ExprAtom lit -> PatAtom [] lit
-  ExprApp h cs -> PatApp [] (patFromExpr h) (map patFromExpr cs)
+  ExprApp h cs -> PatApp [] (patFromExpr h) (fmap patFromExpr cs)
 
 setDelayedFromExpr :: Expr -> Maybe (Pat, Expr)
 setDelayedFromExpr expr = case expr of
-  ExprApp "SetDelayed" [patExpr, rhs] -> Just (patFromExpr patExpr, rhs)
+  ExprApp "SetDelayed" (patExpr :<| rhs :<| Empty)
+    -> Just (patFromExpr patExpr, rhs)
   _ -> Nothing
-  
+

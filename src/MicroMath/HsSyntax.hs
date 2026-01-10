@@ -17,18 +17,19 @@ In Haskell we can define the Rule
 
 module MicroMath.HsSyntax where
 
-import MicroMath (ContextM, Expr (..), Pat (..), Rule (..), SeqType (..),
-                  Symbol (..), addNames, addPatRule)
+import Data.Sequence qualified as Seq
+import MicroMath     (ContextM, Expr (..), Pat (..), Rule (..), SeqType (..),
+                      Symbol (..), addNames, addPatRule)
 
 class HasApp a where
   (!) :: a -> [a] -> a
 infixl 9 !
 
 instance HasApp Expr where
-  (!) = ExprApp
+  f!xs = ExprApp f (Seq.fromList xs)
 
 instance HasApp Pat where
-  (!) = PatApp []
+  f!xs = PatApp [] f (Seq.fromList xs)
 
 (./) :: Pat -> Expr -> Pat
 p ./ test = PatCondition [] p test

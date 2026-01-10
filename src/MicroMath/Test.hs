@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module MicroMath.Test where
 
+import Data.Sequence (pattern Empty, pattern (:<|))
 import Data.Map.Strict    qualified as Map
 import MicroMath
 import MicroMath.HsSyntax
@@ -24,7 +26,7 @@ myRule2 = BuiltinRule f
   where
     f expr = case expr of
       (ExprApp "Plus"
-        [ExprAtom (LitInteger i), ExprAtom (LitInteger j)]) -> Just (ExprAtom (LitInteger (i+j)))
+        (ExprAtom (LitInteger i) :<| ExprAtom (LitInteger j) :<| Empty)) -> Just (ExprAtom (LitInteger (i+j)))
       _ -> Nothing
 
 myContext :: Context

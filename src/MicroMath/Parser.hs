@@ -1,8 +1,11 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module MicroMath.Parser where
 
+import Data.Sequence (Seq, pattern Empty, pattern (:<|))
+import Data.Sequence qualified as Seq
 import Control.Monad                  (void)
 import Control.Monad.Combinators.Expr
 import Data.Char                      (isAlphaNum)
@@ -264,8 +267,8 @@ tOp op = void $ (single (TOp op))
 commaSep :: TokParser a -> TokParser [a]
 commaSep p = p `sepBy` single TComma
 
-surroundExprs :: (Tok, Tok) -> TokParser [Expr]
-surroundExprs (l,r) = surround (l,r) (commaSep parseExpr)
+surroundExprs :: (Tok, Tok) -> TokParser (Seq Expr)
+surroundExprs (l,r) = Seq.fromList <$> surround (l,r) (commaSep parseExpr)
 
 parseTerm :: TokParser Expr
 parseTerm = choice
@@ -277,8 +280,8 @@ parseTerm = choice
   , ExprApp "Sequence"    <$> surroundExprs (TLBrack, TRBrack)
   , ExprApp "Association" <$> surroundExprs (TLAssoc, TRAssoc)
   , tok $ \case
-      TSlot m Slot         -> Just (ExprApp "Slot" [maybe 1 fromInteger m])
-      TSlot m SlotSequence -> Just (ExprApp "SlotSequence" [maybe 1 fromInteger m])
+      TSlot m Slot         -> Just (Expr.unary "Slot"         (maybe 1 fromInteger m))
+      TSlot m SlotSequence -> Just (Expr.unary "SlotSequence" (maybe 1 fromInteger m))
       _                    -> Nothing
     -- We 'try' here because parsePatternVar might consume a symbol
     -- for the name of the pattern, but if the parser eventually
@@ -295,14 +298,14 @@ parsePatternVar = do
   let
     patHead = ExprAtom (LitSymbol (blankTypeToSymbol patHeadType))
     defFunction = case maybeDefault of
-      Just def -> \p -> ExprApp "Optional" [p, def]
+      Just def -> \p -> Expr.binary "Optional" p def
       Nothing  -> id
     nameFunction = case maybeName of
-      Just name -> \p -> ExprApp "Pattern" [ExprAtom (LitSymbol name), p]
+      Just name -> \p -> Expr.binary "Pattern" (ExprAtom (LitSymbol name)) p
       Nothing   -> id
     args = case maybeHeadConstraint of
-      Just h  -> [ExprAtom (LitSymbol h)]
-      Nothing -> []
+      Just h  -> Seq.singleton (ExprAtom (LitSymbol h))
+      Nothing -> Empty
   pure $
     defFunction $
     nameFunction $
@@ -329,7 +332,7 @@ replaceHead _ expr           = expr
 -- the strategy in [Note: Application].
 applyExpr :: Expr -> Expr -> Expr
 applyExpr h (ExprApp "Sequence" args) = ExprApp h args
-applyExpr h arg                       = ExprApp h [arg]
+applyExpr h arg                       = Expr.unary h arg
 
 opTable :: [[Operator TokParser Expr]]
 opTable =
@@ -370,7 +373,7 @@ opTable =
   , [ binaryL OpReplaceAll      (Expr.binary "ReplaceAll")
     , binaryL OpReplaceRepeated (Expr.binary "ReplaceRepeated")
     ]
-  , [ binaryL OpPostfixApply    (\e h -> ExprApp h [e])
+  , [ binaryL OpPostfixApply    (\e h -> Expr.unary h e)
     ]
   , [ binaryR OpSet             (Expr.binary "Set")
     , binaryR OpSetDelayed      (Expr.binary "SetDelayed")
@@ -386,24 +389,34 @@ opTable =
 normalize :: Expr -> Expr
 normalize expr = case expr of
   ExprAtom _ -> expr
-  ExprApp h [ExprApp "Sequence" args] ->
+  ExprApp h (ExprApp "Sequence" args :<| Empty) ->
     normalize $ ExprApp h args
-  ExprApp "Subtract" [e1, e2] ->
-    normalize $ ExprApp "Plus" ([e1, ExprApp "Times" [-1, e2]])
-  ExprApp "Divide" [e1, e2] ->
-    normalize $ ExprApp "Times" [e1, ExprApp "Power" [e2, -1]]
+  ExprApp "Subtract" (e1 :<| e2 :<| Empty) ->
+    normalize $ Expr.binary "Plus" e1  $ Expr.binary "Times" (fromInteger (-1)) e2
+  ExprApp "Divide" (e1 :<| e2 :<| Empty) ->
+    normalize $ Expr.binary "Times" e1 $ Expr.binary "Power" e2 (fromInteger (-1))
   ExprApp "Plus" args ->
-    ExprApp "Plus" $
-    filter (/= 0) $
-    Expr.flattenWithHead "Plus" $
-    map normalize args
+    let
+      newArgs = 
+        Seq.filter (/= 0) $
+        Expr.flattenWithHead "Plus" $
+        fmap normalize args
+    in case newArgs of
+      Empty -> 0
+      (x :<| Empty) -> x
+      _ -> ExprApp "Plus" newArgs
   ExprApp "Times" args ->
-    ExprApp "Times" $
-    filter (/= 1) $
-    Expr.flattenWithHead "Times" $
-    map normalize args
+    let
+      newArgs =
+        Seq.filter (/= 1) $
+        Expr.flattenWithHead "Times" $
+        fmap normalize args
+    in case newArgs of
+      Empty -> 1
+      (x :<| Empty) -> x
+      _ -> ExprApp "Times" newArgs
   ExprApp h args ->
-    ExprApp (normalize h) (map normalize args)
+    ExprApp (normalize h) (fmap normalize args)
 
 parseExpr :: TokParser Expr
 parseExpr = normalize <$> makeExprParser parseTerm opTable

@@ -11,6 +11,9 @@ module MicroMath.Expr
   , flattenSequences
   ) where
 
+import Data.Foldable qualified as Foldable
+import Data.Sequence (Seq)
+import Data.Sequence qualified as Seq
 import Data.List        (intercalate)
 import Data.Ratio       (denominator, numerator)
 import Data.String      (IsString (..))
@@ -55,28 +58,28 @@ instance PPrint Literal where
 
 data Expr
   = ExprAtom Literal
-  | ExprApp Expr [Expr]
+  | ExprApp Expr (Seq Expr)
   deriving (Eq, Ord, Show)
 
 instance IsString Expr where
   fromString = ExprAtom . fromString
 
 unary :: Expr -> Expr -> Expr
-unary e x = ExprApp e [x]
+unary e x = ExprApp e (Seq.singleton x)
 
 binary :: Expr -> Expr -> Expr -> Expr
-binary e x y = ExprApp e [x,y]
+binary e x y = ExprApp e (Seq.fromList [x,y])
 
 instance Num Expr where
   (+) = binary "Plus"
   (*) = binary "Times"
-  negate x = ExprApp "Times" [fromInteger (-1), x]
+  negate x = binary "Times" (fromInteger (-1)) x
   abs = unary "Abs"
   signum = unary "Signum"
   fromInteger = ExprAtom . LitInteger
 
 instance Fractional Expr where
-  recip x = ExprApp "Power" [x, fromInteger (-1)]
+  recip x = binary "Power" x (fromInteger (-1))
   fromRational = ExprAtom . LitRational
 
 instance Floating Expr where
@@ -105,7 +108,7 @@ instance PPrint Expr where
     mconcat
     [ pPrint f
     , "["
-    , intercalate ", " (map pPrint args)
+    , intercalate ", " (map pPrint (Foldable.toList args))
     , "]"
     ]
 
@@ -114,14 +117,14 @@ mapSymbols :: (Symbol -> Expr) -> Expr -> Expr
 mapSymbols f expr = case expr of
   ExprAtom (LitSymbol s) -> f s
   ExprAtom _             -> expr
-  ExprApp h cs           -> ExprApp (mapSymbols f h) (map (mapSymbols f) cs)
+  ExprApp h cs           -> ExprApp (mapSymbols f h) (fmap (mapSymbols f) cs)
 
 -- | Flatten applications of h in the given list of expressions,
 -- working recursively until a different head is encountered. Example:
 --
 -- flattenWithHead "A" [A[x], A[A[y],B[A[z]]]]
 -- ---> [x,y,B[A[z]]]
-flattenWithHead :: Expr -> [Expr] -> [Expr]
+flattenWithHead :: Expr -> Seq Expr -> Seq Expr
 flattenWithHead h exprs = do
   expr <- exprs
   case expr of
@@ -131,5 +134,5 @@ flattenWithHead h exprs = do
 -- | Flatten any occurrences of Sequence[...] in the given list of
 -- expressions. Note that this works with nested Sequence as well,
 -- e.g.  flattenSequences [Sequence[Sequence[a]],b] -> [a,b]
-flattenSequences :: [Expr] -> [Expr]
+flattenSequences :: Seq Expr -> Seq Expr
 flattenSequences = flattenWithHead "Sequence"

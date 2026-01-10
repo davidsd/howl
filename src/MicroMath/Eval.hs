@@ -13,9 +13,10 @@ module MicroMath.Eval
 
 import Control.Applicative (Alternative, empty)
 import Control.Monad       (foldM, guard)
-import Data.List           (sort)
 import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
+import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence       qualified as Seq
 import Data.Set            qualified as Set
 import MicroMath.Context   (Attribute (..), Context (..), Rule (..),
                             SymbolRecord (..), allRules, lookupAttributes,
@@ -97,16 +98,16 @@ applySubstitutions substSet = mapSymbols $ \s ->
 bindVars :: [Symbol] -> Expr -> [Substitution]
 bindVars xs t = [MkSubstitution x t | x <- xs]
 
-bindSeqVars :: [Symbol] -> [Expr] -> [Substitution]
+bindSeqVars :: [Symbol] -> Seq Expr -> [Substitution]
 bindSeqVars xs ts = [MkSubstitution x (ExprApp "Sequence" ts) | x <- xs]
 
-guardSeqTy :: Alternative f => SeqType -> [a] -> f ()
-guardSeqTy OneOrMore [] = empty
-guardSeqTy _         _  = pure ()
+guardSeqTy :: Alternative f => SeqType -> Seq a -> f ()
+guardSeqTy OneOrMore Empty = empty
+guardSeqTy _         _     = pure ()
 
 data MatchingEq
   = SingleEq Pat Expr
-  | SeqEq AppType [Pat] [Expr]
+  | SeqEq AppType (Seq Pat) (Seq Expr)
   deriving (Eq, Ord, Show)
 
 data MatchStep
@@ -172,16 +173,16 @@ transformMatch ctx eq = case eq of
   -- | Free head
 
   -- | The empty sequence matches itself under any head.
-  SeqEq _ [] [] -> [MatchBranch [] []]
+  SeqEq _ Empty Empty -> [MatchBranch [] []]
 
   -- | SVE: Sequence variable elimination (applies under any head)
-  SeqEq appTy (PatSeqVar x seqTy : ss) ts -> do
+  SeqEq appTy (PatSeqVar x seqTy :<| ss) ts -> do
     (ts1, ts2) <- splits ts
     guardSeqTy seqTy ts1
     pure $ MatchBranch (bindSeqVars x ts1) [SeqEq appTy ss ts2]
 
   -- | Dec-F: Decomposition under Free head
-  SeqEq AppFree (s : ss) (t : ts) ->
+  SeqEq AppFree (s :<| ss) (t :<| ts) ->
     [MatchBranch [] [SingleEq s t, SeqEq AppFree ss ts]]
 
   -- | Commutative head
@@ -190,7 +191,7 @@ transformMatch ctx eq = case eq of
   -- head. Dropped in Mathematica -- use SVE instead.
   --
   -- | Dec-C: Decomposition under commutative head
-  SeqEq AppC (s : ss) ts -> do
+  SeqEq AppC (s :<| ss) ts -> do
     (ts1, t, ts2) <- splits1 ts
     pure $ MatchBranch [] [SingleEq s t, SeqEq AppFree ss (ts1 <> ts2)]
 
@@ -206,7 +207,7 @@ transformMatch ctx eq = case eq of
   -- difficult to formulate this rule in the case where the function
   -- variable application is named: y:(x_[...]).
   --
-  SeqEq (AppA f marking) (s : ss) ts ->
+  SeqEq (AppA f marking) (s :<| ss) ts ->
     concat
     [ case ts of
         -- | Dec-A: Decomposition under associative head
@@ -219,7 +220,7 @@ transformMatch ctx eq = case eq of
         -- - If marked by 1, then Dec-A-strict does not apply
         -- - If marked by 0, then retain marking 0
         --
-        t : ts'
+        t :<| ts'
           | marking /= Just Mark1
             ->
             let
@@ -241,7 +242,7 @@ transformMatch ctx eq = case eq of
         -- - If unmarked and ts1 has length 1, mark by 1
         -- - otherwise retain the marking
         PatVar x xHead -> do
-          (ts1@(_:_), ts2) <- splits ts
+          (ts1@(_:<|_), ts2) <- splits ts
           guard $ not $ marking == Just Mark0 && length ts1 <= 1
           let
             xExpr = ExprApp (ExprAtom (LitSymbol f)) ts1
@@ -269,7 +270,7 @@ transformMatch ctx eq = case eq of
   -- splits vs subSequences for IVE-A-strict vs IVE-AC-strict. We could
   -- try to deduplicate the code.
   --
-  SeqEq (AppAC f marking) (s : ss) ts ->
+  SeqEq (AppAC f marking) (s :<| ss) ts ->
     concat
     [
       -- | Dec-AC: Decomposition under AC head. Marking rules the same as AppA.
@@ -289,7 +290,7 @@ transformMatch ctx eq = case eq of
         -- | IVE-AC-strict: Individual variable elimination under AC
         -- head. The strict variant imposes that subSeq not be null.
         PatVar x xHead -> do
-          (subSeq@(_:_), rest) <- subSequences ts
+          (subSeq@(_:<|_), rest) <- subSequences ts
           guard $ not $ marking == Just Mark0 && length subSeq <= 1
           let
             xExpr = ExprApp (ExprAtom (LitSymbol f)) subSeq
@@ -368,7 +369,7 @@ eval ctx expr = case expr of
       -- TODO: if h' has attributes SequenceHold or HoldAllComplete,
       -- then don't flatten Sequence's.
       h' = eval ctx h
-      cs' = flattenSequences $ map (eval ctx) cs
+      cs' = flattenSequences $ fmap (eval ctx) cs
 
       -- If h' is a symbol with attribute Flat, then flatten h' in
       -- children. If h' is a symbol with attribute Orderless, then
@@ -378,7 +379,7 @@ eval ctx expr = case expr of
           let
             attr = lookupAttributes s ctx
             maybeFlatten = if Set.member Flat attr      then flattenWithHead h' else id
-            maybeSort    = if Set.member Orderless attr then sort               else id
+            maybeSort    = if Set.member Orderless attr then Seq.unstableSort   else id
           in
             maybeSort (maybeFlatten cs')
         _ -> cs'
