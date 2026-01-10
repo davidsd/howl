@@ -17,6 +17,7 @@ import Data.String      (IsString (..))
 import Data.Text        (Text)
 import Data.Text        qualified as Text
 import MicroMath.PPrint (PPrint (..))
+import Data.Scientific (Scientific)
 
 newtype Symbol = MkSymbol Text
   deriving (Eq, Ord, Show)
@@ -30,6 +31,7 @@ instance IsString Symbol where
 data Literal
   = LitInteger Integer
   | LitRational Rational
+  | LitReal Scientific
   | LitString Text
   | LitSymbol Symbol
   deriving (Eq, Ord, Show)
@@ -47,6 +49,7 @@ showRational r =
 instance PPrint Literal where
   pPrint (LitInteger i)  = show i
   pPrint (LitRational r) = showRational r
+  pPrint (LitReal x)     = show x
   pPrint (LitString s)   = show s
   pPrint (LitSymbol s)   = pPrint s
 
@@ -67,13 +70,13 @@ binary e x y = ExprApp e [x,y]
 instance Num Expr where
   (+) = binary "Plus"
   (*) = binary "Times"
-  negate x = (-1)*x
+  negate x = ExprApp "Times" [fromInteger (-1), x]
   abs = unary "Abs"
   signum = unary "Signum"
   fromInteger = ExprAtom . LitInteger
 
 instance Fractional Expr where
-  recip x = ExprApp "Power" [x,-1]
+  recip x = ExprApp "Power" [x, fromInteger (-1)]
   fromRational = ExprAtom . LitRational
 
 instance Floating Expr where

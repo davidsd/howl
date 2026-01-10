@@ -7,3 +7,4 @@ import MicroMath.Context as Exports
 import MicroMath.Expr as Exports
 import MicroMath.Pat as Exports
 import MicroMath.PPrint as Exports
+--import MicroMath.Parser  as Exports hiding (Expr)

@@ -7,6 +7,8 @@ module MicroMath.Pat
   , mapNames
   , addNames
   , rootSymbol
+  , patFromExpr
+  , setDelayedFromExpr
   ) where
 
 import Data.List           (intercalate)
@@ -68,6 +70,9 @@ mapNames f = \case
 addNames :: [Symbol] -> Pat -> Pat
 addNames xs = mapNames (xs++)
 
+addName :: Symbol -> Pat -> Pat
+addName xs = mapNames (xs:)
+
 pPrintNamed :: [Symbol] -> String -> String
 pPrintNamed [] s = s
 pPrintNamed (x:xs) s = concat
@@ -114,3 +119,23 @@ rootSymbol = \case
   PatApp _ h _            -> rootSymbol h
   PatCondition _ p _      -> rootSymbol p
   _ -> Nothing
+
+patFromExpr :: Expr -> Pat
+patFromExpr expr = case expr of
+  ExprApp "Pattern" [ExprAtom (LitSymbol x), expr'] ->
+    addName x $ patFromExpr expr'
+  ExprApp "Blank" [] -> PatVar [] Nothing
+  ExprApp "Blank" [ExprAtom (LitSymbol h)] -> PatVar [] (Just h)
+  ExprApp "BlankSequence" [] -> PatSeqVar [] OneOrMore
+  ExprApp "BlankNullSequence" [] -> PatSeqVar [] ZeroOrMore
+  ExprApp "Alternatives" pExprs@(_:_) ->
+    foldr1 (PatAlt []) $ map patFromExpr pExprs
+  ExprApp "Test" [pExpr, cond] -> PatCondition [] (patFromExpr pExpr) cond
+  ExprAtom lit -> PatAtom [] lit
+  ExprApp h cs -> PatApp [] (patFromExpr h) (map patFromExpr cs)
+
+setDelayedFromExpr :: Expr -> Maybe (Pat, Expr)
+setDelayedFromExpr expr = case expr of
+  ExprApp "SetDelayed" [patExpr, rhs] -> Just (patFromExpr patExpr, rhs)
+  _ -> Nothing
+  

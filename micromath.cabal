@@ -29,6 +29,7 @@ library
       MicroMath.Eval
       MicroMath.Expr
       MicroMath.HsSyntax
+      MicroMath.Parser
       MicroMath.Pat
       MicroMath.PPrint
       MicroMath.Test
@@ -43,7 +44,10 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , megaparsec
     , mtl
+    , parser-combinators
+    , scientific
     , text
   default-language: GHC2021
 
@@ -59,7 +63,10 @@ executable micromath-exe
   build-depends:
       base >=4.7 && <5
     , containers
+    , megaparsec
     , micromath
     , mtl
+    , parser-combinators
+    , scientific
     , text
   default-language: GHC2021

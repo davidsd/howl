@@ -34,6 +34,10 @@ data Rule
   = PatRule Pat Expr
   | BuiltinRule (Expr -> Maybe Expr)
 
+instance Show Rule where
+  show (PatRule p expr) = show p ++ " := " ++ show expr
+  show (BuiltinRule _) = "<BuiltinRule>"
+
 -- | TODO: Add Protected, NumericFunction, OneIdentity
 data Attribute
   = Flat
@@ -49,6 +53,7 @@ data SymbolRecord = MkSymbolRecord
                          -- head. (TODO: More cases?)
   , attributes :: Set Attribute
   }
+  deriving (Show)
 
 emptySymbolRecord :: SymbolRecord
 emptySymbolRecord = MkSymbolRecord Nothing [] [] Set.empty
@@ -66,6 +71,7 @@ modifyRecordAttributes :: (Set Attribute -> Set Attribute) -> SymbolRecord -> Sy
 modifyRecordAttributes f record = record { attributes = f record.attributes }
 
 newtype Context = MkContext (Map Symbol SymbolRecord)
+  deriving (Show)
 
 emptyContext :: Context
 emptyContext = MkContext Map.empty
