@@ -9,6 +9,7 @@ module MicroMath.Symbol.Table
   , Symbol(..)
   , mkSymbol
   , symbolName
+  , symbolIndex
   ) where
 
 import Control.Concurrent.MVar (MVar, newMVar, withMVar)
@@ -37,6 +38,9 @@ newtype Symbol = Symbol { symUnique :: Unique }
 
 instance Show Symbol where
   show = Text.unpack . symbolName
+
+symbolIndex :: Symbol -> Int
+symbolIndex = getUnique . symUnique
 
 -- ---------- Internals ----------
 

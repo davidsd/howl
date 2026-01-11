@@ -26,14 +26,14 @@ module MicroMath.Context
 
 import Control.Monad.State (State, execState, modify')
 import Data.Foldable       qualified as Foldable
-import Data.Map.Strict     (Map)
-import Data.Map.Strict     qualified as Map
+import Data.IntMap.Strict     (IntMap)
+import Data.IntMap.Strict     qualified as IntMap
 import Data.Sequence       (Seq, (|>))
 import Data.Sequence       qualified as Seq
 import MicroMath.Expr      (Expr (..), Literal (..))
 import MicroMath.Pat       (Pat (..), rootSymbol)
 import MicroMath.PPrint    (PPrint (..))
-import MicroMath.Symbol    (Symbol)
+import MicroMath.Symbol    (Symbol, symbolIndex)
 
 data Rule
   = PatRule Pat Expr
@@ -84,20 +84,20 @@ modifyRecordUpValues f record = record { upValues = f record.upValues }
 modifyRecordAttributes :: (Attributes -> Attributes) -> SymbolRecord -> SymbolRecord
 modifyRecordAttributes f record = record { attributes = f record.attributes }
 
-newtype Context = MkContext (Map Symbol SymbolRecord)
+newtype Context = MkContext (IntMap SymbolRecord)
   deriving (Show)
 
 emptyContext :: Context
-emptyContext = MkContext Map.empty
+emptyContext = MkContext IntMap.empty
 
 lookupSymbol :: Symbol -> Context -> Maybe SymbolRecord
-lookupSymbol s (MkContext ctx) = Map.lookup s ctx
+lookupSymbol s (MkContext ctx) = IntMap.lookup (symbolIndex s) ctx
 
 -- | Apply the given function to a record, and remove the record from
 -- the map if it is empty.
 modifyRecord' :: Symbol -> (SymbolRecord -> SymbolRecord) -> Context -> Context
 modifyRecord' sym f (MkContext m) = MkContext $
-  Map.alter (checkNotEmpty . changeRecord) sym m
+  IntMap.alter (checkNotEmpty . changeRecord) (symbolIndex sym) m
   where
     changeRecord = f . maybe emptySymbolRecord id
     checkNotEmpty (MkSymbolRecord Nothing Seq.Empty Seq.Empty EmptyAttributes) = Nothing
@@ -154,9 +154,9 @@ clear sym = modifyRecord sym $
 
 clearAll :: Symbol -> ContextM ()
 clearAll sym = modify' $ \(MkContext m) ->
-  MkContext (Map.delete sym m)
+  MkContext (IntMap.delete (symbolIndex sym) m)
 
 allRules :: Context -> [Rule]
 allRules (MkContext ctx) = do
-  record <- Map.elems ctx
+  record <- IntMap.elems ctx
   Foldable.toList (record.downValues <> record.upValues)
