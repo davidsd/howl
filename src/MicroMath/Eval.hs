@@ -17,12 +17,13 @@ import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
 import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence       qualified as Seq
-import Data.Set            qualified as Set
-import MicroMath.Context   (Attribute (..), Context (..), Rule (..),
+import MicroMath.Context   (Attributes (..), Context (..), Rule (..),
                             SymbolRecord (..), allRules, lookupAttributes,
                             lookupSymbol)
-import MicroMath.Expr      (Expr (..), Literal (..), Symbol, flattenSequences,
+import MicroMath.Expr      (Expr (..), Literal (..), flattenSequences,
                             flattenWithHead, mapSymbols)
+import MicroMath.Expr qualified as Expr
+import MicroMath.Symbol (Symbol)
 import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
 import MicroMath.Util      (splits, splits1, subSequences)
 
@@ -41,7 +42,7 @@ data AppType
 
 symbolAppType :: Context -> Symbol -> AppType
 symbolAppType ctx s =
-  case (Set.member Flat attr, Set.member Orderless attr) of
+  case (attr.flat, attr.orderless) of
     (False, False) -> AppFree
     (True,  False) -> AppA s Nothing
     (False, True ) -> AppC
@@ -99,7 +100,7 @@ bindVars :: [Symbol] -> Expr -> [Substitution]
 bindVars xs t = [MkSubstitution x t | x <- xs]
 
 bindSeqVars :: [Symbol] -> Seq Expr -> [Substitution]
-bindSeqVars xs ts = [MkSubstitution x (ExprApp "Sequence" ts) | x <- xs]
+bindSeqVars xs ts = [MkSubstitution x (ExprApp Expr.Sequence ts) | x <- xs]
 
 guardSeqTy :: Alternative f => SeqType -> Seq a -> f ()
 guardSeqTy OneOrMore Empty = empty
@@ -308,7 +309,7 @@ transformMatch ctx eq = case eq of
   _ -> []
 
 checkTrue :: Context -> Expr -> Bool
-checkTrue ctx expr = eval ctx expr == "True"
+checkTrue ctx expr = eval ctx expr == Expr.True
 
 solveMatch :: Context -> MatchingEq -> [SubstitutionSet]
 solveMatch ctx initialMatchEq = go [initialMatchEq] emptySubstitutionSet
@@ -378,10 +379,10 @@ eval ctx expr = case expr of
         ExprAtom (LitSymbol s) ->
           let
             attr = lookupAttributes s ctx
-            maybeFlatten = if Set.member Flat attr      then flattenWithHead h' else id
-            maybeSort    = if Set.member Orderless attr then Seq.unstableSort   else id
+            maybeFlatten = if attr.flat      then flattenWithHead h' else id
+            maybeSort    = if attr.orderless then Seq.unstableSort   else id
           in
-            maybeSort (maybeFlatten cs')
+            maybeSort . maybeFlatten $ cs'
         _ -> cs'
 
       expr' = ExprApp h' cs''

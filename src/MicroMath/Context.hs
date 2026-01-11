@@ -6,68 +6,82 @@
 module MicroMath.Context
   ( Rule(..)
   , Context(..)
-  , Attribute(..)
+  , Attributes(..)
+  , emptyAttributes
   , SymbolRecord(..)
   , ContextM
   , emptyContext
   , createContext
-  , allRules
-  , lookupAttributes
   , lookupSymbol
-  , setAttributes
+  , lookupAttributes
+  , allRules
   , addDownValue
   , addUpValue
   , addPatRule
+  , modifyAttributes
+  , setAttributes
   , clear
   , clearAll
   ) where
 
 import Control.Monad.State (State, execState, modify')
+import Data.Foldable       qualified as Foldable
 import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
-import Data.Set            (Set)
-import Data.Set            qualified as Set
-import MicroMath.Expr      (Expr (..), Literal (..), Symbol)
+import Data.Sequence       (Seq, (|>))
+import Data.Sequence       qualified as Seq
+import MicroMath.Expr      (Expr (..), Literal (..))
 import MicroMath.Pat       (Pat (..), rootSymbol)
+import MicroMath.PPrint    (PPrint (..))
+import MicroMath.Symbol    (Symbol)
 
 data Rule
   = PatRule Pat Expr
   | BuiltinRule (Expr -> Maybe Expr)
 
 instance Show Rule where
-  show (PatRule p expr) = show p ++ " := " ++ show expr
-  show (BuiltinRule _) = "<BuiltinRule>"
+  show (PatRule p expr) = pPrint p ++ " := " ++ pPrint expr
+  show (BuiltinRule _)  = "<BuiltinRule>"
+
+instance PPrint Rule where
+  pPrint = show
 
 -- | TODO: Add Protected, NumericFunction, OneIdentity
-data Attribute
-  = Flat
-  | Orderless
-  deriving (Eq, Ord, Show)
+data Attributes = MkAttributes
+  { flat      :: !Bool
+  , orderless :: !Bool
+  } deriving (Eq, Ord, Show)
+
+pattern EmptyAttributes :: Attributes
+pattern EmptyAttributes = MkAttributes False False
+
+emptyAttributes :: Attributes
+emptyAttributes = EmptyAttributes
 
 data SymbolRecord = MkSymbolRecord
-  { ownValue   :: Maybe Expr
-  , downValues :: [Rule] -- ^ A rule that matches expressions where
-                         -- the given symbol is the head
-  , upValues   :: [Rule] -- ^ A rule that matches expressions where
-                         -- the given symbol is 1 level below the
-                         -- head. (TODO: More cases?)
-  , attributes :: Set Attribute
+  { ownValue   :: !(Maybe Expr)
+  , downValues :: !(Seq Rule) -- ^ A rule that matches expressions where
+                              -- the given symbol is the head
+  , upValues   :: !(Seq Rule) -- ^ A rule that matches expressions where
+                              -- the given symbol is 1 level below the
+                              -- head. (TODO: More cases?)
+  , attributes :: !Attributes
   }
   deriving (Show)
 
 emptySymbolRecord :: SymbolRecord
-emptySymbolRecord = MkSymbolRecord Nothing [] [] Set.empty
+emptySymbolRecord = MkSymbolRecord Nothing Seq.empty Seq.empty EmptyAttributes
 
 modifyRecordOwnValue :: (Maybe Expr -> Maybe Expr) -> SymbolRecord -> SymbolRecord
 modifyRecordOwnValue f record = record { ownValue = f record.ownValue }
 
-modifyRecordDownValues :: ([Rule] -> [Rule]) -> SymbolRecord -> SymbolRecord
+modifyRecordDownValues :: (Seq Rule -> Seq Rule) -> SymbolRecord -> SymbolRecord
 modifyRecordDownValues f record = record { downValues = f record.downValues }
 
-modifyRecordUpValues :: ([Rule] -> [Rule]) -> SymbolRecord -> SymbolRecord
+modifyRecordUpValues :: (Seq Rule -> Seq Rule) -> SymbolRecord -> SymbolRecord
 modifyRecordUpValues f record = record { upValues = f record.upValues }
 
-modifyRecordAttributes :: (Set Attribute -> Set Attribute) -> SymbolRecord -> SymbolRecord
+modifyRecordAttributes :: (Attributes -> Attributes) -> SymbolRecord -> SymbolRecord
 modifyRecordAttributes f record = record { attributes = f record.attributes }
 
 newtype Context = MkContext (Map Symbol SymbolRecord)
@@ -86,8 +100,7 @@ modifyRecord' sym f (MkContext m) = MkContext $
   Map.alter (checkNotEmpty . changeRecord) sym m
   where
     changeRecord = f . maybe emptySymbolRecord id
-    checkNotEmpty (MkSymbolRecord Nothing [] [] s)
-      | Set.null s = Nothing
+    checkNotEmpty (MkSymbolRecord Nothing Seq.Empty Seq.Empty EmptyAttributes) = Nothing
     checkNotEmpty r = Just r
 
 -- | A monad for stringing together modifications to Context
@@ -102,26 +115,23 @@ modifyRecord sym f = modify' (modifyRecord' sym f)
 lookupSymbolDefault :: Symbol -> Context -> SymbolRecord
 lookupSymbolDefault sym = maybe emptySymbolRecord id . lookupSymbol sym
 
-lookupAttributes :: Symbol -> Context -> Set Attribute
+lookupAttributes :: Symbol -> Context -> Attributes
 lookupAttributes sym ctx = (lookupSymbolDefault sym ctx).attributes
 
 modifyOwnValue :: Symbol -> (Maybe Expr -> Maybe Expr) -> ContextM ()
 modifyOwnValue sym f = modifyRecord sym (modifyRecordOwnValue f)
 
-modifyDownValues :: Symbol -> ([Rule] -> [Rule]) -> ContextM ()
+modifyDownValues :: Symbol -> (Seq Rule -> Seq Rule) -> ContextM ()
 modifyDownValues sym f = modifyRecord sym (modifyRecordDownValues f)
 
-modifyUpValues :: Symbol -> ([Rule] -> [Rule]) -> ContextM ()
+modifyUpValues :: Symbol -> (Seq Rule -> Seq Rule) -> ContextM ()
 modifyUpValues sym f = modifyRecord sym (modifyRecordUpValues f)
 
-modifyAttributes :: Symbol -> (Set Attribute -> Set Attribute) -> ContextM ()
-modifyAttributes sym f = modifyRecord sym (modifyRecordAttributes f)
-
 addDownValue :: Symbol -> Rule -> ContextM ()
-addDownValue sym rule = modifyDownValues sym (++ [rule])
+addDownValue sym rule = modifyDownValues sym (|> rule)
 
 addUpValue :: Symbol -> Rule -> ContextM ()
-addUpValue sym rule = modifyUpValues sym (++ [rule])
+addUpValue sym rule = modifyUpValues sym (|> rule)
 
 addPatRule :: Pat -> Expr -> ContextM ()
 addPatRule pat expr
@@ -130,14 +140,17 @@ addPatRule pat expr
   | Just sym <- rootSymbol pat = addDownValue sym (PatRule pat expr)
   | otherwise = error "Pattern has no root symbol"
 
-setAttributes :: Symbol -> [Attribute] -> ContextM ()
-setAttributes sym attrs = modifyAttributes sym (const (Set.fromList attrs))
+modifyAttributes :: Symbol -> (Attributes -> Attributes) -> ContextM ()
+modifyAttributes sym f = modifyRecord sym (modifyRecordAttributes f)
+
+setAttributes :: Symbol -> Attributes -> ContextM ()
+setAttributes sym attrs = modifyAttributes sym (const attrs)
 
 clear :: Symbol -> ContextM ()
 clear sym = modifyRecord sym $
   modifyRecordOwnValue (const Nothing) .
-  modifyRecordDownValues (const []) .
-  modifyRecordUpValues (const [])
+  modifyRecordDownValues (const Seq.empty) .
+  modifyRecordUpValues (const Seq.empty)
 
 clearAll :: Symbol -> ContextM ()
 clearAll sym = modify' $ \(MkContext m) ->
@@ -146,4 +159,4 @@ clearAll sym = modify' $ \(MkContext m) ->
 allRules :: Context -> [Rule]
 allRules (MkContext ctx) = do
   record <- Map.elems ctx
-  record.downValues <> record.upValues
+  Foldable.toList (record.downValues <> record.upValues)

@@ -1,37 +1,43 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms   #-}
 
 module MicroMath.Test where
 
-import Data.Sequence (pattern Empty, pattern (:<|))
-import Data.Map.Strict    qualified as Map
+import Data.Sequence (pattern (:<|), pattern Empty)
+import Data.Text     (Text)
+import Data.Text     qualified as Text
 import MicroMath
-import MicroMath.HsSyntax
 
-myExpr :: Expr
-myExpr = "a"![12, "c", "d"![fromRational $ 17/2]]
+builtinPlusRule :: Rule
+builtinPlusRule = BuiltinRule $ \case
+  Plus :@ (ExprInteger i :<| ExprInteger j :<| Empty) -> Just (ExprInteger (i+j))
+  _ -> Nothing
 
-myPat :: Pat
-myPat = "y".:(v"x" ! [v"", "A".:"A1".:__, "B".:___])
+builtinTimesRule :: Rule
+builtinTimesRule = BuiltinRule $ \case
+  Times :@ (ExprInteger i :<| ExprInteger j :<| Empty) -> Just (ExprInteger (i*j))
+  _ -> Nothing
 
-myRHS :: Expr
-myRHS = "y"!["A", "foo", "B"]
+parseDeclarations :: Text -> [(Pat, Expr)]
+parseDeclarations programText =
+  maybe (error "Couldn't parse declarations") id $ do
+  exprs <- parseProgramText programText
+  mapM setDelayedFromExpr exprs
 
-mySubstSet :: SubstitutionSet
-mySubstSet = MkSubstitutionSet $
-  Map.insert "c" ("Sequence"!["e", "f"]) Map.empty
-
-myRule2 :: Rule
-myRule2 = BuiltinRule f
-  where
-    f expr = case expr of
-      (ExprApp "Plus"
-        (ExprAtom (LitInteger i) :<| ExprAtom (LitInteger j) :<| Empty)) -> Just (ExprAtom (LitInteger (i+j)))
-      _ -> Nothing
+myDecls :: [(Pat, Expr)]
+myDecls = parseDeclarations $ Text.unlines
+  [ "square[x_] := x*x;"
+  , "fib[0] := 0;"
+  , "fib[1] := 1;"
+  , "fib[n_] := fib[n-1] + fib[n-2];"
+  , "main := fib[10];"
+  ]
 
 myContext :: Context
 myContext = createContext $ do
-  setAttributes "Plus" [Flat, Orderless]
-  setAttributes "Times" [Flat, Orderless]
-  addDownValue "Plus" myRule2
-  "f"![v"x"] .= "x" + 12
+  setAttributes "Plus"  $ emptyAttributes { flat = True, orderless = True }
+  setAttributes "Times" $ emptyAttributes { flat = True, orderless = True }
+  addDownValue "Plus"  builtinPlusRule
+  addDownValue "Times" builtinTimesRule
+  mapM_ (uncurry addPatRule) myDecls

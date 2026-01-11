@@ -19,7 +19,8 @@ module MicroMath.HsSyntax where
 
 import Data.Sequence qualified as Seq
 import MicroMath     (ContextM, Expr (..), Pat (..), Rule (..), SeqType (..),
-                      Symbol (..), addNames, addPatRule)
+                      addNames, addPatRule, Symbol)
+       
 
 class HasApp a where
   (!) :: a -> [a] -> a

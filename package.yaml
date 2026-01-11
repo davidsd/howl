@@ -20,6 +20,12 @@ dependencies:
 - megaparsec
 - scientific
 - parser-combinators
+- deepseq
+- hashable
+- primitive
+- text-short
+- hashtables
+- template-haskell
 
 ghc-options:
 - -Wall
