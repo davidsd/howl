@@ -9,7 +9,6 @@ import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Char                      (isAlphaNum)
 import Data.List                      (sortOn)
 import Data.Ord                       (Down (..))
-import Data.Scientific                (Scientific)
 import Data.Sequence                  (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence                  qualified as Seq
 import Data.Set                       qualified as Set
@@ -37,7 +36,7 @@ import Text.Megaparsec.Char.Lexer     qualified as Lex
 data Tok
   = TIdent  Symbol
   | TInt    Integer
-  | TReal   Scientific
+  | TReal   Double -- TODO: Multiprecision
   | TPatVar (Maybe Symbol) BlankType (Maybe Symbol)
   | TSlot   (Maybe Integer) SlotType
   | TString Text
@@ -173,10 +172,10 @@ parseNumber = lexeme $ try parseIntTok <|> try parseRealTok
   where
     parseIntTok = do
       n <- Lex.decimal
-      notFollowedBy (char '.' <|> char '`' <|> char '*' <|> char 'e' <|> char 'E')
+      notFollowedBy (char '.' <|> char '`' <|> char 'e')
       pure (TInt n)
     parseRealTok = do
-      x <- Lex.scientific
+      x <- Lex.float
       pure (TReal x)
 
 -- This is only a starter ident lexer.
@@ -399,7 +398,8 @@ opTable =
 -- TODO: Some of these should be builtin rules...
 normalize :: Expr -> Expr
 normalize expr = case expr of
-  ExprAtom _ -> expr
+  ExprLit _ -> expr
+  ExprSymbol _ -> expr
   h :@ (Sequence :@ args :<| Empty) ->
     normalize $ h :@ args
   Subtract :@ (e1 :<| e2 :<| Empty) ->

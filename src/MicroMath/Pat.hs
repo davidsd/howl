@@ -47,12 +47,13 @@ Default - predefined default arguments for a function
 -- of the pattern match. We need a list because we can have something
 -- like x:(y:(z:_)). If the list is empty, the pattern is unnamed.
 data Pat
-  = PatAtom ![Symbol] !Literal
+  = PatSymbol    ![Symbol] {-# UNPACK #-} !Symbol
+  | PatLit       ![Symbol] !Literal
     -- | The second argument is an optional head constraint.
-  | PatVar ![Symbol] !(Maybe Symbol)
-  | PatSeqVar ![Symbol] !SeqType
-  | PatApp ![Symbol] !Pat !(Seq Pat)
-  | PatAlt ![Symbol] !Pat !Pat
+  | PatVar       ![Symbol] !(Maybe Symbol)
+  | PatSeqVar    ![Symbol] !SeqType
+  | PatApp       ![Symbol] !Pat !(Seq Pat)
+  | PatAlt       ![Symbol] !Pat !Pat
   | PatCondition ![Symbol] !Pat !Expr
   deriving (Eq, Ord, Show)
 
@@ -60,11 +61,12 @@ data SeqType = ZeroOrMore | OneOrMore
   deriving (Eq, Ord, Show)
 
 instance IsString Pat where
-  fromString = PatAtom [] . fromString
+  fromString = PatSymbol [] . fromString
 
 mapNames :: ([Symbol] -> [Symbol]) -> Pat -> Pat
 mapNames f = \case
-  PatAtom      names l      -> PatAtom      (f names) l
+  PatSymbol    names l      -> PatSymbol    (f names) l
+  PatLit       names l      -> PatLit       (f names) l
   PatVar       names h      -> PatVar       (f names) h
   PatSeqVar    names ty     -> PatSeqVar    (f names) ty
   PatApp       names h cs   -> PatApp       (f names) h cs
@@ -87,7 +89,8 @@ pPrintNamed (x:xs) s = concat
   ]
 
 instance PPrint Pat where
-  pPrint (PatAtom names l) = pPrintNamed names (pPrint l)
+  pPrint (PatSymbol names l) = pPrintNamed names (pPrint l)
+  pPrint (PatLit    names l) = pPrintNamed names (pPrint l)
   pPrint (PatVar names h) =
     let blankStr = "_" <> maybe "" pPrint h
     in case names of
@@ -119,24 +122,25 @@ instance PPrint Pat where
 -- automatically deducing which symbol to associate a rule to.
 rootSymbol :: Pat -> Maybe Symbol
 rootSymbol = \case
-  PatAtom _ (LitSymbol s) -> Just s
-  PatApp _ h _            -> rootSymbol h
-  PatCondition _ p _      -> rootSymbol p
-  _ -> Nothing
+  PatSymbol _ s      -> Just s
+  PatApp _ h _       -> rootSymbol h
+  PatCondition _ p _ -> rootSymbol p
+  _                  -> Nothing
 
 patFromExpr :: Expr -> Pat
 patFromExpr expr = case expr of
-  ExprApp Pattern (ExprAtom (LitSymbol x) :<| expr' :<| Empty) ->
+  ExprApp Pattern (ExprSymbol x :<| expr' :<| Empty) ->
     addName x $ patFromExpr expr'
-  ExprApp Blank Empty -> PatVar [] Nothing
-  ExprApp Blank (ExprAtom (LitSymbol h) :<| Empty) -> PatVar [] (Just h)
-  ExprApp BlankSequence Empty -> PatSeqVar [] OneOrMore
-  ExprApp BlankNullSequence Empty -> PatSeqVar [] ZeroOrMore
+  ExprApp Blank Empty                    -> PatVar [] Nothing
+  ExprApp Blank (ExprSymbol h :<| Empty) -> PatVar [] (Just h)
+  ExprApp BlankSequence Empty            -> PatSeqVar [] OneOrMore
+  ExprApp BlankNullSequence Empty        -> PatSeqVar [] ZeroOrMore
   ExprApp Alternatives pExprs@(_ :<| _) ->
     foldr1 (PatAlt []) $ fmap patFromExpr pExprs
   ExprApp Test (pExpr :<| cond :<| Empty) -> PatCondition [] (patFromExpr pExpr) cond
-  ExprAtom lit -> PatAtom [] lit
-  ExprApp h cs -> PatApp [] (patFromExpr h) (fmap patFromExpr cs)
+  ExprLit lit    -> PatLit [] lit
+  ExprSymbol sym -> PatSymbol [] sym
+  ExprApp h cs   -> PatApp [] (patFromExpr h) (fmap patFromExpr cs)
 
 setDelayedFromExpr :: Expr -> Maybe (Pat, Expr)
 setDelayedFromExpr expr = case expr of

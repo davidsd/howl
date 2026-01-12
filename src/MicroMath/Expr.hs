@@ -5,29 +5,25 @@
 
 module MicroMath.Expr where
 
+import Prelude qualified as Prelude
 import Data.Foldable     qualified as Foldable
 import Data.List         (intercalate)
 import Data.Ratio        (denominator, numerator)
-import Data.Scientific   (Scientific)
 import Data.Sequence     (Seq, pattern Empty, pattern (:<|))
 import Data.Sequence     qualified as Seq
 import Data.String       (IsString (..))
 import Data.Text         (Text)
 import MicroMath.Expr.TH (declareBuiltins)
 import MicroMath.PPrint  (PPrint (..))
-import MicroMath.Symbol  (Symbol, mkSymbol)
+import MicroMath.Symbol  (Symbol(..), mkSymbol)
 import Prelude           hiding (False, True)
 
 data Literal
   = LitInteger !Integer
   | LitRational !Rational
-  | LitReal !Scientific
+  | LitReal !Double -- TODO: Multiprecision
   | LitString !Text
-  | LitSymbol !Symbol
   deriving (Eq, Ord, Show)
-
-instance IsString Literal where
-  fromString = LitSymbol . fromString
 
 showRational :: Rational -> String
 showRational r =
@@ -41,37 +37,52 @@ instance PPrint Literal where
   pPrint (LitRational r) = showRational r
   pPrint (LitReal x)     = show x
   pPrint (LitString s)   = show s
-  pPrint (LitSymbol s)   = pPrint s
 
 data Expr
-  = ExprAtom !Literal
+  = ExprSymbol {-# UNPACK #-} !Symbol
+  | ExprLit !Literal
   | ExprApp !Expr !(Seq Expr)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
 
 pattern (:@) :: Expr -> Seq Expr -> Expr
 pattern h :@ cs = ExprApp h cs
 infixl 9 :@
 
+data Numeric
+  = NInteger  !Integer
+  | NRational !Rational
+  | NReal     !Double
+
+numericView :: Expr -> Maybe Numeric
+numericView (ExprLit (LitInteger n))  = Just (NInteger n)
+numericView (ExprLit (LitRational q)) = Just (NRational q)
+numericView (ExprLit (LitReal x))     = Just (NReal x)
+numericView _                          = Nothing
+
+pattern ExprNumeric :: Numeric -> Expr
+pattern ExprNumeric n <- (numericView -> Just n)
+  where
+    ExprNumeric (NInteger n)  = ExprInteger n
+    ExprNumeric (NRational q) = ExprRational q
+    ExprNumeric (NReal x)     = ExprReal x
+  
 pattern ExprInteger :: Integer -> Expr
-pattern ExprInteger n = ExprAtom (LitInteger n)
+pattern ExprInteger n = ExprLit (LitInteger n)
 
 pattern ExprRational :: Rational -> Expr
-pattern ExprRational q = ExprAtom (LitRational q)
+pattern ExprRational q = ExprLit (LitRational q)
 
-pattern ExprReal :: Scientific -> Expr
-pattern ExprReal x = ExprAtom (LitReal x)
+pattern ExprReal :: Double -> Expr
+pattern ExprReal x = ExprLit (LitReal x)
 
 pattern ExprString :: Text -> Expr
-pattern ExprString s = ExprAtom (LitString s)
-
-pattern ExprSymbol :: Symbol -> Expr
-pattern ExprSymbol s = ExprAtom (LitSymbol s)
+pattern ExprString s = ExprLit (LitString s)
   
-{-# COMPLETE ExprAtom, (:@) #-}
+{-# COMPLETE ExprSymbol, ExprLit, (:@) #-}
 {-# COMPLETE ExprInteger, ExprRational, ExprReal, ExprString, ExprSymbol, (:@) #-}
 
 instance IsString Expr where
-  fromString = ExprAtom . fromString
+  fromString = ExprSymbol . fromString
 
 unary :: Expr -> Expr -> Expr
 unary e x = ExprApp e (Seq.singleton x)
@@ -80,7 +91,7 @@ binary :: Expr -> Expr -> Expr -> Expr
 binary e x y = ExprApp e (Seq.fromList [x,y])
 
 mkSymbolAtom :: Text -> Expr
-mkSymbolAtom = ExprAtom . LitSymbol . mkSymbol
+mkSymbolAtom = ExprSymbol . mkSymbol
 
 -- | declareBuiltins creates bidirectional pattern synonyms Sequence,
 -- List, etc. The main advantage of these over using the IsString
@@ -146,6 +157,7 @@ $(declareBuiltins ''Expr 'mkSymbolAtom
    , "SetDelayed"
    , "UpSet"
    , "UpSetDelayed"
+   , "Not"
    ])
    
 instance Num Expr where
@@ -154,11 +166,14 @@ instance Num Expr where
   negate x = binary Times (fromInteger (-1)) x
   abs = unary Abs
   signum = unary Sign
-  fromInteger = ExprAtom . LitInteger
+  fromInteger = ExprLit . LitInteger
 
 instance Fractional Expr where
   recip x = binary Power x (fromInteger (-1))
-  fromRational = ExprAtom . LitRational
+  fromRational r = ExprLit $
+    if denominator r == 1
+    then LitInteger (numerator r)
+    else LitRational r
 
 instance Floating Expr where
   pi = Pi
@@ -180,8 +195,26 @@ instance Floating Expr where
   acosh = unary ArcCosh
   atanh = unary ArcTanh
 
+fromReal :: Double -> Expr
+fromReal = ExprReal
+
+fromBool :: Bool -> Expr
+fromBool Prelude.True = True
+fromBool Prelude.False = False
+
+boolView :: Expr -> Maybe Bool
+boolView True = Just Prelude.True
+boolView False = Just Prelude.False
+boolView _                          = Nothing
+
+pattern ExprBool :: Bool -> Expr
+pattern ExprBool b <- (boolView -> Just b)
+  where
+    ExprBool b = fromBool b
+
 instance PPrint Expr where
-  pPrint (ExprAtom l) = pPrint l
+  pPrint (ExprSymbol s) = pPrint s
+  pPrint (ExprLit l) = pPrint l
   pPrint (ExprApp f args) =
     mconcat
     [ pPrint f
@@ -190,12 +223,15 @@ instance PPrint Expr where
     , "]"
     ]
 
+instance Show Expr where
+  show = pPrint
+
 -- | Map a function over the symbols present in an expression
 mapSymbols :: (Symbol -> Expr) -> Expr -> Expr
 mapSymbols f expr = case expr of
-  ExprAtom (LitSymbol s) -> f s
-  ExprAtom _             -> expr
-  ExprApp h cs           -> ExprApp (mapSymbols f h) (fmap (mapSymbols f) cs)
+  ExprSymbol s -> f s
+  ExprLit _    -> expr
+  ExprApp h cs -> ExprApp (mapSymbols f h) (fmap (mapSymbols f) cs)
 
 -- | Flatten applications of h in the given list of expressions,
 -- working recursively until a different head is encountered. Example:

@@ -33,9 +33,9 @@ library
       MicroMath.Parser
       MicroMath.Pat
       MicroMath.PPrint
+      MicroMath.StdLib
       MicroMath.Symbol
       MicroMath.Symbol.Table
-      MicroMath.Test
       MicroMath.Util
   other-modules:
       Paths_micromath

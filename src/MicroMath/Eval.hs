@@ -11,6 +11,7 @@ module MicroMath.Eval
   , eval
   ) where
 
+import Debug.Trace qualified as Debug
 import Control.Applicative (Alternative, empty)
 import Control.Monad       (foldM, guard)
 import Data.Map.Strict     (Map)
@@ -51,8 +52,8 @@ symbolAppType ctx s =
     attr = lookupAttributes s ctx
 
 exprAppType :: Context -> Expr -> AppType
-exprAppType ctx (ExprAtom (LitSymbol s)) = symbolAppType ctx s
-exprAppType _   _                        = AppFree
+exprAppType ctx (ExprSymbol s) = symbolAppType ctx s
+exprAppType _   _              = AppFree
 
 data Substitution = MkSubstitution Symbol Expr
   deriving (Eq, Ord, Show)
@@ -93,7 +94,7 @@ lookupBinding s (MkSubstitutionSet m) = Map.lookup s m
 applySubstitutions :: SubstitutionSet -> Expr -> Expr
 applySubstitutions substSet = mapSymbols $ \s ->
   case lookupBinding s substSet of
-    Nothing -> ExprAtom (LitSymbol s)
+    Nothing -> ExprSymbol s
     Just b  -> b
 
 bindVars :: [Symbol] -> Expr -> [Substitution]
@@ -123,27 +124,32 @@ data MatchStep
 checkHead :: Maybe Symbol -> Expr -> a -> [a]
 checkHead h expr x = if matchesHead h expr then [x] else []
   where
-    matchesHead Nothing _                                      = True
-    matchesHead (Just s) (ExprApp (ExprAtom (LitSymbol s')) _) = s == s'
-    matchesHead (Just "Integer")  (ExprAtom (LitInteger _))    = True
-    matchesHead (Just "Rational") (ExprAtom (LitRational _))   = True
-    matchesHead (Just "String")   (ExprAtom (LitString _))     = True
-    matchesHead (Just "Symbol")   (ExprAtom (LitSymbol _))     = True
-    matchesHead _ _                                            = False
+    matchesHead Nothing _                                   = True
+    matchesHead (Just s) (ExprApp (ExprSymbol s') _)        = s == s'
+    matchesHead (Just "Symbol")   (ExprSymbol _)            = True
+    matchesHead (Just "Integer")  (ExprLit (LitInteger _))  = True
+    matchesHead (Just "Rational") (ExprLit (LitRational _)) = True
+    matchesHead (Just "String")   (ExprLit (LitString _))   = True
+    matchesHead _ _                                         = False
 
 transformMatch :: Context -> MatchingEq -> [MatchStep]
 transformMatch ctx eq = case eq of
 
   -- | T: Trivial
-  SingleEq (PatAtom xs s) expr@(ExprAtom s')
+  SingleEq (PatLit xs s) expr@(ExprLit s')
+    | s == s' -> [MatchBranch (bindVars xs expr) []]
+    | otherwise -> []
+
+  SingleEq (PatSymbol xs s) expr@(ExprSymbol s')
     | s == s' -> [MatchBranch (bindVars xs expr) []]
     | otherwise -> []
 
   -- | IVE: Individual variable elimination
   SingleEq (PatVar x xHead) t -> checkHead xHead t (MatchBranch (bindVars x t) [])
 
-  -- | A symbol cannot match with an ExprApp
-  SingleEq (PatAtom _ _) (ExprApp _ _) -> []
+  -- | A symbol or literal cannot match with an ExprApp
+  SingleEq (PatSymbol _ _) (ExprApp _ _) -> []
+  SingleEq (PatLit _ _)    (ExprApp _ _) -> []
 
   -- | A PatAlt has two branches corresponding to the two
   -- patterns. NB: This only makes sense if the same free pattern
@@ -246,7 +252,7 @@ transformMatch ctx eq = case eq of
           (ts1@(_:<|_), ts2) <- splits ts
           guard $ not $ marking == Just Mark0 && length ts1 <= 1
           let
-            xExpr = ExprApp (ExprAtom (LitSymbol f)) ts1
+            xExpr = ExprApp (ExprSymbol f) ts1
             newMarking = case marking of
               Nothing | length ts1 <= 1 -> Just Mark1
               _                         -> marking
@@ -294,7 +300,7 @@ transformMatch ctx eq = case eq of
           (subSeq@(_:<|_), rest) <- subSequences ts
           guard $ not $ marking == Just Mark0 && length subSeq <= 1
           let
-            xExpr = ExprApp (ExprAtom (LitSymbol f)) subSeq
+            xExpr = ExprApp (ExprSymbol f) subSeq
             newMarking = case marking of
               Nothing | length subSeq <= 1 -> Just Mark1
               _                            -> marking
@@ -350,18 +356,19 @@ tryApplyRule ctx rule expr = case rule of
   PatRule pat rhs -> case solveMatch ctx (SingleEq pat expr) of
     []             -> Nothing
     (substSet : _) -> Just (applySubstitutions substSet rhs)
-  BuiltinRule f -> f expr
+  BuiltinRule f -> f ctx expr
 
 eval :: Context -> Expr -> Expr
 eval ctx expr = case expr of
-  ExprAtom (LitSymbol s)
+  ExprSymbol s
     | Just record <- lookupSymbol s ctx
     , Just v      <- record.ownValue
       -- See [Note: Avoiding an infinite loop]
       -> if v == expr
          then v
          else eval ctx v
-  ExprAtom _ -> expr
+    | otherwise -> expr
+  ExprLit _ -> expr
   ExprApp h cs ->
     let
       -- Evaluate the head and children, and flatten any sequences
@@ -376,7 +383,7 @@ eval ctx expr = case expr of
       -- children. If h' is a symbol with attribute Orderless, then
       -- subsequently sort the children.
       cs'' = case h' of
-        ExprAtom (LitSymbol s) ->
+        ExprSymbol s ->
           let
             attr = lookupAttributes s ctx
             maybeFlatten = if attr.flat      then flattenWithHead h' else id
@@ -393,7 +400,7 @@ eval ctx expr = case expr of
         -- identical expression. If it does, we'd get an infinite loop
         -- if we evaluated again.
         result@(Just transformedExpr)
-          | transformedExpr /= expr' -> result
+          | transformedExpr /= expr' -> Debug.traceShow (expr', transformedExpr) result
         _ -> tryRules rules
     in
       -- Conceptually, we want to check each rule in the context to

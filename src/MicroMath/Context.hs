@@ -5,6 +5,7 @@
 
 module MicroMath.Context
   ( Rule(..)
+  , functionRule
   , Context(..)
   , Attributes(..)
   , emptyAttributes
@@ -26,22 +27,25 @@ module MicroMath.Context
 
 import Control.Monad.State (State, execState, modify')
 import Data.Foldable       qualified as Foldable
-import Data.IntMap.Strict     (IntMap)
-import Data.IntMap.Strict     qualified as IntMap
+import Data.IntMap.Strict  (IntMap)
+import Data.IntMap.Strict  qualified as IntMap
 import Data.Sequence       (Seq, (|>))
 import Data.Sequence       qualified as Seq
-import MicroMath.Expr      (Expr (..), Literal (..))
+import MicroMath.Expr      (Expr (..))
 import MicroMath.Pat       (Pat (..), rootSymbol)
 import MicroMath.PPrint    (PPrint (..))
 import MicroMath.Symbol    (Symbol, symbolIndex)
 
 data Rule
   = PatRule Pat Expr
-  | BuiltinRule (Expr -> Maybe Expr)
+  | BuiltinRule (Context -> Expr -> Maybe Expr)
 
 instance Show Rule where
   show (PatRule p expr) = pPrint p ++ " := " ++ pPrint expr
   show (BuiltinRule _)  = "<BuiltinRule>"
+
+functionRule :: (Expr -> Maybe Expr) -> Rule
+functionRule f = BuiltinRule (const f)
 
 instance PPrint Rule where
   pPrint = show
@@ -135,7 +139,7 @@ addUpValue sym rule = modifyUpValues sym (|> rule)
 
 addPatRule :: Pat -> Expr -> ContextM ()
 addPatRule pat expr
-  | PatAtom _ (LitSymbol sym) <- pat =
+  | PatSymbol _ sym <- pat =
       modifyOwnValue sym (const (Just expr))
   | Just sym <- rootSymbol pat = addDownValue sym (PatRule pat expr)
   | otherwise = error "Pattern has no root symbol"
