@@ -12,6 +12,7 @@ import Data.Ord                       (Down (..))
 import Data.Sequence                  (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence                  qualified as Seq
 import Data.Set                       qualified as Set
+import Data.String                    (IsString (..))
 import Data.Text                      (Text)
 import Data.Text                      qualified as Text
 import Data.Void                      (Void)
@@ -22,7 +23,7 @@ import MicroMath.Expr                 (Expr (..), pattern (:@), pattern And,
                                        pattern Plus, pattern Sequence,
                                        pattern Subtract, pattern Times)
 import MicroMath.Expr                 qualified as Expr
-import MicroMath.Symbol               (Symbol, mkSymbol)
+import Symbolize                      (Symbol)
 import Text.Megaparsec                (Parsec, Stream, Token, anySingle, choice,
                                        empty, eof, many, manyTill,
                                        notFollowedBy, optional, parseMaybe,
@@ -184,7 +185,7 @@ parseSymbol :: TextParser Symbol
 parseSymbol = lexeme $ do
   first <- letterChar <|> char '$'
   rest <- many (satisfy (\c -> isAlphaNum c || c `elem` ("$`" :: String)))
-  pure (mkSymbol (Text.pack (first:rest)))
+  pure (fromString (first:rest))
 
 parseIdent :: TextParser Tok
 parseIdent = TIdent <$> parseSymbol
@@ -348,6 +349,8 @@ opTable =
     ]
   , [ binaryL OpApply           (Expr.binary Expr.Apply)
     ]
+  , [ binaryR OpMap             (Expr.binary Expr.Map)
+    ]
   , [ prefix OpMinus negate
     , prefix OpPlus  id
     ]
@@ -381,6 +384,8 @@ opTable =
     ]
   , [ binaryL OpReplaceAll      (Expr.binary Expr.ReplaceAll)
     , binaryL OpReplaceRepeated (Expr.binary Expr.ReplaceRepeated)
+    ]
+  , [ postfix OpAmpersand       (Expr.unary  Expr.Function)
     ]
   , [ binaryL OpPostfixApply    (\e h -> Expr.unary h e)
     ]

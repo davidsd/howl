@@ -22,12 +22,17 @@ module MicroMath.Context
   , addPatRule
   , modifyAttributes
   , setAttributes
+  , setFlat
+  , setOrderless
+  , setNumericFunction
+  , setHoldType
   , clear
   , clearAll
   ) where
 
 import Control.Monad.State (State, execState, modify')
 import Data.Foldable       qualified as Foldable
+import Data.Hashable       (hash)
 import Data.IntMap.Strict  (IntMap)
 import Data.IntMap.Strict  qualified as IntMap
 import Data.Sequence       (Seq, (|>))
@@ -35,7 +40,7 @@ import Data.Sequence       qualified as Seq
 import MicroMath.Expr      (Expr (..))
 import MicroMath.Pat       (Pat (..), rootSymbol)
 import MicroMath.PPrint    (PPrint (..))
-import MicroMath.Symbol    (Symbol, symbolIndex)
+import Symbolize           (Symbol)
 
 data Rule
   = PatRule Pat Expr
@@ -53,19 +58,32 @@ instance PPrint Rule where
 
 -- | TODO: Add Protected, NumericFunction, OneIdentity
 data Attributes = MkAttributes
-  { flat      :: !Bool
-  , orderless :: !Bool
-  , holdType  :: !(Maybe HoldType)
+  { flat            :: !Bool
+  , orderless       :: !Bool
+  , numericFunction :: !Bool
+  , holdType        :: !(Maybe HoldType)
   } deriving (Eq, Ord, Show)
 
 data HoldType = HoldFirst | HoldRest | HoldAll
   deriving (Eq, Ord, Show)
 
 pattern EmptyAttributes :: Attributes
-pattern EmptyAttributes = MkAttributes False False Nothing
+pattern EmptyAttributes = MkAttributes False False False Nothing
 
 emptyAttributes :: Attributes
 emptyAttributes = EmptyAttributes
+
+setFlat :: Attributes -> Attributes
+setFlat attr = attr { flat = True }
+
+setOrderless :: Attributes -> Attributes
+setOrderless attr = attr { orderless = True }
+
+setNumericFunction :: Attributes -> Attributes
+setNumericFunction attr = attr { numericFunction = True }
+
+setHoldType :: HoldType -> Attributes -> Attributes
+setHoldType ty attr = attr { holdType = Just ty }
 
 data SymbolRecord = MkSymbolRecord
   { ownValue   :: !(Maybe Expr)
@@ -98,6 +116,11 @@ newtype Context = MkContext (IntMap SymbolRecord)
 
 emptyContext :: Context
 emptyContext = MkContext IntMap.empty
+
+-- | The Symbolize library guarantees that hashing is a no-op and
+-- hashes never collide.
+symbolIndex :: Symbol -> Int
+symbolIndex = hash
 
 lookupSymbol :: Symbol -> Context -> Maybe SymbolRecord
 lookupSymbol s (MkContext ctx) = IntMap.lookup (symbolIndex s) ctx

@@ -13,22 +13,22 @@ module MicroMath.Eval
   , eval
   ) where
 
-import Debug.Trace qualified as Debug
 import Control.Applicative (Alternative, empty)
 import Control.Monad       (foldM, guard)
 import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
 import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence       qualified as Seq
-import MicroMath.Context   (Attributes (..), Context (..), Rule (..),
-                            SymbolRecord (..), allRules, lookupAttributes,
-                            lookupSymbol, HoldType(..))
+import Debug.Trace         qualified as Debug
+import MicroMath.Context   (Attributes (..), Context (..), HoldType (..),
+                            Rule (..), SymbolRecord (..), allRules,
+                            lookupAttributes, lookupSymbol)
 import MicroMath.Expr      (Expr (..), Literal (..), flattenSequences,
                             flattenWithHead, mapSymbols)
-import MicroMath.Expr qualified as Expr
-import MicroMath.Symbol (Symbol)
+import MicroMath.Expr      qualified as Expr
 import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
 import MicroMath.Util      (splits, splits1, subSequences)
+import Symbolize           (Symbol)
 
 data Marking
   = Mark0
@@ -131,6 +131,7 @@ checkHead h expr x = if matchesHead h expr then [x] else []
     matchesHead (Just "Symbol")   (ExprSymbol _)            = True
     matchesHead (Just "Integer")  (ExprLit (LitInteger _))  = True
     matchesHead (Just "Rational") (ExprLit (LitRational _)) = True
+    matchesHead (Just "Real")     (ExprLit (LitReal _))     = True
     matchesHead (Just "String")   (ExprLit (LitString _))   = True
     matchesHead _ _                                         = False
 
@@ -409,7 +410,7 @@ eval ctx expr = case expr of
         -- identical expression. If it does, we'd get an infinite loop
         -- if we evaluated again.
         result@(Just transformedExpr)
-          | transformedExpr /= expr' -> Debug.traceShow (expr', transformedExpr) result
+          | transformedExpr /= expr' -> Debug.traceShow (rule, expr', transformedExpr) result
         _ -> tryRules rules
     in
       -- Conceptually, we want to check each rule in the context to

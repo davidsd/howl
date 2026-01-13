@@ -17,8 +17,9 @@ import Data.Text         (Text)
 import Debug.Trace       qualified as Debug
 import MicroMath.Context (Attributes (..), Context (..), ContextM,
                           HoldType (..), Rule (..), addDownValue, addPatRule,
-                          addUpValue, createContext, emptyAttributes,
-                          functionRule, setAttributes)
+                          addUpValue, createContext, functionRule,
+                          lookupAttributes, modifyAttributes, setFlat,
+                          setHoldType, setNumericFunction, setOrderless)
 import MicroMath.Eval    (Substitution (..), SubstitutionSet,
                           applySubstitutions, emptySubstitutionSet,
                           insertSubstitution)
@@ -26,8 +27,8 @@ import MicroMath.Expr    hiding (False, True)
 import MicroMath.Expr    qualified as Expr
 import MicroMath.Parser  (parseExprText)
 import MicroMath.Pat     (Pat, setDelayedFromExpr)
-import MicroMath.Symbol  (Symbol)
 import MicroMath.Util    (pattern Pair, pattern Solo)
+import Symbolize         (Symbol)
 
 withHead :: Expr -> (Seq Expr -> Expr) -> (Expr -> Maybe Expr)
 withHead h f = withHeadMaybe h (Just . f)
@@ -179,7 +180,9 @@ builtinPowerRule = functionRule $ withHeadMaybe Power $ \case
   Pair x y -> Just $ normalizePower x y
   _        -> Nothing
 
--- | TODO: Implement a general predicate
+-- | OrderedQ[h[x1,...,xn]] tests whether the xi's are in the
+-- canonical order defined by the Haskell ordering on expressions
+-- TODO: Implement a general predicate
 orderedQRule :: Rule
 orderedQRule = functionRule $ withHeadMaybe OrderedQ $ \case
   Solo (_ :@ Empty)      -> Just $ Expr.True
@@ -228,9 +231,21 @@ orRule = functionRule $ withHead Or $ \args ->
 -- regardless of whether the symbol x is bound to anything outside the
 -- scope of the Function. In other words, function variables exhibit
 -- shadowing.
+--
+-- Meanwhile Function[body] is an anonymous function, where body
+-- contains some number of Slot[_]'s. We implement it by replacing
+-- Slot[i] inside body with the appropriate argument, but not inside
+-- other anonymous functions. This avoids a situation like this:
+--
+-- Function[Slot[1]*Function[1+Slot[1]]][y] --> y*Function[1+y] (BAD)
+--
+-- Instead, we should have:
+--
+-- Function[Slot[1]*Function[1+Slot[1]]][y] -> y*Function[1+Slot[1]]
+--
 lambdaRule :: Rule
 lambdaRule = functionRule $ \case
-  (Function :@ Solo body) :@ _ -> Just body
+  (Function :@ Solo body) :@ args -> Just $ replaceSlots args body
   (Function :@ Pair varsExpr body) :@ args
     | Just vars     <- symbolSeq_maybe varsExpr
     , Just bindings <- bindVars_maybe vars args
@@ -251,6 +266,17 @@ lambdaRule = functionRule $ \case
     toSymbol_maybe :: Expr -> Maybe Symbol
     toSymbol_maybe (ExprSymbol x) = Just x
     toSymbol_maybe _              = Nothing
+
+    replaceSlots :: Seq Expr -> Expr -> Expr
+    replaceSlots vals = go
+      where
+        go (Slot :@ Solo (ExprInteger i))
+          | Just val <- Seq.lookup (fromInteger i - 1) vals = val
+          | otherwise = error $ "Slot[" <> show i <> "] not bound to anything"
+        -- Important: do not replace inside an anonymous function!
+        go expr@(Function :@ Solo _)      = expr
+        go (h :@ args)                    = go h :@ fmap go args
+        go expr                           = expr
 
 -- | We transform Let as follows:
 --
@@ -283,8 +309,13 @@ letRule = functionRule $ withHeadMaybe Let $ \case
 
 mapRule :: Rule
 mapRule = functionRule $ withHeadMaybe Map $ \case
-  Pair f (h :@ xs) -> Just $ h :@ (fmap ((f :@) . Solo) xs)
+  Pair f (h :@ xs) -> Just $ h :@ (fmap (Expr.unary f) xs)
   _                -> Nothing
+
+numericFunctionQRule :: Rule
+numericFunctionQRule = BuiltinRule $ \ctx -> withHead NumericFunctionQ $ \case
+  Solo (ExprSymbol s) -> fromBool (lookupAttributes s ctx).numericFunction
+  _ -> Expr.False
 
 downValues :: [(Symbol, Rule)] -> ContextM ()
 downValues = mapM_ (uncurry addDownValue)
@@ -297,13 +328,19 @@ decls = mapM_ (uncurry addPatRule . parseDecl)
 
 addStdLib :: ContextM ()
 addStdLib = do
-  setAttributes "Function" $ emptyAttributes { holdType = Just HoldAll }
-  setAttributes "Let"      $ emptyAttributes { holdType = Just HoldAll }
-  setAttributes "If"       $ emptyAttributes { holdType = Just HoldRest }
-  setAttributes "Plus"     $ emptyAttributes { flat = True, orderless = True }
-  setAttributes "Times"    $ emptyAttributes { flat = True, orderless = True }
-  setAttributes "And"      $ emptyAttributes { flat = True }
-  setAttributes "Or"       $ emptyAttributes { flat = True }
+  modifyAttributes "Function" (setHoldType HoldAll)
+  modifyAttributes "Let"      (setHoldType HoldAll)
+  modifyAttributes "If"       (setHoldType HoldRest)
+  modifyAttributes "Plus"     (setFlat . setOrderless)
+  modifyAttributes "Times"    (setFlat . setOrderless)
+  modifyAttributes "And"      setFlat
+  modifyAttributes "Or"       setFlat
+  sequence_ $ do
+    numFn <- [ "Power", "Plus", "Times", "Exp", "Log", "Sin", "Cos"
+             , "Tan", "ArcSin", "ArcCos", "ArcTan", "Sinh", "Cosh"
+             , "Tanh", "ArcSinh", "ArcCosh", "ArcTanh"
+             ]
+    pure $ modifyAttributes numFn setNumericFunction
   downValues
     [ ("Function", lambdaRule)
     , ("Let",      letRule)
@@ -315,6 +352,7 @@ addStdLib = do
     , ("OrderedQ", orderedQRule)
     , ("And",      andRule)
     , ("Or",       orRule)
+    , ("NumericFunctionQ", numericFunctionQRule)
     ]
   decls
     [ "Apply[h_,hp_[xs___]] := h[xs]"
@@ -327,8 +365,23 @@ addStdLib = do
     , "NumericQ[_Integer] := True"
     , "NumericQ[_Rational] := True"
     , "NumericQ[_Real] := True"
+    , "NumericQ[Pi] := True"
+    , "NumericQ[E] := True"
     , "NumericQ[f_[xs___]] := NumericFunctionQ[f] && And @@ Map[NumericQ, {xs}]"
+    , "NumericQ[_] := False"
     ]
+
+addVectorCalculus :: ContextM ()
+addVectorCalculus = do
+  modifyAttributes "CenterDot" setOrderless
+  decls
+    [ "ScalarQ[x_]/;NumericQ[x] := True"
+    , "ScalarQ[_] := False"
+    , "CenterDot[0, v_] := 0"
+    , "CenterDot[x_Plus,y_] := (CenterDot[#,y]&) /@ x"
+    , "CenterDot[a_*u_, v_] /; ScalarQ[a] := a*CenterDot[u,v]"
+    ]
+
 
 parseDecl :: Text -> (Pat, Expr)
 parseDecl declText =
@@ -339,6 +392,7 @@ parseDecl declText =
 myContext :: Context
 myContext = createContext $ do
   addStdLib
+  addVectorCalculus
   decls
     [ "square[x_] := x*x"
     , "fib[0] := 0"
@@ -346,6 +400,13 @@ myContext = createContext $ do
     , "fib[n_] := fib[n-1] + fib[n-2]"
     , "z := 9"
     , "buz := False"
-    , "main := NumericQ[Sin[12]]"
+    --, "Times[a,c] := FOO"
+    --, "main := a*c*b"
+    , "main := NumericQ/@{Sin[12], Pi, E, 12, 0.5}"
+    -- , "main := (1+#&) /@ baz[1,2,3] + (#1*#2&)[2,3]"
+    -- , "main := CenterDot[x+y,u+v]"
+    -- , "main := ScalarQ[1+3^(1/2)]"
+    -- , "main := CenterDot[3*x,2*y+v-v-2*y]"
+    -- , "main := Function[Slot[1]*Function[1+Slot[1]]][y]"
     ]
 

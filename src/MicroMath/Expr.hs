@@ -1,23 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module MicroMath.Expr where
 
-import Prelude qualified as Prelude
 import Data.Foldable     qualified as Foldable
 import Data.List         (intercalate)
 import Data.Ratio        (denominator, numerator)
-import Data.Sequence     (Seq, pattern Empty, pattern (:<|))
+import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence     qualified as Seq
 import Data.String       (IsString (..))
 import Data.Text         (Text)
 import MicroMath.Expr.TH (declareBuiltins)
 import MicroMath.PPrint  (PPrint (..))
-import MicroMath.Symbol  (Symbol(..), mkSymbol)
 import Prelude           hiding (False, True)
+import Prelude           qualified as Prelude
+import Symbolize         (Symbol)
 
+-- | NB: The ordering of constructors is chosen so that the derived
+-- Ord instance gives the correct ordering of expressions.
 data Literal
   = LitInteger !Integer
   | LitRational !Rational
@@ -38,9 +40,11 @@ instance PPrint Literal where
   pPrint (LitReal x)     = show x
   pPrint (LitString s)   = show s
 
+-- | NB: The ordering of constructors is chosen so that the derived
+-- Ord instance gives the correct ordering of expressions.
 data Expr
-  = ExprSymbol {-# UNPACK #-} !Symbol
-  | ExprLit !Literal
+  = ExprLit !Literal
+  | ExprSymbol {-# UNPACK #-} !Symbol
   | ExprApp !Expr !(Seq Expr)
   deriving (Eq, Ord)
 
@@ -57,7 +61,7 @@ numericView :: Expr -> Maybe Numeric
 numericView (ExprLit (LitInteger n))  = Just (NInteger n)
 numericView (ExprLit (LitRational q)) = Just (NRational q)
 numericView (ExprLit (LitReal x))     = Just (NReal x)
-numericView _                          = Nothing
+numericView _                         = Nothing
 
 pattern ExprNumeric :: Numeric -> Expr
 pattern ExprNumeric n <- (numericView -> Just n)
@@ -65,7 +69,7 @@ pattern ExprNumeric n <- (numericView -> Just n)
     ExprNumeric (NInteger n)  = ExprInteger n
     ExprNumeric (NRational q) = ExprRational q
     ExprNumeric (NReal x)     = ExprReal x
-  
+
 pattern ExprInteger :: Integer -> Expr
 pattern ExprInteger n = ExprLit (LitInteger n)
 
@@ -77,7 +81,7 @@ pattern ExprReal x = ExprLit (LitReal x)
 
 pattern ExprString :: Text -> Expr
 pattern ExprString s = ExprLit (LitString s)
-  
+
 {-# COMPLETE ExprSymbol, ExprLit, (:@) #-}
 {-# COMPLETE ExprInteger, ExprRational, ExprReal, ExprString, ExprSymbol, (:@) #-}
 
@@ -90,8 +94,8 @@ unary e x = ExprApp e (Seq.singleton x)
 binary :: Expr -> Expr -> Expr -> Expr
 binary e x y = ExprApp e (Seq.fromList [x,y])
 
-mkSymbolAtom :: Text -> Expr
-mkSymbolAtom = ExprSymbol . mkSymbol
+mkExprSymbol :: String -> Expr
+mkExprSymbol = ExprSymbol . fromString
 
 -- | declareBuiltins creates bidirectional pattern synonyms Sequence,
 -- List, etc. The main advantage of these over using the IsString
@@ -101,7 +105,7 @@ mkSymbolAtom = ExprSymbol . mkSymbol
 -- use 'mkSymbol' which hashes the given text and looks it up in the
 -- symbol table.
 --
-$(declareBuiltins ''Expr 'mkSymbolAtom
+$(declareBuiltins ''Expr 'mkExprSymbol
    [ "Sequence"
    , "Function"
    , "List"
@@ -126,6 +130,7 @@ $(declareBuiltins ''Expr 'mkSymbolAtom
    , "Test"
    , "Association"
    , "Pi"
+   , "E"
    , "Exp"
    , "Log"
    , "Sin"
@@ -162,8 +167,9 @@ $(declareBuiltins ''Expr 'mkSymbolAtom
    , "UpSet"
    , "UpSetDelayed"
    , "Not"
+   , "NumericFunctionQ"
    ])
-   
+
 instance Num Expr where
   (+) = binary Plus
   (*) = binary Times
@@ -203,13 +209,13 @@ fromReal :: Double -> Expr
 fromReal = ExprReal
 
 fromBool :: Bool -> Expr
-fromBool Prelude.True = True
+fromBool Prelude.True  = True
 fromBool Prelude.False = False
 
 boolView :: Expr -> Maybe Bool
-boolView True = Just Prelude.True
+boolView True  = Just Prelude.True
 boolView False = Just Prelude.False
-boolView _                          = Nothing
+boolView _     = Nothing
 
 pattern ExprBool :: Bool -> Expr
 pattern ExprBool b <- (boolView -> Just b)

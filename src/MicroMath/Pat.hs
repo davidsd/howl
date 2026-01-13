@@ -18,7 +18,7 @@ import Data.Sequence    (Seq, pattern (:<|), pattern Empty)
 import Data.String      (IsString (..))
 import MicroMath.Expr
 import MicroMath.PPrint (PPrint (..))
-import MicroMath.Symbol (Symbol)
+import Symbolize        (Symbol)
 
 {- | TODO:
 
