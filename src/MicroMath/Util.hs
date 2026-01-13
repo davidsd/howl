@@ -4,9 +4,11 @@ module MicroMath.Util
   ( splits
   , splits1
   , subSequences
+  , pattern Solo
+  , pattern Pair
   ) where
 
-import Data.Sequence (Seq, pattern (:<|))
+import Data.Sequence (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence qualified as Seq
 import Data.Foldable qualified as Foldable
 
@@ -45,3 +47,9 @@ subSequencesList [] = [([], [])]
 subSequencesList (x:xs) = do
   (s,rest) <- subSequencesList xs
   [(x:s, rest), (s, x:rest)]
+
+pattern Solo :: a -> Seq a
+pattern Solo x = x :<| Empty
+
+pattern Pair :: a -> a -> Seq a
+pattern Pair x y = x :<| y :<| Empty

@@ -103,8 +103,10 @@ mkSymbolAtom = ExprSymbol . mkSymbol
 --
 $(declareBuiltins ''Expr 'mkSymbolAtom
    [ "Sequence"
+   , "Function"
    , "List"
    , "Map"
+   , "Let"
    , "Plus"
    , "Subtract"
    , "Times"
@@ -149,6 +151,7 @@ $(declareBuiltins ''Expr 'mkSymbolAtom
    , "Unequal"
    , "SameQ"
    , "UnsameQ"
+   , "OrderedQ"
    , "Rule"
    , "RuleDelayed"
    , "ReplaceAll"

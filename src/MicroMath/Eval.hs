@@ -5,7 +5,9 @@
 
 module MicroMath.Eval
   ( SubstitutionSet(..)
+  , Substitution(..)
   , emptySubstitutionSet
+  , insertSubstitution
   , applySubstitutions
   , solveMatch
   , eval
@@ -20,7 +22,7 @@ import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence       qualified as Seq
 import MicroMath.Context   (Attributes (..), Context (..), Rule (..),
                             SymbolRecord (..), allRules, lookupAttributes,
-                            lookupSymbol)
+                            lookupSymbol, HoldType(..))
 import MicroMath.Expr      (Expr (..), Literal (..), flattenSequences,
                             flattenWithHead, mapSymbols)
 import MicroMath.Expr qualified as Expr
@@ -334,7 +336,7 @@ solveMatch ctx initialMatchEq = go [initialMatchEq] emptySubstitutionSet
           guard $ checkTrue ctx (applySubstitutions solutionSet testExpr)
           pure solutionSet
 
-{- [Note: Avoiding an infinite loop]
+{- | [Note: Avoiding an infinite loop]
 
 Note that Mathematica avoids infinite loops when a symbol is identically
 equal to itself:
@@ -358,6 +360,13 @@ tryApplyRule ctx rule expr = case rule of
     (substSet : _) -> Just (applySubstitutions substSet rhs)
   BuiltinRule f -> f ctx expr
 
+mapWithHoldType :: Maybe HoldType -> (a -> a) -> Seq a -> Seq a
+mapWithHoldType Nothing          f xs         = fmap f xs
+mapWithHoldType _                _ Empty      = Empty
+mapWithHoldType (Just HoldAll)   _ xs         = xs
+mapWithHoldType (Just HoldFirst) f (x :<| xs) = x :<| fmap f xs
+mapWithHoldType (Just HoldRest)  f (x :<| xs) = f x :<| xs
+
 eval :: Context -> Expr -> Expr
 eval ctx expr = case expr of
   ExprSymbol s
@@ -377,22 +386,22 @@ eval ctx expr = case expr of
       -- TODO: if h' has attributes SequenceHold or HoldAllComplete,
       -- then don't flatten Sequence's.
       h' = eval ctx h
-      cs' = flattenSequences $ fmap (eval ctx) cs
 
       -- If h' is a symbol with attribute Flat, then flatten h' in
       -- children. If h' is a symbol with attribute Orderless, then
       -- subsequently sort the children.
-      cs'' = case h' of
+      cs' = case h' of
         ExprSymbol s ->
           let
             attr = lookupAttributes s ctx
-            maybeFlatten = if attr.flat      then flattenWithHead h' else id
-            maybeSort    = if attr.orderless then Seq.unstableSort   else id
+            maybeFlatten  = if attr.flat      then flattenWithHead h' else id
+            maybeSort     = if attr.orderless then Seq.unstableSort   else id
+            maybeEvalArgs = mapWithHoldType attr.holdType (eval ctx)
           in
-            maybeSort . maybeFlatten $ cs'
-        _ -> cs'
+            maybeSort . maybeFlatten . flattenSequences . maybeEvalArgs $ cs
+        _ -> flattenSequences $ fmap (eval ctx) cs
 
-      expr' = ExprApp h' cs''
+      expr' = ExprApp h' cs'
 
       tryRules [] = Nothing
       tryRules (rule : rules) = case tryApplyRule ctx rule expr' of

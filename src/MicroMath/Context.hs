@@ -8,6 +8,7 @@ module MicroMath.Context
   , functionRule
   , Context(..)
   , Attributes(..)
+  , HoldType(..)
   , emptyAttributes
   , SymbolRecord(..)
   , ContextM
@@ -54,10 +55,14 @@ instance PPrint Rule where
 data Attributes = MkAttributes
   { flat      :: !Bool
   , orderless :: !Bool
+  , holdType  :: !(Maybe HoldType)
   } deriving (Eq, Ord, Show)
 
+data HoldType = HoldFirst | HoldRest | HoldAll
+  deriving (Eq, Ord, Show)
+
 pattern EmptyAttributes :: Attributes
-pattern EmptyAttributes = MkAttributes False False
+pattern EmptyAttributes = MkAttributes False False Nothing
 
 emptyAttributes :: Attributes
 emptyAttributes = EmptyAttributes
