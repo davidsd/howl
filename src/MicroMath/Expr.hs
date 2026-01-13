@@ -105,6 +105,7 @@ $(declareBuiltins ''Expr 'mkSymbolAtom
    [ "Sequence"
    , "Function"
    , "List"
+   , "Apply"
    , "Map"
    , "Let"
    , "Plus"

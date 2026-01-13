@@ -281,6 +281,11 @@ letRule = functionRule $ withHeadMaybe Let $ \case
 
     funApp (x, x0) expr = Function :@ Pair (ExprSymbol x) expr :@ Solo x0
 
+mapRule :: Rule
+mapRule = functionRule $ withHeadMaybe Map $ \case
+  Pair f (h :@ xs) -> Just $ h :@ (fmap ((f :@) . Solo) xs)
+  _                -> Nothing
+
 downValues :: [(Symbol, Rule)] -> ContextM ()
 downValues = mapM_ (uncurry addDownValue)
 
@@ -302,6 +307,7 @@ addStdLib = do
   downValues
     [ ("Function", lambdaRule)
     , ("Let",      letRule)
+    , ("Map",      mapRule)
     , ("Plus",     builtinPlusRule)
     , ("Times",    builtinTimesRule)
     , ("Power",    builtinPowerRule)
@@ -311,12 +317,17 @@ addStdLib = do
     , ("Or",       orRule)
     ]
   decls
-    [ "UnsameQ[xs___] := Not[SameQ[xs]]"
+    [ "Apply[h_,hp_[xs___]] := h[xs]"
+    , "UnsameQ[xs___] := Not[SameQ[xs]]"
     , "Not[True]    := False"
     , "Not[False]   := True"
     , "Not[Not[x_]] := x"
     , "If[True,  x_, _ ] := x"
     , "If[False, _,  y_] := y"
+    , "NumericQ[_Integer] := True"
+    , "NumericQ[_Rational] := True"
+    , "NumericQ[_Real] := True"
+    , "NumericQ[f_[xs___]] := NumericFunctionQ[f] && And @@ Map[NumericQ, {xs}]"
     ]
 
 parseDecl :: Text -> (Pat, Expr)
@@ -335,6 +346,6 @@ myContext = createContext $ do
     , "fib[n_] := fib[n-1] + fib[n-2]"
     , "z := 9"
     , "buz := False"
-    , "main := If[SameQ[x,x], fib[3], fib[4]]"
+    , "main := NumericQ[Sin[12]]"
     ]
 

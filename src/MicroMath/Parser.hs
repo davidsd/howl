@@ -338,14 +338,15 @@ replaceHead _ expr           = expr
 -- | A version of apply where we flatten an outer Sequence if it
 -- exists. This is useful for normalizing expressions that appear from
 -- the strategy in [Note: Application].
-applyExpr :: Expr -> Expr -> Expr
-applyExpr h (ExprApp Expr.Sequence args) = ExprApp h args
-applyExpr h arg                          = Expr.unary h arg
+applyExprFlattenSequence :: Expr -> Expr -> Expr
+applyExprFlattenSequence h (ExprApp Expr.Sequence args) = ExprApp h args
+applyExprFlattenSequence h arg                          = Expr.unary h arg
 
 opTable :: [[Operator TokParser Expr]]
 opTable =
-  [ [ binaryL OpPrefixApply     applyExpr
-    , binaryL OpApply           replaceHead
+  [ [ binaryL OpPrefixApply     applyExprFlattenSequence
+    ]
+  , [ binaryL OpApply           (Expr.binary Expr.Apply)
     ]
   , [ prefix OpMinus negate
     , prefix OpPlus  id
