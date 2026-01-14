@@ -34,7 +34,6 @@ module MicroMath.Context
 
 import Control.Monad.State (State, execState, modify')
 import Data.Foldable       qualified as Foldable
-import Data.Hashable       (hash)
 import Data.IntMap.Strict  (IntMap)
 import Data.IntMap.Strict  qualified as IntMap
 import Data.Sequence       (Seq, (|>))
@@ -42,7 +41,7 @@ import Data.Sequence       qualified as Seq
 import MicroMath.Expr      (Expr (..))
 import MicroMath.Pat       (Pat (..))
 import MicroMath.PPrint    (PPrint (..))
-import MicroMath.Symbol    (Symbol)
+import MicroMath.Symbol    (Symbol, symbolIndex)
 
 data Rule
   = PatRule Pat Expr
@@ -87,19 +86,31 @@ setNumericFunction attr = attr { numericFunction = True }
 setHoldType :: HoldType -> Attributes -> Attributes
 setHoldType ty attr = attr { holdType = Just ty }
 
+-- | Information associated with a symbol, needed for evaluation.
+--
+-- NB: It is important that we store the associated Symbol in the
+-- SymbolRecord because we are using 'symbolIndex's as keys to the
+-- Context map, not Symbol's themselves. As a consequence, there is a
+-- danger that a Symbol might get garbage collected, which would
+-- result in a new symbol being created (with a different symbolIndex)
+-- next time the same name is used. By storing the Symbol in the
+-- SymbolRecord, we ensure that it won't get garbage collected as long
+-- as a pointer to the SymbolRecord exists.
+-- 
 data SymbolRecord = MkSymbolRecord
-  { ownValue   :: !(Maybe Expr)
+  { symbol     :: !Symbol
+  , ownValue   :: !(Maybe Expr)
   , downValues :: !(Seq Rule) -- ^ A rule that matches expressions where
                               -- the given symbol is the head
   , upValues   :: !(Seq Rule) -- ^ A rule that matches expressions where
                               -- the given symbol is 1 level below the
-                              -- head. (TODO: More cases?)
+                              -- head. 
   , attributes :: !Attributes
   }
   deriving (Show)
 
-emptySymbolRecord :: SymbolRecord
-emptySymbolRecord = MkSymbolRecord Nothing Seq.empty Seq.empty EmptyAttributes
+emptySymbolRecord :: Symbol -> SymbolRecord
+emptySymbolRecord sym = MkSymbolRecord sym Nothing Seq.empty Seq.empty EmptyAttributes
 
 modifyRecordOwnValue :: (Maybe Expr -> Maybe Expr) -> SymbolRecord -> SymbolRecord
 modifyRecordOwnValue f record = record { ownValue = f record.ownValue }
@@ -119,11 +130,6 @@ newtype Context = MkContext (IntMap SymbolRecord)
 emptyContext :: Context
 emptyContext = MkContext IntMap.empty
 
--- | The Symbolize library guarantees that hashing is a no-op and
--- hashes never collide.
-symbolIndex :: Symbol -> Int
-symbolIndex = hash
-
 lookupSymbolRecord :: Symbol -> Context -> Maybe SymbolRecord
 lookupSymbolRecord s (MkContext ctx) = IntMap.lookup (symbolIndex s) ctx
 
@@ -133,8 +139,8 @@ modifyRecord' :: Symbol -> (SymbolRecord -> SymbolRecord) -> Context -> Context
 modifyRecord' sym f (MkContext m) = MkContext $
   IntMap.alter (checkNotEmpty . changeRecord) (symbolIndex sym) m
   where
-    changeRecord = f . maybe emptySymbolRecord id
-    checkNotEmpty (MkSymbolRecord Nothing Seq.Empty Seq.Empty EmptyAttributes) = Nothing
+    changeRecord = f . maybe (emptySymbolRecord sym) id
+    checkNotEmpty (MkSymbolRecord _ Nothing Seq.Empty Seq.Empty EmptyAttributes) = Nothing
     checkNotEmpty r = Just r
 
 -- | A monad for stringing together modifications to Context
@@ -147,7 +153,7 @@ modifyRecord :: Symbol -> (SymbolRecord -> SymbolRecord) -> ContextM ()
 modifyRecord sym f = modify' (modifyRecord' sym f)
 
 lookupSymbolRecordDefault :: Symbol -> Context -> SymbolRecord
-lookupSymbolRecordDefault sym = maybe emptySymbolRecord id . lookupSymbolRecord sym
+lookupSymbolRecordDefault sym = maybe (emptySymbolRecord sym) id . lookupSymbolRecord sym
 
 lookupAttributes :: Symbol -> Context -> Attributes
 lookupAttributes sym ctx = (lookupSymbolRecordDefault sym ctx).attributes
