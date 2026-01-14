@@ -3,17 +3,13 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
-module MicroMath.Expr.Builtin where
+module MicroMath.Expr.Syntax where
 
 import Data.String             (fromString)
 import MicroMath.Expr.Internal (Expr (..))
 import MicroMath.Expr.TH       (declareBuiltins)
-import MicroMath.Symbol        (Symbol)
 import Prelude                 hiding (False, True)
 import Prelude qualified
-
-mkExprSymbol :: String -> Expr
-mkExprSymbol = ExprSymbol . fromString
 
 -- | declareBuiltins creates bidirectional pattern synonyms Sequence,
 -- List, etc. The main advantage of these over using the IsString
@@ -23,9 +19,8 @@ mkExprSymbol = ExprSymbol . fromString
 -- use 'mkSymbol' which hashes the given text and looks it up in the
 -- symbol table.
 --
-$(declareBuiltins ''Expr 'mkExprSymbol
+$(declareBuiltins ''Expr 'fromString
    [ "Sequence"
-   , "Function"
    , "List"
    , "Apply"
    , "Map"
@@ -33,8 +28,6 @@ $(declareBuiltins ''Expr 'mkExprSymbol
    , "Subtract"
    , "Times"
    , "Divide"
-   , "Abs"
-   , "Sign"
    , "Power"
    , "Blank"
    , "BlankSequence"
@@ -46,22 +39,6 @@ $(declareBuiltins ''Expr 'mkExprSymbol
    , "Optional"
    , "Test"
    , "Association"
-   , "Pi"
-   , "E"
-   , "Exp"
-   , "Log"
-   , "Sin"
-   , "Cos"
-   , "Tan"
-   , "ArcSin"
-   , "ArcCos"
-   , "ArcTan"
-   , "Sinh"
-   , "Cosh"
-   , "Tanh"
-   , "ArcSinh"
-   , "ArcCosh"
-   , "ArcTanh"
    , "And"
    , "Or"
    , "True"
@@ -75,9 +52,6 @@ $(declareBuiltins ''Expr 'mkExprSymbol
    , "SameQ"
    , "UnsameQ"
    , "Rule"
-   , "RuleDelayed"
-   , "ReplaceAll"
-   , "ReplaceRepeated"
    , "Set"
    , "SetDelayed"
    , "UpSet"
@@ -98,10 +72,3 @@ pattern ExprBool :: Bool -> Expr
 pattern ExprBool b <- (boolView -> Just b)
   where
     ExprBool b = fromBool b
-
-builtinNumericFunctions :: [Symbol]
-builtinNumericFunctions =
- [ "Power", "Plus", "Times", "Exp", "Log", "Sin", "Cos"
- , "Tan", "ArcSin", "ArcCos", "ArcTan", "Sinh", "Cosh"
- , "Tanh", "ArcSinh", "ArcCosh", "ArcTanh"
- ]

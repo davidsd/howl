@@ -349,54 +349,54 @@ opTable :: [[Operator TokParser Expr]]
 opTable =
   [ [ binaryL OpPrefixApply     applyExprFlattenSequence
     ]
-  , [ binaryL OpApply           (Expr.binary Expr.Apply)
+  , [ binaryL OpApply           (Expr.binary "Apply")
     ]
-  , [ binaryR OpMap             (Expr.binary Expr.Map)
+  , [ binaryR OpMap             (Expr.binary "Map")
     ]
   , [ prefix OpMinus negate
     , prefix OpPlus  id
     ]
-  , [ binaryL OpPower           (Expr.binary Expr.Power)
+  , [ binaryL OpPower           (Expr.binary "Power")
     ]
-  , [ binaryL OpTimes           (Expr.binary Times)
-    , binaryL OpDivide          (Expr.binary Expr.Divide)
+  , [ binaryL OpTimes           (Expr.binary "Times")
+    , binaryL OpDivide          (Expr.binary "Divide")
     ]
-  , [ binaryL OpPlus            (Expr.binary Plus)
-    , binaryL OpMinus           (Expr.binary Expr.Subtract)
+  , [ binaryL OpPlus            (Expr.binary "Plus")
+    , binaryL OpMinus           (Expr.binary "Subtract")
     ]
-  , [ binaryL OpOr              (Expr.binary Expr.Or)
-    , binaryL OpAnd             (Expr.binary Expr.And)
+  , [ binaryL OpOr              (Expr.binary "Or")
+    , binaryL OpAnd             (Expr.binary "And")
     ]
-  , [ binaryL OpLess            (Expr.binary Expr.Less)
-    , binaryL OpGreater         (Expr.binary Expr.Greater)
-    , binaryL OpLessEqual       (Expr.binary Expr.LessEqual)
-    , binaryL OpGreaterEqual    (Expr.binary Expr.GreaterEqual)
-    , binaryL OpEqual           (Expr.binary Expr.Equal)
-    , binaryL OpUnequal         (Expr.binary Expr.Unequal)
-    , binaryL OpSameQ           (Expr.binary Expr.SameQ)
-    , binaryL OpUnsameQ         (Expr.binary Expr.UnsameQ)
+  , [ binaryL OpLess            (Expr.binary "Less")
+    , binaryL OpGreater         (Expr.binary "Greater")
+    , binaryL OpLessEqual       (Expr.binary "LessEqual")
+    , binaryL OpGreaterEqual    (Expr.binary "GreaterEqual")
+    , binaryL OpEqual           (Expr.binary "Equal")
+    , binaryL OpUnequal         (Expr.binary "Unequal")
+    , binaryL OpSameQ           (Expr.binary "SameQ")
+    , binaryL OpUnsameQ         (Expr.binary "UnsameQ")
     ]
-  , [ binaryL OpAlternative     (Expr.binary Expr.Alternatives)
-    , binaryL OpColon           (Expr.binary Expr.Pattern)
+  , [ binaryL OpAlternative     (Expr.binary "Alternatives")
+    , binaryL OpColon           (Expr.binary "Pattern")
     ]
-  , [ binaryL OpCondition       (Expr.binary Expr.Test)
+  , [ binaryL OpCondition       (Expr.binary "Test")
     ]
-  , [ binaryR OpRuleDelayed     (Expr.binary Expr.RuleDelayed)
-    , binaryR OpRule            (Expr.binary Expr.Rule)
+  , [ binaryR OpRuleDelayed     (Expr.binary "RuleDelayed")
+    , binaryR OpRule            (Expr.binary "Rule")
     ]
-  , [ binaryL OpReplaceAll      (Expr.binary Expr.ReplaceAll)
-    , binaryL OpReplaceRepeated (Expr.binary Expr.ReplaceRepeated)
+  , [ binaryL OpReplaceAll      (Expr.binary "ReplaceAll")
+    , binaryL OpReplaceRepeated (Expr.binary "ReplaceRepeated")
     ]
-  , [ postfix OpAmpersand       (Expr.unary  Expr.Function)
+  , [ postfix OpAmpersand       (Expr.unary  "Function")
     ]
   , [ binaryL OpPostfixApply    (\e h -> Expr.unary h e)
     ]
-  , [ binaryL OpTagSetDelayed   (Expr.binary Expr.TagSetDelayed)
+  , [ binaryL OpTagSetDelayed   (Expr.binary "TagSetDelayed")
     ]
-  , [ binaryR OpSet             (Expr.binary Expr.Set)
-    , binaryR OpSetDelayed      (Expr.binary Expr.SetDelayed)
-    , binaryR OpUpSet           (Expr.binary Expr.UpSet)
-    , binaryR OpUpSetDelayed    (Expr.binary Expr.UpSetDelayed)
+  , [ binaryR OpSet             (Expr.binary "Set")
+    , binaryR OpSetDelayed      (Expr.binary "SetDelayed")
+    , binaryR OpUpSet           (Expr.binary "UpSet")
+    , binaryR OpUpSetDelayed    (Expr.binary "UpSetDelayed")
     ]
   ]
 

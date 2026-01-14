@@ -9,7 +9,15 @@ module MicroMath.Expr.TH
 import Language.Haskell.TH
 import Data.Char (toLower)
 
--- | Generate a cached symbol CAF + a bidirectional pattern synonym.
+-- | Generate a cached symbol CAF + a bidirectional pattern
+-- synonym. These are convenient for pattern matching, and they also
+-- ensure that we don't need to call fromString in the middle of
+-- matching a pattern, which would obviate the advantage of having
+-- O(1) equality checks for Symbols.
+--
+-- It is recommended to use declareBuiltin instead of fromString
+-- whenever a symbol will be involved in evaluation, either in pattern
+-- matching, or returned from a function.
 --
 -- Produces (for patStr="Plus", txt="Plus"):
 --

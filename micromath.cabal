@@ -28,9 +28,9 @@ library
       MicroMath.Context
       MicroMath.Eval
       MicroMath.Expr
-      MicroMath.Expr.Builtin
-      MicroMath.Expr.Instances
       MicroMath.Expr.Internal
+      MicroMath.Expr.Num
+      MicroMath.Expr.Syntax
       MicroMath.Expr.TH
       MicroMath.Parser
       MicroMath.Pat

@@ -10,6 +10,7 @@ module MicroMath.Eval
   , emptySubstitutionSet
   , insertSubstitution
   , applySubstitutions
+  , tryApplyRule
   , solveMatch
   , eval
   ) where
