@@ -7,16 +7,17 @@ module MicroMath.Pat
   , SeqType(..)
   , mapNames
   , addNames
-  , rootSymbol
+  , patRootSymbol
   , patFromExpr
-  , setDelayedFromExpr
   ) where
 
 import Data.Foldable    qualified as Foldable
 import Data.List        (intercalate)
 import Data.Sequence    (Seq, pattern (:<|), pattern Empty)
 import Data.String      (IsString (..))
-import MicroMath.Expr
+import MicroMath.Expr   (Expr (..), Literal, pattern Alternatives,
+                         pattern Blank, pattern BlankNullSequence,
+                         pattern BlankSequence, pattern Pattern, pattern Test)
 import MicroMath.PPrint (PPrint (..))
 import Symbolize        (Symbol)
 
@@ -117,14 +118,14 @@ instance PPrint Pat where
   pPrint (PatCondition names p t) = pPrintNamed names $
     pPrint p ++ "/;" ++ pPrint t
 
--- | The rootSymbol is the repeated head. If the rootSymbol is a Symbol,
+-- | The patRootSymbol is the repeated head. If the patRootSymbol is a Symbol,
 -- return it, otherwise return nothing. This function is needed for
 -- automatically deducing which symbol to associate a rule to.
-rootSymbol :: Pat -> Maybe Symbol
-rootSymbol = \case
+patRootSymbol :: Pat -> Maybe Symbol
+patRootSymbol = \case
   PatSymbol _ s      -> Just s
-  PatApp _ h _       -> rootSymbol h
-  PatCondition _ p _ -> rootSymbol p
+  PatApp _ h _       -> patRootSymbol h
+  PatCondition _ p _ -> patRootSymbol p
   _                  -> Nothing
 
 patFromExpr :: Expr -> Pat
@@ -141,10 +142,3 @@ patFromExpr expr = case expr of
   ExprLit lit    -> PatLit [] lit
   ExprSymbol sym -> PatSymbol [] sym
   ExprApp h cs   -> PatApp [] (patFromExpr h) (fmap patFromExpr cs)
-
-setDelayedFromExpr :: Expr -> Maybe (Pat, Expr)
-setDelayedFromExpr expr = case expr of
-  ExprApp SetDelayed (patExpr :<| rhs :<| Empty)
-    -> Just (patFromExpr patExpr, rhs)
-  _ -> Nothing
-

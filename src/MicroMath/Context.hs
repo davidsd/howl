@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NoFieldSelectors    #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -12,14 +13,15 @@ module MicroMath.Context
   , emptyAttributes
   , SymbolRecord(..)
   , ContextM
+  , Decl(..)
   , emptyContext
   , createContext
-  , lookupSymbol
+  , lookupSymbolRecord
   , lookupAttributes
   , allRules
   , addDownValue
   , addUpValue
-  , addPatRule
+  , addDecl
   , modifyAttributes
   , setAttributes
   , setFlat
@@ -38,7 +40,7 @@ import Data.IntMap.Strict  qualified as IntMap
 import Data.Sequence       (Seq, (|>))
 import Data.Sequence       qualified as Seq
 import MicroMath.Expr      (Expr (..))
-import MicroMath.Pat       (Pat (..), rootSymbol)
+import MicroMath.Pat       (Pat (..))
 import MicroMath.PPrint    (PPrint (..))
 import Symbolize           (Symbol)
 
@@ -122,8 +124,8 @@ emptyContext = MkContext IntMap.empty
 symbolIndex :: Symbol -> Int
 symbolIndex = hash
 
-lookupSymbol :: Symbol -> Context -> Maybe SymbolRecord
-lookupSymbol s (MkContext ctx) = IntMap.lookup (symbolIndex s) ctx
+lookupSymbolRecord :: Symbol -> Context -> Maybe SymbolRecord
+lookupSymbolRecord s (MkContext ctx) = IntMap.lookup (symbolIndex s) ctx
 
 -- | Apply the given function to a record, and remove the record from
 -- the map if it is empty.
@@ -144,11 +146,11 @@ createContext cm = execState cm emptyContext
 modifyRecord :: Symbol -> (SymbolRecord -> SymbolRecord) -> ContextM ()
 modifyRecord sym f = modify' (modifyRecord' sym f)
 
-lookupSymbolDefault :: Symbol -> Context -> SymbolRecord
-lookupSymbolDefault sym = maybe emptySymbolRecord id . lookupSymbol sym
+lookupSymbolRecordDefault :: Symbol -> Context -> SymbolRecord
+lookupSymbolRecordDefault sym = maybe emptySymbolRecord id . lookupSymbolRecord sym
 
 lookupAttributes :: Symbol -> Context -> Attributes
-lookupAttributes sym ctx = (lookupSymbolDefault sym ctx).attributes
+lookupAttributes sym ctx = (lookupSymbolRecordDefault sym ctx).attributes
 
 modifyOwnValue :: Symbol -> (Maybe Expr -> Maybe Expr) -> ContextM ()
 modifyOwnValue sym f = modifyRecord sym (modifyRecordOwnValue f)
@@ -165,12 +167,16 @@ addDownValue sym rule = modifyDownValues sym (|> rule)
 addUpValue :: Symbol -> Rule -> ContextM ()
 addUpValue sym rule = modifyUpValues sym (|> rule)
 
-addPatRule :: Pat -> Expr -> ContextM ()
-addPatRule pat expr
-  | PatSymbol _ sym <- pat =
-      modifyOwnValue sym (const (Just expr))
-  | Just sym <- rootSymbol pat = addDownValue sym (PatRule pat expr)
-  | otherwise = error "Pattern has no root symbol"
+data Decl
+  = OwnValue Symbol Expr
+  | DownValue Symbol Rule
+  | UpValue Symbol Rule
+
+addDecl :: Decl -> ContextM ()
+addDecl = \case
+  OwnValue sym expr  -> modifyOwnValue sym (const (Just expr))
+  DownValue sym rule -> addDownValue sym rule
+  UpValue sym rule   -> addUpValue sym rule
 
 modifyAttributes :: Symbol -> (Attributes -> Attributes) -> ContextM ()
 modifyAttributes sym f = modifyRecord sym (modifyRecordAttributes f)

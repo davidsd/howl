@@ -6,6 +6,7 @@ module MicroMath.Util
   , subSequences
   , pattern Solo
   , pattern Pair
+  , mapMaybeSeq
   ) where
 
 import Data.Sequence (Seq, pattern (:<|), pattern Empty)
@@ -53,3 +54,9 @@ pattern Solo x = x :<| Empty
 
 pattern Pair :: a -> a -> Seq a
 pattern Pair x y = x :<| y :<| Empty
+
+mapMaybeSeq :: (a -> Maybe b) -> Seq a -> Seq b
+mapMaybeSeq _ Empty = Empty
+mapMaybeSeq f (x :<| xs)
+  | Just y <- f x = y :<| mapMaybeSeq f xs
+  | otherwise     = mapMaybeSeq f xs

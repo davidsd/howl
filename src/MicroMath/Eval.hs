@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NoFieldSelectors    #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -15,20 +16,34 @@ module MicroMath.Eval
 
 import Control.Applicative (Alternative, empty)
 import Control.Monad       (foldM, guard)
+import Data.Foldable       qualified as Foldable
 import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
+import Data.Maybe          (mapMaybe)
 import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence       qualified as Seq
 import Debug.Trace         qualified as Debug
 import MicroMath.Context   (Attributes (..), Context (..), HoldType (..),
-                            Rule (..), SymbolRecord (..), allRules,
-                            lookupAttributes, lookupSymbol)
-import MicroMath.Expr      (Expr (..), Literal (..), flattenSequences,
-                            flattenWithHead, mapSymbols)
+                            Rule (..), SymbolRecord (..),
+                            lookupAttributes, lookupSymbolRecord)
+import MicroMath.Expr      (Expr (..), Literal (..), flattenWithHead,
+                            mapSymbols)
 import MicroMath.Expr      qualified as Expr
 import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
 import MicroMath.Util      (splits, splits1, subSequences)
 import Symbolize           (Symbol)
+
+{- ============== Pattern Matching ================
+
+The pattern matchign algorithm implemented here is described in
+https://www.sciencedirect.com/science/article/pii/S0747717121000079
+(pdf here:
+https://www3.risc.jku.at/publications/download/risc_6260/variadic-equational-matching-jsc-final-with-mma-versions.pdf)
+
+Specifically, we implement algorithm M_{Mma}, which is an incomplete,
+strict variant of the algorithm described in that paper.
+
+-}
 
 data Marking
   = Mark0
@@ -337,7 +352,73 @@ solveMatch ctx initialMatchEq = go [initialMatchEq] emptySubstitutionSet
           guard $ checkTrue ctx (applySubstitutions solutionSet testExpr)
           pure solutionSet
 
-{- | [Note: Avoiding an infinite loop]
+{- ============== Evaluation ================
+
+Mathematica's standard evaluation sequence is described here
+(https://reference.wolfram.com/language/tutorial/Evaluation.html). Unfortunately,
+it contains some typos, which I'll try to fix below. I also added
+implementation comments for the current status in MicroMath.
+
+- If the expression is a raw object (e.g., Integer, String, etc.),
+  leave it unchanged. MicroMath: Done.
+
+- Evaluate the head h of the expression. MicroMath: Done.
+
+- Evaluate each element ei of the expression in turn. If h is a symbol
+  with attributes HoldFirst, HoldRest, HoldAll, or HoldAllComplete,
+  then skip evaluation of certain elements. MicroMath: HoldAllComplete
+  not implemented.
+
+- Unless h has attributes SequenceHold or HoldAllComplete, flatten out
+  all Sequence objects that appear among the ei. MicroMath:
+  SequenceHold/HoldAllComplete not implemented.
+
+- Unless h has attribute HoldAllComplete, strip the outermost of any
+  Unevaluated wrappers that appear among the ei. MicroMath: Not
+  implemented.
+
+- If h has attribute Flat, then flatten out all nested expressions
+  with head h. MicroMath: Done.
+
+- If h has attribute Listable, then thread through any ei that are
+  lists. MicroMath: Listable not implemented.
+
+- If h has attribute Orderless, then sort the ei into
+  order. MicroMath: Done.
+
+- Unless h has attribute HoldAllComplete, use any user-defined
+  upvalues of symbols f appearing in the form h[f[e1,...],...]. NB: We
+  do not look for upvalues inside the head. So for exampe, we cannot
+  define an upvalue of the following form:
+
+  g /: f[g[x_]][1] := foo; (BAD)
+
+  Because g appears inside the head of the expression and not in the
+  sequence of arguments, it is not considered to be at "level 1".
+
+- Use any builtin upvalues. MicroMath: We allow the user to choose the
+  ordering, and there is no special privilege given to
+  builtin/user-defined UpValues.
+
+- Use any user-defined down-values associated to h in the form
+  h[...] or for h[...][...]. Presumably this also means repeated
+  curried application h[...][...][...]. MicroMath: Mathematica
+  distinguishes between down-values and sub-values. For now, we don't
+  distinguish --- down values are associated to the root symbol.
+
+- Use any built‐in transformation rules for h[...] or
+  h[...][...]. MicroMath: Again, we don't distinguish between
+  built-in/user-defined downvalues.
+
+Note that, conceptually, we would like to try every rule in the
+Context when evaluating expressions. However, if the Context is large,
+this would have poor performance. This business of up-values and
+down-values is essentially a set of heuristics to pre-sort rules in
+such a way that we know whether they have a chance of matching or not.
+
+-}
+
+{- [Note: Avoiding an infinite loop]
 
 Note that Mathematica avoids infinite loops when a symbol is identically
 equal to itself:
@@ -354,6 +435,11 @@ Out[1] := TerminatedEvaluation[RecursionLimit]
 
 -}
 
+-- | Try to apply a rule to the given expression. If the rule matches,
+-- return 'Just result' otherwise return nothing. If there are
+-- multiple matches, we pick the first one. Note that since solveMatch
+-- returns lists, which are computed lazily, this means we terminate
+-- early as soon as a match is found.
 tryApplyRule :: Context -> Rule -> Expr -> Maybe Expr
 tryApplyRule ctx rule expr = case rule of
   PatRule pat rhs -> case solveMatch ctx (SingleEq pat expr) of
@@ -368,10 +454,23 @@ mapWithHoldType (Just HoldAll)   _ xs         = xs
 mapWithHoldType (Just HoldFirst) f (x :<| xs) = x :<| fmap f xs
 mapWithHoldType (Just HoldRest)  f (x :<| xs) = f x :<| xs
 
+-- | Flatten any occurrences of Sequence[...] in the given list of
+-- expressions. Note that this works with nested Sequence as well,
+-- e.g.  flattenSequences [Sequence[Sequence[a]],b] -> [a,b]
+flattenSequences :: Seq Expr -> Seq Expr
+flattenSequences = flattenWithHead Expr.Sequence
+
+-- | Extract the symbol g from expressions that are pure g or of the form g[...]
+level0Symbol :: Expr -> Maybe Symbol
+level0Symbol = \case
+  ExprSymbol s             -> Just s
+  ExprApp (ExprSymbol s) _ -> Just s
+  _                        -> Nothing
+
 eval :: Context -> Expr -> Expr
 eval ctx expr = case expr of
   ExprSymbol s
-    | Just record <- lookupSymbol s ctx
+    | Just record <- lookupSymbolRecord s ctx
     , Just v      <- record.ownValue
       -- See [Note: Avoiding an infinite loop]
       -> if v == expr
@@ -404,6 +503,19 @@ eval ctx expr = case expr of
 
       expr' = ExprApp h' cs'
 
+      downRules
+        | Just rootSym <- Expr.rootSymbol h'
+        , Just record  <- lookupSymbolRecord rootSym ctx
+        = Foldable.toList record.downValues
+        | otherwise = []
+
+      level1Symbols = mapMaybe level0Symbol (Foldable.toList cs')
+      upRules = do
+        sym <- level1Symbols
+        case lookupSymbolRecord sym ctx of
+          Just record -> Foldable.toList record.upValues
+          Nothing     -> []
+
       tryRules [] = Nothing
       tryRules (rule : rules) = case tryApplyRule ctx rule expr' of
         -- Check that the transformation doesn't result in an
@@ -412,29 +524,9 @@ eval ctx expr = case expr of
         result@(Just transformedExpr)
           | transformedExpr /= expr' -> Debug.traceShow (rule, expr', transformedExpr) result
         _ -> tryRules rules
+
     in
-      -- Conceptually, we want to check each rule in the context to
-      -- see if it matches. However, for performance reasons, we have
-      -- some heuristics to determine which rules can possibly match.
-      --
-      -- For now, let's not worry about these heuristics and just
-      -- check all rules.
-      --
-      -- Ideas for heuristics:
-      --
-      -- Downvalues: For each rule, if the total head is a symbol, we
-      -- store it in the corresponding SymbolRecord as a
-      -- downvalue. Thus, given an expression, we can compute its
-      -- total head to lookup the corresponding rules.
-      --
-      -- Upvalues: If none of the Downvalues match, then we go through
-      -- the children and compute their total heads. total heads of
-      -- children may have associated Upvalues, and we can try these
-      -- as well.
-      --
-      -- When computing a total head, we can record the height and
-      -- associate this with the pattern and the expression, and this
-      -- helps narrow down the lookup.
-      case tryRules (allRules ctx) of
+      -- Try upRules before downRules
+      case tryRules (upRules <> downRules) of
         Nothing              -> expr'
         Just transformedExpr -> eval ctx transformedExpr

@@ -28,8 +28,10 @@ library
       MicroMath.Context
       MicroMath.Eval
       MicroMath.Expr
+      MicroMath.Expr.Builtin
+      MicroMath.Expr.Instances
+      MicroMath.Expr.Internal
       MicroMath.Expr.TH
-      MicroMath.HsSyntax
       MicroMath.Parser
       MicroMath.Pat
       MicroMath.PPrint

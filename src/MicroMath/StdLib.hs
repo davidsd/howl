@@ -1,34 +1,45 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE ViewPatterns            #-}
 {-# LANGUAGE NoFieldSelectors      #-}
 {-# LANGUAGE OverloadedRecordDot   #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE TemplateHaskell       #-}
 
 module MicroMath.StdLib where
 
-import Control.Monad     (guard)
-import Data.Foldable     qualified as Foldable
-import Data.Map.Strict   (Map)
-import Data.Map.Strict   qualified as Map
-import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence     qualified as Seq
-import Data.Text         (Text)
-import Debug.Trace       qualified as Debug
-import MicroMath.Context (Attributes (..), Context (..), ContextM,
-                          HoldType (..), Rule (..), addDownValue, addPatRule,
-                          addUpValue, createContext, functionRule,
-                          lookupAttributes, modifyAttributes, setFlat,
-                          setHoldType, setNumericFunction, setOrderless)
-import MicroMath.Eval    (Substitution (..), SubstitutionSet,
-                          applySubstitutions, emptySubstitutionSet,
-                          insertSubstitution)
-import MicroMath.Expr    hiding (False, True)
-import MicroMath.Expr    qualified as Expr
-import MicroMath.Parser  (parseExprText)
-import MicroMath.Pat     (Pat, setDelayedFromExpr)
-import MicroMath.Util    (pattern Pair, pattern Solo)
-import Symbolize         (Symbol)
+import Control.Monad          (guard)
+import Data.Foldable          qualified as Foldable
+import Data.Map.Strict        (Map)
+import Data.Map.Strict        qualified as Map
+import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence          qualified as Seq
+import Data.Text              (Text)
+import Debug.Trace            qualified as Debug
+import MicroMath.Context      (Attributes (..), Context (..), ContextM,
+                               Decl (..), HoldType (..), Rule (..), addDecl,
+                               createContext, functionRule, lookupAttributes,
+                               modifyAttributes, setFlat, setHoldType,
+                               setNumericFunction, setOrderless)
+import MicroMath.Eval         (Substitution (..), SubstitutionSet,
+                               applySubstitutions, emptySubstitutionSet,
+                               insertSubstitution)
+import MicroMath.Expr         (Expr (..), Numeric (..), builtinNumericFunctions,
+                               fromBool, fromReal, pattern (:@), pattern And,
+                               pattern ExprInteger, pattern ExprNumeric,
+                               pattern ExprRational, pattern Function,
+                               pattern List, pattern Map, pattern Or,
+                               pattern Plus, pattern Power, pattern SameQ,
+                               pattern Set, pattern SetDelayed, pattern Slot,
+                               pattern TagSetDelayed, pattern Times)
+import MicroMath.Expr         qualified as Expr
+import MicroMath.Expr.Builtin (mkExprSymbol)
+import MicroMath.Expr.TH      (declareBuiltin)
+import MicroMath.Parser       (parseExprText)
+import MicroMath.Pat          (patFromExpr, patRootSymbol)
+import MicroMath.Util         (pattern Pair, pattern Solo)
+import Symbolize              (Symbol)
 
 withHead :: Expr -> (Seq Expr -> Expr) -> (Expr -> Maybe Expr)
 withHead h f = withHeadMaybe h (Just . f)
@@ -92,7 +103,7 @@ normalizePlus initialArgs =
   case allTerms of
     Empty  -> 0
     Solo t -> t
-    _      -> Plus :@ (Seq.unstableSort $ flattenWithHead Plus allTerms)
+    _      -> Plus :@ (Seq.unstableSort $ Expr.flattenWithHead Plus allTerms)
   where
     plusArgs =
       foldr addPlusArgument emptyPlusArguments initialArgs
@@ -138,7 +149,7 @@ normalizeTimes initialArgs =
   case allTerms of
     Empty  -> 1
     Solo t -> t
-    _      -> Times :@ (Seq.unstableSort $ flattenWithHead Times allTerms)
+    _      -> Times :@ (Seq.unstableSort $ Expr.flattenWithHead Times allTerms)
   where
     timesArgs = foldr addTimesArgument emptyTimesArguments initialArgs
     numericTerm = collapseNumerics product timesArgs.timesNums
@@ -153,14 +164,17 @@ normalizeTimes initialArgs =
 builtinTimesRule :: Rule
 builtinTimesRule = functionRule $ withHead Times normalizeTimes
 
+-- TODO: When taking an integer power of a product, expand everything
+-- out
 normalizePower :: Expr -> Expr -> Expr
 normalizePower a b = case (a, b) of
-  (_, 0)                           -> 1
-  (_, 1)                           -> a
-  (ExprNumeric na, ExprNumeric nb) -> numericPower na nb
-  (_, _)                           -> Expr.binary Power a b
+  (_, 0)                              -> 1
+  (_, 1)                              -> a
+  (ExprNumeric na, ExprNumeric nb)    -> numericPower na nb
+  (Times :@ exprs, i@(ExprInteger _)) -> Times :@ (fmap (flip normalizePower i) exprs)
+  (_, _)                              -> Expr.binary Power a b
 
--- TODO: Detect exact rational powers
+-- TODO: Detect exact rational powers, e.g. Sqrt[12] -> 2*Sqrt[3]
 numericPower :: Numeric -> Numeric -> Expr
 numericPower nx ny = case (nx, ny) of
   (NInteger  x, NInteger  y)
@@ -179,6 +193,8 @@ builtinPowerRule :: Rule
 builtinPowerRule = functionRule $ withHeadMaybe Power $ \case
   Pair x y -> Just $ normalizePower x y
   _        -> Nothing
+
+$(declareBuiltin ''Expr 'mkExprSymbol "OrderedQ" "OrderedQ")
 
 -- | OrderedQ[h[x1,...,xn]] tests whether the xi's are in the
 -- canonical order defined by the Haskell ordering on expressions
@@ -278,6 +294,9 @@ lambdaRule = functionRule $ \case
         go (h :@ args)                    = go h :@ fmap go args
         go expr                           = expr
 
+
+$(declareBuiltin ''Expr 'mkExprSymbol "Let" "Let")
+
 -- | We transform Let as follows:
 --
 -- Let[{x=x0}, expr]      -> Function[x,expr][x0]
@@ -312,19 +331,36 @@ mapRule = functionRule $ withHeadMaybe Map $ \case
   Pair f (h :@ xs) -> Just $ h :@ (fmap (Expr.unary f) xs)
   _                -> Nothing
 
+$(declareBuiltin ''Expr 'mkExprSymbol "NumericFunctionQ" "NumericFunctionQ")
+
 numericFunctionQRule :: Rule
 numericFunctionQRule = BuiltinRule $ \ctx -> withHead NumericFunctionQ $ \case
   Solo (ExprSymbol s) -> fromBool (lookupAttributes s ctx).numericFunction
   _ -> Expr.False
 
 downValues :: [(Symbol, Rule)] -> ContextM ()
-downValues = mapM_ (uncurry addDownValue)
+downValues = mapM_ (addDecl . uncurry DownValue)
 
 upValues :: [(Symbol, Rule)] -> ContextM ()
-upValues = mapM_ (uncurry addUpValue)
+upValues = mapM_ (addDecl . uncurry UpValue)
 
 decls :: [Text] -> ContextM ()
-decls = mapM_ (uncurry addPatRule . parseDecl)
+decls = mapM_ (addDecl . parseDecl)
+
+parseDecl :: Text -> Decl
+parseDecl declText =
+  maybe (error $ "Couldn't parse declaration: " ++ show declText) id $ do
+  declExpr <- parseExprText declText
+  case declExpr of
+    SetDelayed :@ (Pair (ExprSymbol sym) rhs) -> Just $ OwnValue sym rhs
+    SetDelayed :@ (Pair (TagSetDelayed :@ (Pair (ExprSymbol sym) patExpr)) rhs) ->
+      Just $ UpValue sym (PatRule (patFromExpr patExpr) rhs)
+    SetDelayed :@ (Pair patExpr rhs) ->
+      let pat = patFromExpr patExpr
+      in case patRootSymbol pat of
+        Just sym -> Just $ DownValue sym (PatRule pat rhs)
+        Nothing  -> error $ "Pattern has no root symbol: " ++ show pat
+    _ -> Nothing
 
 addStdLib :: ContextM ()
 addStdLib = do
@@ -336,10 +372,7 @@ addStdLib = do
   modifyAttributes "And"      setFlat
   modifyAttributes "Or"       setFlat
   sequence_ $ do
-    numFn <- [ "Power", "Plus", "Times", "Exp", "Log", "Sin", "Cos"
-             , "Tan", "ArcSin", "ArcCos", "ArcTan", "Sinh", "Cosh"
-             , "Tanh", "ArcSinh", "ArcCosh", "ArcTanh"
-             ]
+    numFn <- builtinNumericFunctions
     pure $ modifyAttributes numFn setNumericFunction
   downValues
     [ ("Function", lambdaRule)
@@ -380,14 +413,17 @@ addVectorCalculus = do
     , "CenterDot[0, v_] := 0"
     , "CenterDot[x_Plus,y_] := (CenterDot[#,y]&) /@ x"
     , "CenterDot[a_*u_, v_] /; ScalarQ[a] := a*CenterDot[u,v]"
+    , "CenterDot /: Times[CenterDot[u_,basis[i_]], CenterDot[v_,basis[i_]], xs___] := Times[CenterDot[u,v],xs]"
+    , "CenterDot /: Power[CenterDot[u_,basis[i_]],2] := CenterDot[u,u]"
+    , "CenterDot[basis[i_],basis[i_]] := dim"
+    , "deriv[u_,x_][expr_Plus] := deriv[u,x] /@ expr"
+    , "deriv[u_,x_][a_*b_] := deriv[u,x][a]*b + a*deriv[u,x][b]"
+    , "deriv[u_,x_][a_^b_] := b*deriv[u,x][a]*a^(b-1)"
+    , "deriv[u_,x_][CenterDot[x_,x_]] := 2*CenterDot[u,x]"
+    , "deriv[u_,x_][CenterDot[x_,y_]] := CenterDot[u,y]"
+    , "deriv[_,_][n_] /; NumericQ[n] := 0"
     ]
 
-
-parseDecl :: Text -> (Pat, Expr)
-parseDecl declText =
-  maybe (error $ "Couldn't parse declaration: " ++ show declText) id $ do
-  decl <- parseExprText declText
-  setDelayedFromExpr decl
 
 myContext :: Context
 myContext = createContext $ do
@@ -400,11 +436,14 @@ myContext = createContext $ do
     , "fib[n_] := fib[n-1] + fib[n-2]"
     , "z := 9"
     , "buz := False"
-    --, "Times[a,c] := FOO"
-    --, "main := a*c*b"
-    , "main := NumericQ/@{Sin[12], Pi, E, 12, 0.5}"
+    , "forz[Times[x_,y_]] := biz[x,y]"
+    -- , "main := forz[Times[a,b,c]]"
+    -- , "main := a*c*b"
+    -- , "main := NumericQ/@{Sin[12], Pi, E, 12, 0.5}"
     -- , "main := (1+#&) /@ baz[1,2,3] + (#1*#2&)[2,3]"
-    -- , "main := CenterDot[x+y,u+v]"
+    -- , "main := CenterDot[2*x+y,u+v]"
+    -- , "main := CenterDot[x,basis[i]]*CenterDot[y,basis[i]] + CenterDot[2*x,basis[i]]^2 + CenterDot[basis[j],basis[j]]^2"
+    , "main := deriv[u,x][CenterDot[x,y]+2*CenterDot[x,x]^3]"
     -- , "main := ScalarQ[1+3^(1/2)]"
     -- , "main := CenterDot[3*x,2*y+v-v-2*y]"
     -- , "main := Function[Slot[1]*Function[1+Slot[1]]][y]"

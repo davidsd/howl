@@ -79,6 +79,7 @@ data Op
   | OpLessEqual
   | OpGreaterEqual
   | OpCondition
+  | OpTagSetDelayed
   | OpDot
   | OpQuestion
   | OpBang
@@ -121,6 +122,7 @@ opToText = \case
   OpLessEqual         -> "<="
   OpGreaterEqual      -> ">="
   OpCondition         -> "/;"
+  OpTagSetDelayed     -> "/:"
   OpDot               -> "."   -- TODO
   OpQuestion          -> "?"   -- TODO
   OpBang              -> "!"   -- TODO
@@ -388,6 +390,8 @@ opTable =
   , [ postfix OpAmpersand       (Expr.unary  Expr.Function)
     ]
   , [ binaryL OpPostfixApply    (\e h -> Expr.unary h e)
+    ]
+  , [ binaryL OpTagSetDelayed   (Expr.binary Expr.TagSetDelayed)
     ]
   , [ binaryR OpSet             (Expr.binary Expr.Set)
     , binaryR OpSetDelayed      (Expr.binary Expr.SetDelayed)
