@@ -19,7 +19,7 @@ import MicroMath.Expr   (Expr (..), Literal, pattern Alternatives,
                          pattern Blank, pattern BlankNullSequence,
                          pattern BlankSequence, pattern Pattern, pattern Test)
 import MicroMath.PPrint (PPrint (..))
-import Symbolize        (Symbol)
+import MicroMath.Symbol (Symbol)
 
 {- | TODO:
 

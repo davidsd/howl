@@ -14,9 +14,7 @@ import Data.Sequence    qualified as Seq
 import Data.String      (IsString (..))
 import Data.Text        (Text)
 import MicroMath.PPrint (PPrint (..))
-import Prelude          hiding (False, True)
-import Prelude          qualified as Prelude
-import Symbolize        (Symbol)
+import MicroMath.Symbol (Symbol)
 
 -- | NB: The ordering of constructors is chosen so that the derived
 -- Ord instance gives the correct ordering of expressions.

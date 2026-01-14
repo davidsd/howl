@@ -42,7 +42,7 @@ import Data.Sequence       qualified as Seq
 import MicroMath.Expr      (Expr (..))
 import MicroMath.Pat       (Pat (..))
 import MicroMath.PPrint    (PPrint (..))
-import Symbolize           (Symbol)
+import MicroMath.Symbol    (Symbol)
 
 data Rule
   = PatRule Pat Expr

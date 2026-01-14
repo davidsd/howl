@@ -8,9 +8,9 @@ module MicroMath.Expr.Builtin where
 import Data.String             (fromString)
 import MicroMath.Expr.Internal (Expr (..))
 import MicroMath.Expr.TH       (declareBuiltins)
+import MicroMath.Symbol        (Symbol)
 import Prelude                 hiding (False, True)
 import Prelude qualified
-import Symbolize               (Symbol)
 
 mkExprSymbol :: String -> Expr
 mkExprSymbol = ExprSymbol . fromString

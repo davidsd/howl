@@ -4,9 +4,8 @@ module MicroMath
 
 import MicroMath.Context as Exports
 import MicroMath.Eval    as Exports
-import MicroMath.Expr    as Exports hiding (True)
+import MicroMath.Expr    as Exports hiding (True, False)
 import MicroMath.Parser  as Exports
 import MicroMath.Pat     as Exports
 import MicroMath.PPrint  as Exports
 import MicroMath.StdLib  as Exports
-import Symbolize         as Exports (Symbol)

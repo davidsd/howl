@@ -36,6 +36,7 @@ library
       MicroMath.Pat
       MicroMath.PPrint
       MicroMath.StdLib
+      MicroMath.Symbol
       MicroMath.Util
   other-modules:
       Paths_micromath
@@ -55,7 +56,6 @@ library
     , parser-combinators
     , primitive
     , scientific
-    , symbolize
     , template-haskell
     , text
     , text-short
@@ -82,7 +82,6 @@ executable micromath-exe
     , parser-combinators
     , primitive
     , scientific
-    , symbolize
     , template-haskell
     , text
     , text-short

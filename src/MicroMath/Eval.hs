@@ -24,14 +24,14 @@ import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence       qualified as Seq
 import Debug.Trace         qualified as Debug
 import MicroMath.Context   (Attributes (..), Context (..), HoldType (..),
-                            Rule (..), SymbolRecord (..),
-                            lookupAttributes, lookupSymbolRecord)
+                            Rule (..), SymbolRecord (..), lookupAttributes,
+                            lookupSymbolRecord)
 import MicroMath.Expr      (Expr (..), Literal (..), flattenWithHead,
                             mapSymbols)
 import MicroMath.Expr      qualified as Expr
 import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
+import MicroMath.Symbol    (Symbol)
 import MicroMath.Util      (splits, splits1, subSequences)
-import Symbolize           (Symbol)
 
 {- ============== Pattern Matching ================
 

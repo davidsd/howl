@@ -23,7 +23,7 @@ import MicroMath.Expr                 (Expr (..), pattern (:@), pattern And,
                                        pattern Plus, pattern Sequence,
                                        pattern Subtract, pattern Times)
 import MicroMath.Expr                 qualified as Expr
-import Symbolize                      (Symbol)
+import MicroMath.Symbol               (Symbol)
 import Text.Megaparsec                (Parsec, Stream, Token, anySingle, choice,
                                        empty, eof, many, manyTill,
                                        notFollowedBy, optional, parseMaybe,

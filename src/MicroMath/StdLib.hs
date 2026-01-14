@@ -1,6 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE ViewPatterns            #-}
+{-# LANGUAGE ViewPatterns          #-}
 {-# LANGUAGE NoFieldSelectors      #-}
 {-# LANGUAGE OverloadedRecordDot   #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -16,7 +16,6 @@ import Data.Map.Strict        qualified as Map
 import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence          qualified as Seq
 import Data.Text              (Text)
-import Debug.Trace            qualified as Debug
 import MicroMath.Context      (Attributes (..), Context (..), ContextM,
                                Decl (..), HoldType (..), Rule (..), addDecl,
                                createContext, functionRule, lookupAttributes,
@@ -38,8 +37,8 @@ import MicroMath.Expr.Builtin (mkExprSymbol)
 import MicroMath.Expr.TH      (declareBuiltin)
 import MicroMath.Parser       (parseExprText)
 import MicroMath.Pat          (patFromExpr, patRootSymbol)
+import MicroMath.Symbol       (Symbol)
 import MicroMath.Util         (pattern Pair, pattern Solo)
-import Symbolize              (Symbol)
 
 withHead :: Expr -> (Seq Expr -> Expr) -> (Expr -> Maybe Expr)
 withHead h f = withHeadMaybe h (Just . f)

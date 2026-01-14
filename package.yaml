@@ -26,7 +26,6 @@ dependencies:
 - text-short
 - hashtables
 - template-haskell
-- symbolize
 
 ghc-options:
 - -Wall
