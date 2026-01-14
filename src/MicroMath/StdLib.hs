@@ -17,7 +17,8 @@ import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence     qualified as Seq
 import Data.String       (fromString)
 import Data.Text         (Text)
-import MicroMath.Context (Attributes (..), Context (..), ContextM, Decl (..),
+import Control.Monad.Reader (ask)
+import MicroMath.Context (Attributes (..), Context (..), ContextM, Decl (..), EvalM(..),
                           HoldType (..), Rule (..), addDecl, createContext,
                           functionRule, lookupAttributes, modifyAttributes,
                           setFlat, setHoldType, setNumericFunction,
@@ -39,13 +40,21 @@ import MicroMath.Pat     (patFromExpr, patRootSymbol)
 import MicroMath.Symbol  (Symbol)
 import MicroMath.Util    (pattern Pair, pattern Solo)
 
-withHead :: Expr -> (Seq Expr -> Expr) -> (Expr -> Maybe Expr)
-withHead h f = withHeadMaybe h (Just . f)
-
 withHeadMaybe :: Expr -> (Seq Expr -> Maybe Expr) -> (Expr -> Maybe Expr)
 withHeadMaybe h f = \case
   h' :@ args | h == h' -> f args
   _                    -> Nothing
+
+withHead :: Expr -> (Seq Expr -> Expr) -> (Expr -> Maybe Expr)
+withHead h f = withHeadMaybe h (Just . f)
+
+withHeadMaybeM :: Expr -> (Seq Expr -> EvalM (Maybe Expr)) -> (Expr -> EvalM (Maybe Expr))
+withHeadMaybeM h f = \case
+  h' :@ args | h == h' -> f args
+  _                    -> pure $ Nothing
+
+withHeadM :: Expr -> (Seq Expr -> EvalM Expr) -> (Expr -> EvalM (Maybe Expr))
+withHeadM h f = withHeadMaybeM h (fmap Just . f)
 
 builtinFunctionMaybe :: Symbol -> (Seq Expr -> Maybe Expr) -> Decl
 builtinFunctionMaybe sym = DownValue sym . functionRule . withHeadMaybe (ExprSymbol sym)
@@ -83,8 +92,8 @@ instance UnpackArgs (Expr -> Expr -> Expr -> Maybe Expr) where
 instance UnpackArgs (Expr -> Expr -> Expr -> Expr) where
   unpackArgs f = unpackArgs (\e1 e2 e3 -> Just $ f e1 e2 e3)
 
-function :: UnpackArgs f => Symbol -> f -> Decl
-function sym f = builtinFunctionMaybe sym (unpackArgs f)
+mkFunctionDecl :: UnpackArgs f => Symbol -> f -> Decl
+mkFunctionDecl sym f = builtinFunctionMaybe sym (unpackArgs f)
 
 ---------- Numerics utilities ----------
 -- TODO: Put these in a separate module? Maybe we need Num,
@@ -380,16 +389,25 @@ mapDef = \cases
 
 ---------- ReplaceAll ----------
 
-replaceAll :: Context -> Seq Rule -> Expr -> Expr
-replaceAll ctx rules = go
+replaceAll :: Seq Rule -> Expr -> EvalM Expr
+replaceAll rules = go
   where
-    tryRule expr rule = tryApplyRule ctx rule expr
+    -- Repeatedly try rules in the given Sequence until one of them
+    -- works
+    tryRules _ Empty = pure Nothing
+    tryRules expr (r:<|rs) = tryApplyRule r expr >>= \case
+      result@(Just _) -> pure result
+      Nothing         -> tryRules expr rs
 
-    go expr = case Foldable.asum (fmap (tryRule expr) rules) of
-      Just result -> result
+    go expr = tryRules expr rules >>= \case
+      Just result -> pure result
+      -- If none of the rules work, go for the head and children
       Nothing -> case expr of
-        h :@ cs -> go h :@ fmap go cs
-        _       -> expr
+        h :@ cs -> do
+          h' <- go h
+          cs' <- traverse go cs
+          pure $ h' :@ cs'
+        _       -> pure expr
 
 $(declareBuiltin ''Expr 'fromString "RuleDelayed" "RuleDelayed")
 
@@ -407,10 +425,10 @@ $(declareBuiltin ''Expr 'fromString "ReplaceAll" "ReplaceAll")
 
 replaceAllDecl :: Decl
 replaceAllDecl = DownValue "ReplaceAll" $
-  BuiltinRule $ \ctx -> withHeadMaybe ReplaceAll $ \args ->
+  BuiltinRule $ withHeadMaybeM ReplaceAll $ \args ->
   case parseReplaceArgs args of
-    Just (expr, rules) -> Just $ replaceAll ctx rules expr
-    _                  -> Nothing
+    Just (expr, rules) -> fmap Just (replaceAll rules expr)
+    _                  -> pure Nothing
 
 ---------- ReplaceRepeated ----------
 
@@ -418,17 +436,16 @@ $(declareBuiltin ''Expr 'fromString "ReplaceRepeated" "ReplaceRepeated")
 
 replaceRepeatedDecl :: Decl
 replaceRepeatedDecl = DownValue "ReplaceRepeated" $
-  BuiltinRule $ \ctx -> withHeadMaybe ReplaceRepeated $ \args ->
+  BuiltinRule $ withHeadMaybeM ReplaceRepeated $ \args ->
   case parseReplaceArgs args of
-    Nothing -> Nothing
-    Just (expr, rules) -> Just $ go expr
+    Nothing -> pure $ Nothing
+    Just (expr, rules) -> fmap Just (go expr)
       where
-        go currentExpr =
-          let newExpr = eval ctx (replaceAll ctx rules currentExpr)
-          in
-            if newExpr /= currentExpr
+        go currentExpr = do
+          newExpr <- replaceAll rules currentExpr >>= eval
+          if newExpr /= currentExpr
             then go newExpr
-            else newExpr
+            else pure newExpr
 
 ---------- NumericFunctionQ ----------
 
@@ -436,9 +453,11 @@ $(declareBuiltin ''Expr 'fromString "NumericFunctionQ" "NumericFunctionQ")
 
 numericFunctionQDecl :: Decl
 numericFunctionQDecl = DownValue "NumericFunctionQ" $
-  BuiltinRule $ \ctx -> withHead NumericFunctionQ $ \case
-  Solo (ExprSymbol s) -> fromBool (lookupAttributes s ctx).numericFunction
-  _ -> Expr.False
+  BuiltinRule $ withHeadM NumericFunctionQ $ \case
+  Solo (ExprSymbol s) -> do
+    ctx <- ask
+    pure $ fromBool (lookupAttributes s ctx).numericFunction
+  _ -> pure Expr.False
 
 
 -- ========== Building Contexts ========== --
@@ -461,12 +480,15 @@ parseDecl declText =
         Nothing  -> error $ "Pattern has no root symbol: " ++ show pat
     _ -> Nothing
 
+function :: UnpackArgs f => Symbol -> f -> ContextM ()
+function sym f = addDecl $ mkFunctionDecl sym f
+
 addStdLib :: ContextM ()
 addStdLib = do
-  addDecl $ function "Function" functionDef
+  function "Function" functionDef
   modifyAttributes "Function" (setHoldType HoldAll)
 
-  addDecl $ function "Let" letDef
+  function "Let" letDef
   modifyAttributes "Let" (setHoldType HoldAll)
 
   modifyAttributes "If" (setHoldType HoldRest)
@@ -475,29 +497,29 @@ addStdLib = do
     , "If[False, _,  y_] := y"
     ]
 
-  addDecl $ function "And" normalizeAnd
+  function "And" normalizeAnd
   modifyAttributes "And" setFlat
 
-  addDecl $ function "Or" normalizeOr
+  function "Or" normalizeOr
   modifyAttributes "Or" setFlat
 
   addDecl replaceAllDecl
   addDecl replaceRepeatedDecl
   modifyAttributes "RuleDelayed" (setHoldType HoldAll)
 
-  addDecl $ function "Map" mapDef
+  function "Map" mapDef
 
-  addDecl $ function "Plus" normalizePlus
+  function "Plus" normalizePlus
   modifyAttributes "Plus" (setFlat . setOrderless)
 
-  addDecl $ function "Times" normalizeTimes
+  function "Times" normalizeTimes
   modifyAttributes "Times" (setFlat . setOrderless)
 
-  addDecl $ function "Power" normalizePower
+  function "Power" normalizePower
 
-  addDecl $ function "SameQ" sameQ
+  function "SameQ" sameQ
 
-  addDecl $ function "OrderedQ" orderedQ
+  function "OrderedQ" orderedQ
   addDecl numericFunctionQDecl
   sequence_ $ do
     numFn <- builtinNumericFunctions

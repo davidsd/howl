@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE DerivingVia         #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NoFieldSelectors    #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -15,24 +17,27 @@ module MicroMath.Eval
   , eval
   ) where
 
-import Control.Applicative (Alternative, empty)
-import Control.Monad       (foldM, guard)
-import Data.Foldable       qualified as Foldable
-import Data.Map.Strict     (Map)
-import Data.Map.Strict     qualified as Map
-import Data.Maybe          (mapMaybe)
-import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence       qualified as Seq
-import Debug.Trace         qualified as Debug
-import MicroMath.Context   (Attributes (..), Context (..), HoldType (..),
-                            Rule (..), SymbolRecord (..), lookupAttributes,
-                            lookupSymbolRecord)
-import MicroMath.Expr      (Expr (..), Literal (..), flattenWithHead,
-                            mapSymbols)
-import MicroMath.Expr      qualified as Expr
-import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
-import MicroMath.Symbol    (Symbol)
-import MicroMath.Util      (splits, splits1, subSequences)
+import Data.Traversable (for)
+import Control.Applicative   (Alternative, empty)
+import Control.Monad         (foldM, guard)
+import Control.Monad.Reader  (MonadReader, Reader, ReaderT (..), ask)
+import Data.Foldable         qualified as Foldable
+import Data.Functor.Identity (Identity (..))
+import Data.Map.Strict       (Map)
+import Data.Map.Strict       qualified as Map
+import Data.Maybe            (mapMaybe, catMaybes)
+import Data.Sequence         (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence         qualified as Seq
+import Debug.Trace           qualified as Debug
+import MicroMath.Context     (Attributes (..), Context (..), HoldType (..), EvalM(..),
+                              Rule (..), SymbolRecord (..), lookupAttributes,
+                              lookupSymbolRecord)
+import MicroMath.Expr        (Expr (..), Literal (..), flattenWithHead,
+                              mapSymbols)
+import MicroMath.Expr        qualified as Expr
+import MicroMath.Pat         (Pat (..), SeqType (..), addNames)
+import MicroMath.Symbol      (Symbol)
+import MicroMath.Util        (splits, splits1, subSequences)
 
 {- ============== Pattern Matching ================
 
@@ -333,25 +338,31 @@ transformMatch ctx eq = case eq of
 
   _ -> []
 
-checkTrue :: Context -> Expr -> Bool
-checkTrue ctx expr = eval ctx expr == Expr.True
+checkTrue :: Expr -> EvalM Bool
+checkTrue = fmap (== Expr.True) . eval
 
-solveMatch :: Context -> MatchingEq -> [SubstitutionSet]
-solveMatch ctx initialMatchEq = go [initialMatchEq] emptySubstitutionSet
+solveMatch :: MatchingEq -> EvalM [SubstitutionSet]
+solveMatch initialMatchEq = go [initialMatchEq] emptySubstitutionSet
   where
-    go :: [MatchingEq] -> SubstitutionSet -> [SubstitutionSet]
-    go [] substSet = [substSet]
+    go :: [MatchingEq] -> SubstitutionSet -> EvalM [SubstitutionSet]
+    go [] substSet = pure [substSet]
     go (matchEq : matchEqs) substSet = do
-      transformation <- transformMatch ctx matchEq
-      case transformation of
-        MatchBranch newSubstitutions newMatchEqs ->
-          case insertSubstitutions newSubstitutions substSet of
-            Just newSubstSet -> go (newMatchEqs ++ matchEqs) newSubstSet
-            Nothing          -> []
-        MatchCondition newMatchEqs testExpr -> do
-          solutionSet <- go (newMatchEqs ++ matchEqs) substSet
-          guard $ checkTrue ctx (applySubstitutions solutionSet testExpr)
-          pure solutionSet
+      ctx <- ask
+      fmap concat $
+        for (transformMatch ctx matchEq) $ \transformation ->
+        case transformation of
+          MatchBranch newSubstitutions newMatchEqs ->
+            case insertSubstitutions newSubstitutions substSet of
+              Just newSubstSet -> go (newMatchEqs ++ matchEqs) newSubstSet
+              Nothing          -> pure []
+          MatchCondition newMatchEqs testExpr -> do
+            solutionSets <- go (newMatchEqs ++ matchEqs) substSet
+            fmap catMaybes $ 
+              for solutionSets $ \solutionSet -> do
+              ok <- checkTrue (applySubstitutions solutionSet testExpr)
+              if ok
+                then pure (Just solutionSet)
+                else pure Nothing
 
 {- ============== Evaluation ================
 
@@ -441,19 +452,23 @@ Out[1] := TerminatedEvaluation[RecursionLimit]
 -- multiple matches, we pick the first one. Note that since solveMatch
 -- returns lists, which are computed lazily, this means we terminate
 -- early as soon as a match is found.
-tryApplyRule :: Context -> Rule -> Expr -> Maybe Expr
-tryApplyRule ctx rule expr = case rule of
-  PatRule pat rhs -> case solveMatch ctx (SingleEq pat expr) of
-    []             -> Nothing
-    (substSet : _) -> Just (applySubstitutions substSet rhs)
-  BuiltinRule f -> f ctx expr
+tryApplyRule :: Rule -> Expr -> EvalM (Maybe Expr)
+tryApplyRule rule expr = case rule of
+  PatRule pat rhs -> do
+    matches <- solveMatch (SingleEq pat expr)
+    pure $ case matches of
+      []             -> Nothing
+      (substSet : _) -> Just (applySubstitutions substSet rhs)
+  BuiltinRule f -> f expr
 
-mapWithHoldType :: Maybe HoldType -> (a -> a) -> Seq a -> Seq a
-mapWithHoldType Nothing          f xs         = fmap f xs
-mapWithHoldType _                _ Empty      = Empty
-mapWithHoldType (Just HoldAll)   _ xs         = xs
-mapWithHoldType (Just HoldFirst) f (x :<| xs) = x :<| fmap f xs
-mapWithHoldType (Just HoldRest)  f (x :<| xs) = f x :<| xs
+traverseWithHoldType :: Monad m => Maybe HoldType -> (a -> m a) -> Seq a -> m (Seq a)
+traverseWithHoldType Nothing          f xs         = traverse f xs
+traverseWithHoldType _                _ Empty      = pure Empty
+traverseWithHoldType (Just HoldAll)   _ xs         = pure xs
+traverseWithHoldType (Just HoldFirst) f (x :<| xs) = fmap (x :<|) (traverse f xs)
+traverseWithHoldType (Just HoldRest)  f (x :<| xs) = do
+  y <- f x
+  pure $ y :<| xs
 
 -- | Flatten any occurrences of Sequence[...] in the given list of
 -- expressions. Note that this works with nested Sequence as well,
@@ -468,66 +483,69 @@ level0Symbol = \case
   ExprApp (ExprSymbol s) _ -> Just s
   _                        -> Nothing
 
-eval :: Context -> Expr -> Expr
-eval ctx expr = case expr of
-  ExprSymbol s
-    | Just record <- lookupSymbolRecord s ctx
-    , Just v      <- record.ownValue
-      -- See [Note: Avoiding an infinite loop]
-      -> if v == expr
-         then v
-         else eval ctx v
-    | otherwise -> expr
-  ExprLit _ -> expr
-  ExprApp h cs ->
-    let
+eval :: Expr -> EvalM Expr
+eval expr = do
+  ctx <- ask
+  case expr of
+    ExprSymbol s
+      | Just record <- lookupSymbolRecord s ctx
+      , Just v      <- record.ownValue
+        -- See [Note: Avoiding an infinite loop]
+        -> if v == expr
+           then pure v
+           else eval v
+      | otherwise -> pure expr
+    ExprLit _ -> pure expr
+    ExprApp h cs -> do
       -- Evaluate the head and children, and flatten any sequences
       -- appearing in the children.
       --
       -- TODO: if h' has attributes SequenceHold or HoldAllComplete,
       -- then don't flatten Sequence's.
-      h' = eval ctx h
+      h' <- eval h
 
       -- If h' is a symbol with attribute Flat, then flatten h' in
       -- children. If h' is a symbol with attribute Orderless, then
       -- subsequently sort the children.
-      cs' = case h' of
+      cs' <- case h' of
         ExprSymbol s ->
           let
             attr = lookupAttributes s ctx
             maybeFlatten  = if attr.flat      then flattenWithHead h' else id
             maybeSort     = if attr.orderless then Seq.unstableSort   else id
-            maybeEvalArgs = mapWithHoldType attr.holdType (eval ctx)
+            maybeEvalArgs = traverseWithHoldType attr.holdType eval
           in
-            maybeSort . maybeFlatten . flattenSequences . maybeEvalArgs $ cs
-        _ -> flattenSequences $ fmap (eval ctx) cs
+            fmap (maybeSort . maybeFlatten . flattenSequences) . maybeEvalArgs $ cs
+        _ -> fmap flattenSequences . traverse eval $ cs
 
-      expr' = ExprApp h' cs'
+      let
+        expr' = ExprApp h' cs'
 
-      downRules
-        | Just rootSym <- Expr.rootSymbol h'
-        , Just record  <- lookupSymbolRecord rootSym ctx
-        = Foldable.toList record.downValues
-        | otherwise = []
+        downRules
+          | Just rootSym <- Expr.rootSymbol h'
+          , Just record  <- lookupSymbolRecord rootSym ctx
+          = Foldable.toList record.downValues
+          | otherwise = []
 
-      level1Symbols = mapMaybe level0Symbol (Foldable.toList cs')
-      upRules = do
-        sym <- level1Symbols
-        case lookupSymbolRecord sym ctx of
-          Just record -> Foldable.toList record.upValues
-          Nothing     -> []
+        level1Symbols = mapMaybe level0Symbol (Foldable.toList cs')
+        upRules = do
+          sym <- level1Symbols
+          case lookupSymbolRecord sym ctx of
+            Just record -> Foldable.toList record.upValues
+            Nothing     -> []
 
-      tryRules [] = Nothing
-      tryRules (rule : rules) = case tryApplyRule ctx rule expr' of
-        -- Check that the transformation doesn't result in an
-        -- identical expression. If it does, we'd get an infinite loop
-        -- if we evaluated again.
-        result@(Just transformedExpr)
-          | transformedExpr /= expr' -> Debug.traceShow (rule, expr', transformedExpr) result
-        _ -> tryRules rules
+        tryRules [] = pure Nothing
+        tryRules (rule : rules) = do
+          result <- tryApplyRule rule expr'
+          case result of
+            -- Check that the transformation doesn't result in an
+            -- identical expression. If it does, we'd get an infinite loop
+            -- if we evaluated again.
+            Just transformedExpr
+              | transformedExpr /= expr' -> Debug.traceShow (rule, expr', transformedExpr) pure $ result
+            _ -> tryRules rules
 
-    in
       -- Try upRules before downRules
-      case tryRules (upRules <> downRules) of
-        Nothing              -> expr'
-        Just transformedExpr -> eval ctx transformedExpr
+      tryRules (upRules <> downRules) >>= \case
+        Nothing              -> pure expr'
+        Just transformedExpr -> eval transformedExpr

@@ -1,5 +1,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NoFieldSelectors    #-}
+{-# LANGUAGE DerivingStrategies    #-}
+{-# LANGUAGE DerivingVia    #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
@@ -13,6 +15,8 @@ module MicroMath.Context
   , emptyAttributes
   , SymbolRecord(..)
   , ContextM
+  , EvalM(..)
+  , runEvalM
   , Decl(..)
   , emptyContext
   , createContext
@@ -32,6 +36,8 @@ module MicroMath.Context
   , clearAll
   ) where
 
+import Control.Monad.Reader  (MonadReader, Reader, ReaderT (..))
+import Data.Functor.Identity (Identity (..))
 import Control.Monad.State (State, execState, modify')
 import Data.Foldable       qualified as Foldable
 import Data.IntMap.Strict  (IntMap)
@@ -43,16 +49,23 @@ import MicroMath.Pat       (Pat (..))
 import MicroMath.PPrint    (PPrint (..))
 import MicroMath.Symbol    (Symbol, symbolIndex)
 
+newtype EvalM a = EvalM (Context -> a)
+  deriving newtype (Functor, Applicative, Monad)
+  deriving (MonadReader Context) via (Reader Context)
+
+runEvalM :: Context -> EvalM a -> a
+runEvalM ctx (EvalM f) = f ctx
+
 data Rule
   = PatRule Pat Expr
-  | BuiltinRule (Context -> Expr -> Maybe Expr)
+  | BuiltinRule (Expr -> EvalM (Maybe Expr))
 
 instance Show Rule where
   show (PatRule p expr) = pPrint p ++ " := " ++ pPrint expr
   show (BuiltinRule _)  = "<BuiltinRule>"
 
 functionRule :: (Expr -> Maybe Expr) -> Rule
-functionRule f = BuiltinRule (const f)
+functionRule f = BuiltinRule (pure . f)
 
 instance PPrint Rule where
   pPrint = show
