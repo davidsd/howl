@@ -17,27 +17,25 @@ module MicroMath.Eval
   , eval
   ) where
 
-import Data.Traversable (for)
-import Control.Applicative   (Alternative, empty)
-import Control.Monad         (foldM, guard)
-import Control.Monad.Reader  (MonadReader, Reader, ReaderT (..), ask)
-import Data.Foldable         qualified as Foldable
-import Data.Functor.Identity (Identity (..))
-import Data.Map.Strict       (Map)
-import Data.Map.Strict       qualified as Map
-import Data.Maybe            (mapMaybe, catMaybes)
-import Data.Sequence         (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence         qualified as Seq
-import Debug.Trace           qualified as Debug
-import MicroMath.Context     (Attributes (..), Context (..), HoldType (..), EvalM(..),
-                              Rule (..), SymbolRecord (..), lookupAttributes,
-                              lookupSymbolRecord)
-import MicroMath.Expr        (Expr (..), Literal (..), flattenWithHead,
-                              mapSymbols)
-import MicroMath.Expr        qualified as Expr
-import MicroMath.Pat         (Pat (..), SeqType (..), addNames)
-import MicroMath.Symbol      (Symbol)
-import MicroMath.Util        (splits, splits1, subSequences)
+import Control.Applicative (Alternative, empty)
+import Control.Monad       (foldM, guard)
+import Data.Foldable       qualified as Foldable
+import Data.Map.Strict     (Map)
+import Data.Map.Strict     qualified as Map
+import Data.Maybe          (catMaybes, mapMaybe)
+import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence       qualified as Seq
+import Data.Traversable    (for)
+import Debug.Trace         qualified as Debug
+import MicroMath.Context   (Attributes (..), Context (..), EvalM (..),
+                            HoldType (..), Rule (..), SymbolRecord (..),
+                            getContext, lookupAttributes, lookupSymbolRecord)
+import MicroMath.Expr      (Expr (..), Literal (..), flattenWithHead,
+                            mapSymbols)
+import MicroMath.Expr      qualified as Expr
+import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
+import MicroMath.Symbol    (Symbol)
+import MicroMath.Util      (splits, splits1, subSequences)
 
 {- ============== Pattern Matching ================
 
@@ -347,7 +345,7 @@ solveMatch initialMatchEq = go [initialMatchEq] emptySubstitutionSet
     go :: [MatchingEq] -> SubstitutionSet -> EvalM [SubstitutionSet]
     go [] substSet = pure [substSet]
     go (matchEq : matchEqs) substSet = do
-      ctx <- ask
+      ctx <- getContext
       fmap concat $
         for (transformMatch ctx matchEq) $ \transformation ->
         case transformation of
@@ -357,7 +355,7 @@ solveMatch initialMatchEq = go [initialMatchEq] emptySubstitutionSet
               Nothing          -> pure []
           MatchCondition newMatchEqs testExpr -> do
             solutionSets <- go (newMatchEqs ++ matchEqs) substSet
-            fmap catMaybes $ 
+            fmap catMaybes $
               for solutionSets $ \solutionSet -> do
               ok <- checkTrue (applySubstitutions solutionSet testExpr)
               if ok
@@ -485,7 +483,7 @@ level0Symbol = \case
 
 eval :: Expr -> EvalM Expr
 eval expr = do
-  ctx <- ask
+  ctx <- getContext
   case expr of
     ExprSymbol s
       | Just record <- lookupSymbolRecord s ctx

@@ -8,7 +8,6 @@
 
 module MicroMath.Context
   ( Rule(..)
-  , functionRule
   , Context(..)
   , Attributes(..)
   , HoldType(..)
@@ -17,6 +16,7 @@ module MicroMath.Context
   , ContextM
   , EvalM(..)
   , runEvalM
+  , getContext
   , Decl(..)
   , emptyContext
   , createContext
@@ -36,7 +36,7 @@ module MicroMath.Context
   , clearAll
   ) where
 
-import Control.Monad.Reader  (MonadReader, Reader, ReaderT (..))
+import Control.Monad.Reader  (MonadReader, Reader, ReaderT (..), ask)
 import Data.Functor.Identity (Identity (..))
 import Control.Monad.State (State, execState, modify')
 import Data.Foldable       qualified as Foldable
@@ -56,6 +56,9 @@ newtype EvalM a = EvalM (Context -> a)
 runEvalM :: Context -> EvalM a -> a
 runEvalM ctx (EvalM f) = f ctx
 
+getContext :: EvalM Context
+getContext = ask
+
 data Rule
   = PatRule Pat Expr
   | BuiltinRule (Expr -> EvalM (Maybe Expr))
@@ -63,9 +66,6 @@ data Rule
 instance Show Rule where
   show (PatRule p expr) = pPrint p ++ " := " ++ pPrint expr
   show (BuiltinRule _)  = "<BuiltinRule>"
-
-functionRule :: (Expr -> Maybe Expr) -> Rule
-functionRule f = BuiltinRule (pure . f)
 
 instance PPrint Rule where
   pPrint = show

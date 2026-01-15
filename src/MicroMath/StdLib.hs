@@ -17,10 +17,9 @@ import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence     qualified as Seq
 import Data.String       (fromString)
 import Data.Text         (Text)
-import Control.Monad.Reader (ask)
 import MicroMath.Context (Attributes (..), Context (..), ContextM, Decl (..), EvalM(..),
-                          HoldType (..), Rule (..), addDecl, createContext,
-                          functionRule, lookupAttributes, modifyAttributes,
+                          HoldType (..), Rule (..), addDecl, createContext, getContext,
+                          lookupAttributes, modifyAttributes,
                           setFlat, setHoldType, setNumericFunction,
                           setOrderless)
 import MicroMath.Eval    (Substitution (..), SubstitutionSet,
@@ -40,60 +39,59 @@ import MicroMath.Pat     (patFromExpr, patRootSymbol)
 import MicroMath.Symbol  (Symbol)
 import MicroMath.Util    (pattern Pair, pattern Solo)
 
-withHeadMaybe :: Expr -> (Seq Expr -> Maybe Expr) -> (Expr -> Maybe Expr)
-withHeadMaybe h f = \case
-  h' :@ args | h == h' -> f args
-  _                    -> Nothing
+class UnpackArgs a where
+  unpackArgs :: a -> (Seq Expr -> EvalM (Maybe Expr))
 
-withHead :: Expr -> (Seq Expr -> Expr) -> (Expr -> Maybe Expr)
-withHead h f = withHeadMaybe h (Just . f)
+instance UnpackArgs (Seq Expr -> EvalM (Maybe Expr)) where
+  unpackArgs = id
+instance UnpackArgs (Seq Expr -> EvalM Expr) where
+  unpackArgs f = fmap Just . f
+instance UnpackArgs (Seq Expr -> Maybe Expr) where
+  unpackArgs f = pure . f
+instance UnpackArgs (Seq Expr -> Expr) where
+  unpackArgs f = pure . Just . f
+
+withSolo :: (Expr -> EvalM (Maybe a)) -> (Seq Expr -> EvalM (Maybe a))
+withSolo f = \case
+  Solo e -> f e
+  _      -> pure Nothing
+
+instance UnpackArgs (Expr -> EvalM (Maybe Expr)) where
+  unpackArgs = withSolo
+instance UnpackArgs (Expr -> EvalM Expr) where
+  unpackArgs f = withSolo (fmap Just . f)
+instance UnpackArgs (Expr -> Maybe Expr) where
+  unpackArgs f = withSolo (pure . f)
+instance UnpackArgs (Expr -> Expr) where
+  unpackArgs f = withSolo (pure . Just . f)
+
+withPair :: (Expr -> Expr -> EvalM (Maybe a)) -> (Seq Expr -> EvalM (Maybe a))
+withPair f = \case
+  Pair e1 e2 -> f e1 e2
+  _          -> pure Nothing
+
+compose2 :: (c -> d) -> (a -> b -> c) -> (a -> b -> d)
+compose2 f g x y = f (g x y)
+
+instance UnpackArgs (Expr -> Expr -> EvalM (Maybe Expr)) where
+  unpackArgs = withPair
+instance UnpackArgs (Expr -> Expr -> EvalM Expr) where
+  unpackArgs f = withPair (fmap Just `compose2` f)
+instance UnpackArgs (Expr -> Expr -> Maybe Expr) where
+  unpackArgs f = withPair (pure `compose2` f)
+instance UnpackArgs (Expr -> Expr -> Expr) where
+  unpackArgs f = withPair ((pure . Just) `compose2` f)
 
 withHeadMaybeM :: Expr -> (Seq Expr -> EvalM (Maybe Expr)) -> (Expr -> EvalM (Maybe Expr))
 withHeadMaybeM h f = \case
   h' :@ args | h == h' -> f args
   _                    -> pure $ Nothing
 
-withHeadM :: Expr -> (Seq Expr -> EvalM Expr) -> (Expr -> EvalM (Maybe Expr))
-withHeadM h f = withHeadMaybeM h (fmap Just . f)
-
-builtinFunctionMaybe :: Symbol -> (Seq Expr -> Maybe Expr) -> Decl
-builtinFunctionMaybe sym = DownValue sym . functionRule . withHeadMaybe (ExprSymbol sym)
-
-class UnpackArgs a where
-  unpackArgs :: a -> (Seq Expr -> Maybe Expr)
-
-instance UnpackArgs (Seq Expr -> Maybe Expr) where
-  unpackArgs = id
-
-instance UnpackArgs (Seq Expr -> Expr) where
-  unpackArgs f = Just . f
-
-instance UnpackArgs (Expr -> Maybe Expr) where
-  unpackArgs f = \case
-    Solo e -> f e
-    _      -> Nothing
-
-instance UnpackArgs (Expr -> Expr) where
-  unpackArgs f = unpackArgs (Just . f)
-
-instance UnpackArgs (Expr -> Expr -> Maybe Expr) where
-  unpackArgs f = \case
-    Pair e1 e2 -> f e1 e2
-    _          -> Nothing
-
-instance UnpackArgs (Expr -> Expr -> Expr) where
-  unpackArgs f = unpackArgs (\e1 e2 -> Just $ f e1 e2)
-
-instance UnpackArgs (Expr -> Expr -> Expr -> Maybe Expr) where
-  unpackArgs f = \case
-    (e1 :<| e2 :<| e3 :<| Empty) -> f e1 e2 e3
-    _                            -> Nothing
-
-instance UnpackArgs (Expr -> Expr -> Expr -> Expr) where
-  unpackArgs f = unpackArgs (\e1 e2 e3 -> Just $ f e1 e2 e3)
+builtinFunctionMaybeM :: Symbol -> (Seq Expr -> EvalM (Maybe Expr)) -> Decl
+builtinFunctionMaybeM sym f = DownValue sym $ BuiltinRule $ withHeadMaybeM (ExprSymbol sym) f
 
 mkFunctionDecl :: UnpackArgs f => Symbol -> f -> Decl
-mkFunctionDecl sym f = builtinFunctionMaybe sym (unpackArgs f)
+mkFunctionDecl sym f = builtinFunctionMaybeM sym (unpackArgs f)
 
 ---------- Numerics utilities ----------
 -- TODO: Put these in a separate module? Maybe we need Num,
@@ -411,54 +409,41 @@ replaceAll rules = go
 
 $(declareBuiltin ''Expr 'fromString "RuleDelayed" "RuleDelayed")
 
-parseReplaceArgs :: Seq Expr -> Maybe (Expr, Seq Rule)
-parseReplaceArgs = \case
-  Pair expr (List :@ ruleExprs) -> (\rs -> (expr, rs))     <$> mapM parseRuleDelayed_maybe ruleExprs
-  Pair expr ruleExpr            -> (\r  -> (expr, pure r)) <$> parseRuleDelayed_maybe ruleExpr
-  _ -> Nothing
+parseRulesExpr :: Expr -> Maybe (Seq Rule)
+parseRulesExpr ruleExpr = case ruleExpr of
+  List :@ ruleExprs -> mapM parseRuleDelayed ruleExprs
+  _                 -> fmap pure $ parseRuleDelayed ruleExpr
   where
-    parseRuleDelayed_maybe = \case
+    parseRuleDelayed = \case
       RuleDelayed :@ Pair lhs rhs -> Just $ PatRule (patFromExpr lhs) rhs
       _ -> Nothing
 
-$(declareBuiltin ''Expr 'fromString "ReplaceAll" "ReplaceAll")
-
-replaceAllDecl :: Decl
-replaceAllDecl = DownValue "ReplaceAll" $
-  BuiltinRule $ withHeadMaybeM ReplaceAll $ \args ->
-  case parseReplaceArgs args of
-    Just (expr, rules) -> fmap Just (replaceAll rules expr)
-    _                  -> pure Nothing
+replaceAllDef :: Expr -> Expr -> EvalM (Maybe Expr)
+replaceAllDef expr rulesExpr = case parseRulesExpr rulesExpr of
+  Just rules -> fmap Just $ replaceAll rules expr
+  Nothing    -> pure Nothing
 
 ---------- ReplaceRepeated ----------
 
-$(declareBuiltin ''Expr 'fromString "ReplaceRepeated" "ReplaceRepeated")
-
-replaceRepeatedDecl :: Decl
-replaceRepeatedDecl = DownValue "ReplaceRepeated" $
-  BuiltinRule $ withHeadMaybeM ReplaceRepeated $ \args ->
-  case parseReplaceArgs args of
-    Nothing -> pure $ Nothing
-    Just (expr, rules) -> fmap Just (go expr)
-      where
-        go currentExpr = do
-          newExpr <- replaceAll rules currentExpr >>= eval
-          if newExpr /= currentExpr
-            then go newExpr
-            else pure newExpr
+replaceRepeatedDef :: Expr -> Expr -> EvalM (Maybe Expr)
+replaceRepeatedDef expr rulesExpr = case parseRulesExpr rulesExpr of
+  Nothing    -> pure Nothing
+  Just rules -> fmap Just $ go expr
+    where
+      go currentExpr = do
+        newExpr <- replaceAll rules currentExpr >>= eval
+        if newExpr /= currentExpr
+          then go newExpr
+          else pure newExpr
 
 ---------- NumericFunctionQ ----------
 
-$(declareBuiltin ''Expr 'fromString "NumericFunctionQ" "NumericFunctionQ")
-
-numericFunctionQDecl :: Decl
-numericFunctionQDecl = DownValue "NumericFunctionQ" $
-  BuiltinRule $ withHeadM NumericFunctionQ $ \case
-  Solo (ExprSymbol s) -> do
-    ctx <- ask
-    pure $ fromBool (lookupAttributes s ctx).numericFunction
+numericFunctionQ :: Expr -> EvalM Expr
+numericFunctionQ = \case
+  ExprSymbol sym -> do
+    ctx <- getContext
+    pure $ fromBool (lookupAttributes sym ctx).numericFunction
   _ -> pure Expr.False
-
 
 -- ========== Building Contexts ========== --
 
@@ -503,8 +488,8 @@ addStdLib = do
   function "Or" normalizeOr
   modifyAttributes "Or" setFlat
 
-  addDecl replaceAllDecl
-  addDecl replaceRepeatedDecl
+  function "ReplaceAll" replaceAllDef
+  function "ReplaceRepeated" replaceRepeatedDef
   modifyAttributes "RuleDelayed" (setHoldType HoldAll)
 
   function "Map" mapDef
@@ -520,7 +505,7 @@ addStdLib = do
   function "SameQ" sameQ
 
   function "OrderedQ" orderedQ
-  addDecl numericFunctionQDecl
+  function "NumericFunctionQ" numericFunctionQ
   sequence_ $ do
     numFn <- builtinNumericFunctions
     pure $ modifyAttributes numFn setNumericFunction
