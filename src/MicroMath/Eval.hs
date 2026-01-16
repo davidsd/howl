@@ -11,6 +11,9 @@ module MicroMath.Eval
   , Substitution(..)
   , emptySubstitutionSet
   , insertSubstitution
+  , insertSubstitutions
+  , lookupBinding
+  , removeBindings
   , applySubstitutions
   , tryApplyRule
   , solveMatch
@@ -101,9 +104,16 @@ insertSubstitution (MkSubstitution s b) (MkSubstitutionSet m) =
     insertLookup kx x t = Map.insertLookupWithKey (\_ a _ -> a) kx x t
 
 -- | Attempt to insert the given substitutions.
-insertSubstitutions :: [Substitution] -> SubstitutionSet -> Maybe SubstitutionSet
+insertSubstitutions :: Foldable f => f Substitution -> SubstitutionSet -> Maybe SubstitutionSet
 insertSubstitutions subs set =
   foldM (flip insertSubstitution) set subs
+
+removeBindings :: Seq Symbol -> SubstitutionSet -> SubstitutionSet
+removeBindings symbols (MkSubstitutionSet ss) =
+  MkSubstitutionSet (deleteAll symbols ss)
+  where
+    deleteAll Empty    m = m
+    deleteAll (x:<|xs) m = deleteAll xs (Map.delete x m)
 
 -- | Lookup the Binding corresponding to a Symbol in the given
 -- SubstitutionSet

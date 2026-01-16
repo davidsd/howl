@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE TemplateHaskell   #-}
@@ -6,7 +7,7 @@
 module MicroMath.Expr.Syntax where
 
 import Data.String             (fromString)
-import MicroMath.Expr.Internal (Expr (..))
+import MicroMath.Expr.Internal (Expr (..), FromExpr (..), ToExpr (..))
 import MicroMath.Expr.TH       (declareBuiltins)
 import Prelude                 hiding (False, True)
 import Prelude qualified
@@ -72,3 +73,9 @@ pattern ExprBool :: Bool -> Expr
 pattern ExprBool b <- (boolView -> Just b)
   where
     ExprBool b = fromBool b
+
+instance FromExpr Bool where
+  fromExpr = boolView
+
+instance ToExpr Bool where
+  toExpr = fromBool

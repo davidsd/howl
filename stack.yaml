@@ -40,7 +40,9 @@ packages:
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
-# extra-deps: []
+extra-deps:
+- combinat-0.2.10.1@sha256:c039827890044eda529d9115daa5d93d0e30f68483cfde560786cd2e3483db50,5857
+- compact-word-vectors-0.2.0.2@sha256:49cf00f224000f149306e7043c228fa33e3dba87f10589e8326388c3278ba594,2709
 
 # Override default flag values for project packages and extra-deps
 # flags: {}

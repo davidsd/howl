@@ -50,10 +50,86 @@ pattern (:@) :: Expr -> Seq Expr -> Expr
 pattern h :@ cs = ExprApp h cs
 infixl 9 :@
 
+-- | A class for types that can potentially be matched to an
+-- expression.
+class FromExpr a where
+  fromExpr :: Expr -> Maybe a
+
+instance FromExpr Expr where
+  fromExpr = Just
+
+-- | A class for types that can be converted to an Expr
+class ToExpr a where
+  toExpr :: a -> Expr
+
+instance ToExpr Expr where
+  toExpr = id
+
+-- | A general pattern synonym that matches anything with a FromExpr
+-- instance.
+pattern ExprView :: FromExpr a => a -> Expr
+pattern ExprView a <- (fromExpr -> Just a)
+
+instance FromExpr Symbol where
+  fromExpr = \case { ExprSymbol sym -> Just sym; _ -> Nothing }
+instance ToExpr Symbol where
+  toExpr = ExprSymbol
+
+pattern ExprInteger :: Integer -> Expr
+pattern ExprInteger n = ExprLit (LitInteger n)
+
+instance FromExpr Integer where
+  fromExpr = \case { ExprInteger x -> Just x; _ -> Nothing }
+instance ToExpr Integer where
+  toExpr = ExprInteger
+
+pattern ExprRational :: Rational -> Expr
+pattern ExprRational q = ExprLit (LitRational q)
+
+-- | Convert a Rational into an Expr, representing it as an
+-- ExprInteger if it is an integer.
+exprFromRational :: Rational -> Expr
+exprFromRational r
+  | denominator r == 1 = ExprInteger (numerator r)
+  | otherwise          = ExprRational r
+
+instance FromExpr Rational where
+  fromExpr = \case { ExprRational x -> Just x; _ -> Nothing }
+instance ToExpr Rational where
+  toExpr = exprFromRational
+
+pattern ExprReal :: Double -> Expr
+pattern ExprReal x = ExprLit (LitReal x)
+
+instance FromExpr Double where
+  fromExpr = \case { ExprReal x -> Just x; _ -> Nothing }
+instance ToExpr Double where
+  toExpr = ExprReal
+
+pattern ExprString :: Text -> Expr
+pattern ExprString s = ExprLit (LitString s)
+
+instance FromExpr Text where
+  fromExpr = \case { ExprString x -> Just x; _ -> Nothing }
+instance ToExpr Text where
+  toExpr = ExprString
+  
 data Numeric
   = NInteger  !Integer
   | NRational !Rational
   | NReal     !Double
+  deriving (Eq)
+
+instance Ord Numeric where
+  compare (NInteger x)  (NInteger y)  = compare x y
+  compare (NRational x) (NInteger y)  = compare x (fromIntegral y)
+  compare (NReal x)     (NInteger y)  = compare x (realToFrac y)
+  compare (NInteger x)  (NRational y) = compare (fromIntegral x) y
+  compare (NRational x) (NRational y) = compare x y
+  compare (NReal x)     (NRational y) = compare x (realToFrac y)
+  compare (NInteger x)  (NReal y)     = compare (realToFrac x) y
+  compare (NRational x) (NReal y)     = compare (realToFrac x) y
+  compare (NReal x)     (NReal y)     = compare x y
 
 numericView :: Expr -> Maybe Numeric
 numericView (ExprLit (LitInteger n))  = Just (NInteger n)
@@ -61,24 +137,18 @@ numericView (ExprLit (LitRational q)) = Just (NRational q)
 numericView (ExprLit (LitReal x))     = Just (NReal x)
 numericView _                         = Nothing
 
+instance FromExpr Numeric where
+  fromExpr = numericView
+
+instance ToExpr Numeric where
+  toExpr (NInteger n)  = toExpr n
+  toExpr (NRational q) = toExpr q
+  toExpr (NReal x)     = toExpr x
+
 pattern ExprNumeric :: Numeric -> Expr
 pattern ExprNumeric n <- (numericView -> Just n)
   where
-    ExprNumeric (NInteger n)  = ExprInteger n
-    ExprNumeric (NRational q) = ExprRational q
-    ExprNumeric (NReal x)     = ExprReal x
-
-pattern ExprInteger :: Integer -> Expr
-pattern ExprInteger n = ExprLit (LitInteger n)
-
-pattern ExprRational :: Rational -> Expr
-pattern ExprRational q = ExprLit (LitRational q)
-
-pattern ExprReal :: Double -> Expr
-pattern ExprReal x = ExprLit (LitReal x)
-
-pattern ExprString :: Text -> Expr
-pattern ExprString s = ExprLit (LitString s)
+    ExprNumeric = toExpr
 
 {-# COMPLETE ExprSymbol, ExprLit, (:@) #-}
 {-# COMPLETE ExprInteger, ExprRational, ExprReal, ExprString, ExprSymbol, (:@) #-}
@@ -91,9 +161,6 @@ unary e x = ExprApp e (Seq.singleton x)
 
 binary :: Expr -> Expr -> Expr -> Expr
 binary e x y = ExprApp e (Seq.fromList [x,y])
-
-fromReal :: Double -> Expr
-fromReal = ExprReal
 
 instance PPrint Expr where
   pPrint (ExprSymbol s) = pPrint s

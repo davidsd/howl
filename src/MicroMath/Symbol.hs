@@ -3,8 +3,11 @@
 module MicroMath.Symbol
   ( Symbol
   , symbolIndex
+  , symbolToShortText
+  , symbolFromShortText
   ) where
 
+import Data.Text.Short (ShortText)
 import Data.Hashable    (hash)
 import MicroMath.PPrint (PPrint (..))
 import Symbolize        (Symbol)
@@ -17,3 +20,9 @@ instance PPrint Symbol where
 -- guarantees that hashing is a no-op and hash will never collide.
 symbolIndex :: Symbol -> Int
 symbolIndex = hash
+
+symbolToShortText :: Symbol -> ShortText
+symbolToShortText = Symbolize.unintern
+
+symbolFromShortText :: ShortText -> Symbol
+symbolFromShortText = Symbolize.intern
