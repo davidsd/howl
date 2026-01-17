@@ -292,8 +292,8 @@ parseTerm = choice
   , ExprApp Expr.Sequence    <$> surroundExprs (TLBrack, TRBrack)
   , ExprApp Expr.Association <$> surroundExprs (TLAssoc, TRAssoc)
   , tok $ \case
-      TSlot m SlotTy         -> Just (Expr.unary Expr.Slot         (maybe 1 fromInteger m))
-      TSlot m SlotSequenceTy -> Just (Expr.unary Expr.SlotSequence (maybe 1 fromInteger m))
+      TSlot m SlotTy         -> Just (Expr.unary Expr.Slot         (ExprInteger (maybe 1 id m)))
+      TSlot m SlotSequenceTy -> Just (Expr.unary Expr.SlotSequence (ExprInteger (maybe 1 id m)))
       _                    -> Nothing
     -- We 'try' here because parsePatternVar might consume a symbol
     -- for the name of the pattern, but if the parser eventually
@@ -353,8 +353,7 @@ opTable =
     ]
   , [ binaryR OpMap             (Expr.binary "Map")
     ]
-  , [ prefix OpMinus negate
-    , prefix OpPlus  id
+  , [ prefix OpMinus (Expr.binary "Times" (ExprInteger (-1)))
     ]
   , [ binaryL OpPower           (Expr.binary "Power")
     ]
@@ -413,11 +412,11 @@ normalize expr = case expr of
   h :@ (Sequence :@ args :<| Empty) ->
     normalize $ h :@ args
   Subtract :@ (e1 :<| e2 :<| Empty) ->
-    normalize $ Expr.binary Plus e1  $ Expr.binary Times (fromInteger (-1)) e2
+    normalize $ Expr.binary Plus e1  $ Expr.binary Times (ExprInteger (-1)) e2
   Divide :@ (e1 :<| e2 :<| Empty) ->
-    normalize $ Expr.binary Times e1 $ Expr.binary Expr.Power e2 (fromInteger (-1))
-  Plus  :@ args -> flattenOneIdentity Plus 0 args
-  Times :@ args -> flattenOneIdentity Times 1 args
+    normalize $ Expr.binary Times e1 $ Expr.binary Expr.Power e2 (ExprInteger (-1))
+  Plus  :@ args -> flattenOneIdentity Plus (ExprInteger 0) args
+  Times :@ args -> flattenOneIdentity Times (ExprInteger 1) args
   And   :@ args -> flattenOneIdentity And Expr.True args
   Or    :@ args -> flattenOneIdentity Or Expr.False args
   h :@ args ->

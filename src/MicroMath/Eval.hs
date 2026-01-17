@@ -30,11 +30,12 @@ import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence       qualified as Seq
 import Data.Traversable    (for)
 import Debug.Trace         qualified as Debug
-import MicroMath.Context   (Attributes (..), Context (..), EvalM (..),
+import MicroMath.Context   (Attributes (..), EvalM (..),
                             HoldType (..), Rule (..), SymbolRecord (..),
-                            getContext, lookupAttributes, lookupSymbolRecord)
-import MicroMath.Expr      (Expr (..), Literal (..), flattenWithHead,
-                            mapSymbols)
+                            lookupAttributes, lookupSymbolRecord)
+import MicroMath.Expr      (Expr (..), flattenWithHead, mapSymbols,
+                            pattern ExprInteger, pattern ExprRational,
+                            pattern ExprReal, pattern ExprString)
 import MicroMath.Expr      qualified as Expr
 import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
 import MicroMath.Symbol    (Symbol)
@@ -65,19 +66,18 @@ data AppType
   | AppAC Symbol (Maybe Marking)
     deriving (Eq, Ord, Show)
 
-symbolAppType :: Context -> Symbol -> AppType
-symbolAppType ctx s =
-  case (attr.flat, attr.orderless) of
+symbolAppType :: Symbol -> EvalM AppType
+symbolAppType s = do
+  attr <- lookupAttributes s
+  pure $ case (attr.flat, attr.orderless) of
     (False, False) -> AppFree
     (True,  False) -> AppA s Nothing
     (False, True ) -> AppC
     (True,  True ) -> AppAC s Nothing
-  where
-    attr = lookupAttributes s ctx
 
-exprAppType :: Context -> Expr -> AppType
-exprAppType ctx (ExprSymbol s) = symbolAppType ctx s
-exprAppType _   _              = AppFree
+exprAppType :: Expr -> EvalM AppType
+exprAppType (ExprSymbol s) = symbolAppType s
+exprAppType _              = pure AppFree
 
 data Substitution = MkSubstitution Symbol Expr
   deriving (Eq, Ord, Show)
@@ -155,73 +155,74 @@ data MatchStep
 checkHead :: Maybe Symbol -> Expr -> a -> [a]
 checkHead h expr x = if matchesHead h expr then [x] else []
   where
-    matchesHead Nothing _                                   = True
-    matchesHead (Just s) (ExprApp (ExprSymbol s') _)        = s == s'
-    matchesHead (Just "Symbol")   (ExprSymbol _)            = True
-    matchesHead (Just "Integer")  (ExprLit (LitInteger _))  = True
-    matchesHead (Just "Rational") (ExprLit (LitRational _)) = True
-    matchesHead (Just "Real")     (ExprLit (LitReal _))     = True
-    matchesHead (Just "String")   (ExprLit (LitString _))   = True
-    matchesHead _ _                                         = False
+    matchesHead Nothing _                            = True
+    matchesHead (Just s) (ExprApp (ExprSymbol s') _) = s == s'
+    matchesHead (Just "Symbol")   (ExprSymbol _)     = True
+    matchesHead (Just "Integer")  (ExprInteger _)    = True
+    matchesHead (Just "Rational") (ExprRational _)   = True
+    matchesHead (Just "Real")     (ExprReal _)       = True
+    matchesHead (Just "String")   (ExprString _)     = True
+    matchesHead _ _                                  = False
 
-transformMatch :: Context -> MatchingEq -> [MatchStep]
-transformMatch ctx eq = case eq of
+transformMatch :: MatchingEq -> EvalM [MatchStep]
+transformMatch eq = case eq of
 
   -- | T: Trivial
   SingleEq (PatLit xs s) expr@(ExprLit s')
-    | s == s' -> [MatchBranch (bindVars xs expr) []]
-    | otherwise -> []
+    | s == s'   -> pure [MatchBranch (bindVars xs expr) []]
+    | otherwise -> pure []
 
   SingleEq (PatSymbol xs s) expr@(ExprSymbol s')
-    | s == s' -> [MatchBranch (bindVars xs expr) []]
-    | otherwise -> []
+    | s == s'   -> pure [MatchBranch (bindVars xs expr) []]
+    | otherwise -> pure []
 
   -- | IVE: Individual variable elimination
-  SingleEq (PatVar x xHead) t -> checkHead xHead t (MatchBranch (bindVars x t) [])
+  SingleEq (PatVar x xHead) t -> pure $
+    checkHead xHead t (MatchBranch (bindVars x t) [])
 
   -- | A symbol or literal cannot match with an ExprApp
-  SingleEq (PatSymbol _ _) (ExprApp _ _) -> []
-  SingleEq (PatLit _ _)    (ExprApp _ _) -> []
+  SingleEq (PatSymbol _ _) (ExprApp _ _) -> pure []
+  SingleEq (PatLit _ _)    (ExprApp _ _) -> pure []
 
   -- | A PatAlt has two branches corresponding to the two
   -- patterns. NB: This only makes sense if the same free pattern
   -- variables are present in each alternative.
-  SingleEq (PatAlt xs p1 p2) t ->
+  SingleEq (PatAlt xs p1 p2) t -> pure
     [ MatchBranch [] [SingleEq (addNames xs p1) t]
     , MatchBranch [] [SingleEq (addNames xs p2) t]
     ]
 
   -- | Conditional pattern
-  SingleEq (PatCondition xs p test) t ->
+  SingleEq (PatCondition xs p test) t -> pure
     [ MatchCondition [SingleEq (addNames xs p) t] test ]
 
   -- | A PatApp matches an ExprApp if the heads match and the sequences match
   SingleEq
     (PatApp xs f fArgs)
-    expr@(ExprApp g gArgs) ->
+    expr@(ExprApp g gArgs) -> do
     -- | FVE-M: Function variable elimination (Mathematica). If we
     -- eliminate a function variable, then the head becomes Free,
     -- regardless of the symbol it is bound to. This is a little
     -- weird, but it is how Mathematica works.
-    let appTy = case f of
-          PatVar _ _ -> AppFree
-          _          -> exprAppType ctx g
-    in
+    appTy <- case f of
+      PatVar _ _ -> pure AppFree
+      _          -> exprAppType g
+    pure $
       [MatchBranch (bindVars xs expr) [SingleEq f g, SeqEq appTy fArgs gArgs]]
 
   -- | Free head
 
   -- | The empty sequence matches itself under any head.
-  SeqEq _ Empty Empty -> [MatchBranch [] []]
+  SeqEq _ Empty Empty -> pure [MatchBranch [] []]
 
   -- | SVE: Sequence variable elimination (applies under any head)
-  SeqEq appTy (PatSeqVar x seqTy :<| ss) ts -> do
+  SeqEq appTy (PatSeqVar x seqTy :<| ss) ts -> pure $ do
     (ts1, ts2) <- splits ts
     guardSeqTy seqTy ts1
     pure $ MatchBranch (bindSeqVars x ts1) [SeqEq appTy ss ts2]
 
   -- | Dec-F: Decomposition under Free head
-  SeqEq AppFree (s :<| ss) (t :<| ts) ->
+  SeqEq AppFree (s :<| ss) (t :<| ts) -> pure
     [MatchBranch [] [SingleEq s t, SeqEq AppFree ss ts]]
 
   -- | Commutative head
@@ -230,11 +231,11 @@ transformMatch ctx eq = case eq of
   -- head. Dropped in Mathematica -- use SVE instead.
   --
   -- | Dec-C: Decomposition under commutative head
-  SeqEq AppC (s :<| ss) ts -> do
+  SeqEq AppC (s :<| ss) ts -> pure $ do
     (ts1, t, ts2) <- splits1 ts
     pure $ MatchBranch [] [SingleEq s t, SeqEq AppFree ss (ts1 <> ts2)]
 
-  SeqEq AppC _ _ -> []
+  SeqEq AppC _ _ -> pure []
 
   -- | Associative head
   --
@@ -246,7 +247,7 @@ transformMatch ctx eq = case eq of
   -- difficult to formulate this rule in the case where the function
   -- variable application is named: y:(x_[...]).
   --
-  SeqEq (AppA f marking) (s :<| ss) ts ->
+  SeqEq (AppA f marking) (s :<| ss) ts -> pure $
     concat
     [ case ts of
         -- | Dec-A: Decomposition under associative head
@@ -309,7 +310,7 @@ transformMatch ctx eq = case eq of
   -- splits vs subSequences for IVE-A-strict vs IVE-AC-strict. We could
   -- try to deduplicate the code.
   --
-  SeqEq (AppAC f marking) (s :<| ss) ts ->
+  SeqEq (AppAC f marking) (s :<| ss) ts -> pure $
     concat
     [
       -- | Dec-AC: Decomposition under AC head. Marking rules the same as AppA.
@@ -344,7 +345,7 @@ transformMatch ctx eq = case eq of
         _ -> []
     ]
 
-  _ -> []
+  _ -> pure []
 
 checkTrue :: Expr -> EvalM Bool
 checkTrue = fmap (== Expr.True) . eval
@@ -355,9 +356,9 @@ solveMatch initialMatchEq = go [initialMatchEq] emptySubstitutionSet
     go :: [MatchingEq] -> SubstitutionSet -> EvalM [SubstitutionSet]
     go [] substSet = pure [substSet]
     go (matchEq : matchEqs) substSet = do
-      ctx <- getContext
+      transformations <- transformMatch matchEq
       fmap concat $
-        for (transformMatch ctx matchEq) $ \transformation ->
+        for transformations $ \transformation ->
         case transformation of
           MatchBranch newSubstitutions newMatchEqs ->
             case insertSubstitutions newSubstitutions substSet of
@@ -493,16 +494,17 @@ level0Symbol = \case
 
 eval :: Expr -> EvalM Expr
 eval expr = do
-  ctx <- getContext
   case expr of
-    ExprSymbol s
-      | Just record <- lookupSymbolRecord s ctx
-      , Just v      <- record.ownValue
-        -- See [Note: Avoiding an infinite loop]
-        -> if v == expr
-           then pure v
-           else eval v
-      | otherwise -> pure expr
+    ExprSymbol s -> do
+      maybeRecord <- lookupSymbolRecord s
+      case maybeRecord of
+        Just record -> case record.ownValue of
+          Just v
+            -- See [Note: Avoiding an infinite loop]
+            | v == expr -> pure v
+            | otherwise -> eval v
+          Nothing -> pure expr
+        Nothing -> pure expr
     ExprLit _ -> pure expr
     ExprApp h cs -> do
       -- Evaluate the head and children, and flatten any sequences
@@ -516,31 +518,19 @@ eval expr = do
       -- children. If h' is a symbol with attribute Orderless, then
       -- subsequently sort the children.
       cs' <- case h' of
-        ExprSymbol s ->
+        ExprSymbol s -> do
+          attr <- lookupAttributes s
           let
-            attr = lookupAttributes s ctx
             maybeFlatten  = if attr.flat      then flattenWithHead h' else id
             maybeSort     = if attr.orderless then Seq.unstableSort   else id
             maybeEvalArgs = traverseWithHoldType attr.holdType eval
-          in
-            fmap (maybeSort . maybeFlatten . flattenSequences) . maybeEvalArgs $ cs
+          fmap (maybeSort . maybeFlatten . flattenSequences) . maybeEvalArgs $ cs
         _ -> fmap flattenSequences . traverse eval $ cs
 
       let
         expr' = ExprApp h' cs'
 
-        downRules
-          | Just rootSym <- Expr.rootSymbol h'
-          , Just record  <- lookupSymbolRecord rootSym ctx
-          = Foldable.toList record.downValues
-          | otherwise = []
-
         level1Symbols = mapMaybe level0Symbol (Foldable.toList cs')
-        upRules = do
-          sym <- level1Symbols
-          case lookupSymbolRecord sym ctx of
-            Just record -> Foldable.toList record.upValues
-            Nothing     -> []
 
         tryRules [] = pure Nothing
         tryRules (rule : rules) = do
@@ -552,6 +542,20 @@ eval expr = do
             Just transformedExpr
               | transformedExpr /= expr' -> Debug.traceShow (rule, expr', transformedExpr) pure $ result
             _ -> tryRules rules
+
+      downRules <- case Expr.rootSymbol h' of
+        Just rootSym -> do
+          maybeRecord <- lookupSymbolRecord rootSym
+          pure $ case maybeRecord of
+            Just record -> Foldable.toList record.downValues
+            Nothing     -> []
+        Nothing -> pure []
+
+      upRules <- fmap concat $ for level1Symbols $ \sym -> do
+        maybeRecord <- lookupSymbolRecord sym
+        pure $ case maybeRecord of
+          Just record -> Foldable.toList record.upValues
+          Nothing     -> []
 
       -- Try upRules before downRules
       tryRules (upRules <> downRules) >>= \case

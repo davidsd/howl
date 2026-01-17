@@ -15,28 +15,18 @@ import Data.String      (IsString (..))
 import Data.Text        (Text)
 import MicroMath.PPrint (PPrint (..))
 import MicroMath.Symbol (Symbol)
+import MicroMath.Expr.Numeric (Numeric(..))
 
 -- | NB: The ordering of constructors is chosen so that the derived
 -- Ord instance gives the correct ordering of expressions.
 data Literal
-  = LitInteger !Integer
-  | LitRational !Rational
-  | LitReal !Double -- TODO: Multiprecision
+  = LitNumeric !Numeric
   | LitString !Text
   deriving (Eq, Ord, Show)
 
-showRational :: Rational -> String
-showRational r =
-  show (numerator r) ++
-  if denominator r == 1
-  then ""
-  else "/" ++ show (denominator r)
-
 instance PPrint Literal where
-  pPrint (LitInteger i)  = show i
-  pPrint (LitRational r) = showRational r
-  pPrint (LitReal x)     = show x
-  pPrint (LitString s)   = show s
+  pPrint (LitNumeric x) = show x
+  pPrint (LitString s)  = show s
 
 -- | NB: The ordering of constructors is chosen so that the derived
 -- Ord instance gives the correct ordering of expressions.
@@ -46,9 +36,14 @@ data Expr
   | ExprApp !Expr !(Seq Expr)
   deriving (Eq, Ord)
 
+instance IsString Expr where
+  fromString = ExprSymbol . fromString
+
 pattern (:@) :: Expr -> Seq Expr -> Expr
 pattern h :@ cs = ExprApp h cs
 infixl 9 :@
+
+{-# COMPLETE ExprSymbol, ExprLit, (:@) #-}
 
 -- | A class for types that can potentially be matched to an
 -- expression.
@@ -75,8 +70,16 @@ instance FromExpr Symbol where
 instance ToExpr Symbol where
   toExpr = ExprSymbol
 
+pattern ExprNumeric :: Numeric -> Expr
+pattern ExprNumeric x = ExprLit (LitNumeric x)
+
+instance FromExpr Numeric where
+  fromExpr = \case { ExprNumeric n -> Just n; _ -> Nothing}
+instance ToExpr Numeric where
+  toExpr = ExprLit . LitNumeric
+
 pattern ExprInteger :: Integer -> Expr
-pattern ExprInteger n = ExprLit (LitInteger n)
+pattern ExprInteger n = ExprNumeric (NInteger n)
 
 instance FromExpr Integer where
   fromExpr = \case { ExprInteger x -> Just x; _ -> Nothing }
@@ -84,22 +87,20 @@ instance ToExpr Integer where
   toExpr = ExprInteger
 
 pattern ExprRational :: Rational -> Expr
-pattern ExprRational q = ExprLit (LitRational q)
-
--- | Convert a Rational into an Expr, representing it as an
--- ExprInteger if it is an integer.
-exprFromRational :: Rational -> Expr
-exprFromRational r
-  | denominator r == 1 = ExprInteger (numerator r)
-  | otherwise          = ExprRational r
+pattern ExprRational q = ExprNumeric (NRational q)
 
 instance FromExpr Rational where
   fromExpr = \case { ExprRational x -> Just x; _ -> Nothing }
+
+-- | Convert a Rational into an Expr, representing it as an
+-- ExprInteger if it is an integer.
 instance ToExpr Rational where
-  toExpr = exprFromRational
+  toExpr r
+    | denominator r == 1 = ExprInteger (numerator r)
+    | otherwise          = ExprRational r
 
 pattern ExprReal :: Double -> Expr
-pattern ExprReal x = ExprLit (LitReal x)
+pattern ExprReal x = ExprNumeric (NReal x)
 
 instance FromExpr Double where
   fromExpr = \case { ExprReal x -> Just x; _ -> Nothing }
@@ -113,48 +114,6 @@ instance FromExpr Text where
   fromExpr = \case { ExprString x -> Just x; _ -> Nothing }
 instance ToExpr Text where
   toExpr = ExprString
-  
-data Numeric
-  = NInteger  !Integer
-  | NRational !Rational
-  | NReal     !Double
-  deriving (Eq)
-
-instance Ord Numeric where
-  compare (NInteger x)  (NInteger y)  = compare x y
-  compare (NRational x) (NInteger y)  = compare x (fromIntegral y)
-  compare (NReal x)     (NInteger y)  = compare x (realToFrac y)
-  compare (NInteger x)  (NRational y) = compare (fromIntegral x) y
-  compare (NRational x) (NRational y) = compare x y
-  compare (NReal x)     (NRational y) = compare x (realToFrac y)
-  compare (NInteger x)  (NReal y)     = compare (realToFrac x) y
-  compare (NRational x) (NReal y)     = compare (realToFrac x) y
-  compare (NReal x)     (NReal y)     = compare x y
-
-numericView :: Expr -> Maybe Numeric
-numericView (ExprLit (LitInteger n))  = Just (NInteger n)
-numericView (ExprLit (LitRational q)) = Just (NRational q)
-numericView (ExprLit (LitReal x))     = Just (NReal x)
-numericView _                         = Nothing
-
-instance FromExpr Numeric where
-  fromExpr = numericView
-
-instance ToExpr Numeric where
-  toExpr (NInteger n)  = toExpr n
-  toExpr (NRational q) = toExpr q
-  toExpr (NReal x)     = toExpr x
-
-pattern ExprNumeric :: Numeric -> Expr
-pattern ExprNumeric n <- (numericView -> Just n)
-  where
-    ExprNumeric = toExpr
-
-{-# COMPLETE ExprSymbol, ExprLit, (:@) #-}
-{-# COMPLETE ExprInteger, ExprRational, ExprReal, ExprString, ExprSymbol, (:@) #-}
-
-instance IsString Expr where
-  fromString = ExprSymbol . fromString
 
 unary :: Expr -> Expr -> Expr
 unary e x = ExprApp e (Seq.singleton x)

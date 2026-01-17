@@ -11,18 +11,17 @@
 module MicroMath.StdLib where
 
 import Control.Monad       (guard)
-import Control.Monad.State (MonadState)
 import Data.Foldable       qualified as Foldable
 import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
-import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence       (Seq, pattern (:<|), pattern Empty, (|>))
 import Data.Sequence       qualified as Seq
 import Data.String         (fromString)
 import Data.Text           (Text)
+import Debug.Trace         qualified as Debug
 import Math.Combinat       (binomial, multinomial)
-import MicroMath.Context   (Attributes (..), Context (..), Decl (..),
-                            EvalM (..), HoldType (..), Rule (..), addDecl,
-                            createContext, getContext, lookupAttributes,
+import MicroMath.Context   (Attributes (..), Decl (..), EvalM (..),
+                            HoldType (..), Rule (..), addDecl, lookupAttributes,
                             modifyAttributes, newModuleSymbol, setFlat,
                             setHoldType, setNumericFunction, setOrderless)
 import MicroMath.Eval      (Substitution (..), SubstitutionSet,
@@ -30,9 +29,9 @@ import MicroMath.Eval      (Substitution (..), SubstitutionSet,
                             insertSubstitutions, lookupBinding, removeBindings,
                             tryApplyRule)
 import MicroMath.Expr      (Expr (..), FromExpr (..), Numeric (..), ToExpr (..),
-                            builtinNumericFunctions, pattern (:@), pattern ExprView,
-                            pattern And, pattern ExprInteger,
-                            pattern ExprNumeric, pattern ExprRational,
+                            builtinNumericFunctions, pattern (:@), pattern And,
+                            pattern ExprInteger, pattern ExprNumeric,
+                            pattern ExprRational, pattern ExprView,
                             pattern List, pattern Or, pattern Plus,
                             pattern Power, pattern Set, pattern SetDelayed,
                             pattern Slot, pattern TagSetDelayed, pattern Times)
@@ -41,105 +40,75 @@ import MicroMath.Expr.TH   (declareBuiltin)
 import MicroMath.Parser    (parseExprText)
 import MicroMath.Pat       (patFromExpr, patRootSymbol)
 import MicroMath.Symbol    (Symbol)
+import MicroMath.ToBuiltin (ToBuiltin (..), builtinDecl)
 import MicroMath.Util      (pattern Pair, pattern Solo)
-import MicroMath.ToBuiltin (ToBuiltin(..), builtinDecl)
-
----------- Numerics utilities ----------
--- TODO: Put these in a separate module? Maybe we need Num,
--- Fractional, etc. instances for Numeric types.
-
-data Numerics = MkNumerics
-  { integers  :: [Integer]
-  , rationals :: [Rational]
-  , reals     :: [Double]
-  } deriving (Eq, Ord, Show)
-
-emptyNumerics :: Numerics
-emptyNumerics = MkNumerics [] [] []
-
-addNumeric :: Numeric -> Numerics -> Numerics
-addNumeric n nums = case n of
-  NInteger i  -> nums { integers  = i:nums.integers }
-  NRational r -> nums { rationals = r:nums.rationals }
-  NReal r     -> nums { reals     = r:nums.reals }
-
-collapseNumerics :: (forall a . Num a => [a] -> a) -> Numerics -> Expr
-collapseNumerics f nums
-  | _:_ <- nums.reals = toExpr $ f $
-    nums.reals <>
-    map realToFrac nums.rationals <>
-    map realToFrac nums.integers
-  | _:_ <- nums.rationals =
-      toExpr $ f $ nums.rationals <> map toRational nums.integers
-  | otherwise = toExpr $ f nums.integers
 
 ---------- Plus ----------
 
 data PlusArguments = MkPlusArguments
-  { plusNums   :: Numerics
-  , plusOthers :: Map Expr Numerics
+  { plusNum    :: !Numeric
+  , plusOthers :: !(Map Expr Numeric)
   } deriving (Eq, Ord, Show)
 
-addNumericsMap :: Ord a => a -> Numeric -> Map a Numerics -> Map a Numerics
-addNumericsMap k n = Map.alter (Just . addNumeric n . maybe emptyNumerics id) k
+addCoeffMap :: Ord a => a -> Numeric -> Map a Numeric -> Map a Numeric
+addCoeffMap k n = Map.alter (Just . (+ n) . maybe 0 id) k
 
 emptyPlusArguments :: PlusArguments
-emptyPlusArguments = MkPlusArguments emptyNumerics Map.empty
+emptyPlusArguments = MkPlusArguments 0 Map.empty
 
 addPlusArgument :: Expr -> PlusArguments -> PlusArguments
 addPlusArgument arg plusArgs = case arg of
-  ExprNumeric n -> plusArgs { plusNums   = addNumeric n plusArgs.plusNums }
+  ExprNumeric n -> plusArgs { plusNum = n + plusArgs.plusNum }
   _             -> plusArgs
     { plusOthers =
       let (term, coeff) = case arg of
             Times :@ Pair (ExprNumeric n) t   -> (t, n)
             Times :@ (ExprNumeric n :<| rest) -> (Times :@ rest, n)
-            _                                 -> (arg, NInteger 1)
+            _                                 -> (arg, 1)
       in
-        addNumericsMap term coeff plusArgs.plusOthers
+        addCoeffMap term coeff plusArgs.plusOthers
     }
 
 normalizePlus :: Seq Expr -> Expr
 normalizePlus initialArgs =
   case allTerms of
-    Empty  -> 0
+    Empty  -> ExprInteger 0
     Solo t -> t
     _      -> Plus :@ (Seq.unstableSort $ Expr.flattenWithHead Plus allTerms)
   where
     plusArgs =
       foldr addPlusArgument emptyPlusArguments initialArgs
-    numericTerm = collapseNumerics sum plusArgs.plusNums
+    numericTerm = toExpr plusArgs.plusNum
     otherTerms = Seq.fromList $ do
-      (a, cs) <- Map.toList plusArgs.plusOthers
-      let coeff = collapseNumerics sum cs
-      case (a, coeff) of
+      (a, c) <- Map.toList plusArgs.plusOthers
+      case (a, c) of
         (_, 0)              -> []
         (_, 1)              -> pure a
-        (Times :@ terms, _) -> pure $ Times :@ (coeff :<| terms)
-        _                   -> pure $ Times :@ Pair coeff a
+        (Times :@ terms, _) -> pure $ Times :@ (toExpr c :<| terms)
+        _                   -> pure $ Times :@ Pair (toExpr c) a
     allTerms =
-      (if numericTerm == 0 then id else (numericTerm :<|)) $
+      (if numericTerm == ExprInteger 0 then id else (numericTerm :<|)) $
       otherTerms
 
 ---------- Times ----------
 
 data TimesArguments = MkTimesArguments
-  { timesNums :: Numerics
-  , powerArgs :: Map Expr (Seq Expr)
+  { timesNum  :: !Numeric
+  , powerArgs :: !(Map Expr (Seq Expr))
   }
 
 emptyTimesArguments :: TimesArguments
-emptyTimesArguments = MkTimesArguments emptyNumerics Map.empty
+emptyTimesArguments = MkTimesArguments 1 Map.empty
 
 addTimesArgument :: Expr -> TimesArguments -> TimesArguments
 addTimesArgument arg timesArgs = case arg of
-  ExprNumeric n -> timesArgs { timesNums = addNumeric n timesArgs.timesNums }
+  ExprNumeric n -> timesArgs { timesNum = n * timesArgs.timesNum }
   _             -> timesArgs
     { powerArgs =
       let
         (base, ex) = case arg of
           Power :@ Pair a b -> (a, b)
-          _                 -> (arg, 1)
+          _                 -> (arg, ExprInteger 1)
       in
         Map.alter (Just . (ex :<|) . maybe Empty id) base timesArgs.powerArgs
     }
@@ -147,39 +116,64 @@ addTimesArgument arg timesArgs = case arg of
 normalizeTimes :: Seq Expr -> Expr
 normalizeTimes initialArgs =
   case allTerms of
-    Empty  -> 1
+    Empty  -> ExprInteger 1
     Solo t -> t
     _      -> Times :@ (Seq.unstableSort $ Expr.flattenWithHead Times allTerms)
   where
     timesArgs = foldr addTimesArgument emptyTimesArguments initialArgs
-    numericTerm = collapseNumerics product timesArgs.timesNums
+    numericTerm = toExpr timesArgs.timesNum
     powerTerms = Seq.fromList $ do
       (a, bs) <- Map.toList timesArgs.powerArgs
-      guard $ bs /= Seq.singleton 0
+      guard $ bs /= Seq.singleton (ExprInteger 0)
       pure $ normalizePower a $ normalizePlus bs
     allTerms =
-      (if numericTerm == 1 then id else (numericTerm :<|)) $
+      (if numericTerm == ExprInteger 1 then id else (numericTerm :<|)) $
       powerTerms
 
 ---------- Power ----------
 
+extractFromExprs :: FromExpr a => Seq Expr -> (Seq a, Seq Expr)
+extractFromExprs = go Empty Empty
+  where
+    go as bs Empty = (as, bs)
+    go as bs (x :<| xs)
+      | Just y <- fromExpr x = go (as |> y) bs xs
+      | otherwise            = go as (bs |> x) xs
+
 normalizePower :: Expr -> Expr -> Expr
-normalizePower a b = case (a, b) of
-  (_, 0)                              -> 1
-  (_, 1)                              -> a
-  (ExprNumeric na, ExprNumeric nb)    -> numericPower na nb
+normalizePower a b = Debug.traceShow ("normalizePower" :: String, a, b) $ case (a, b) of
+  (ExprInteger 1, _) -> ExprInteger 1
+  (_, ExprInteger 0) -> ExprInteger 1
+  (_, ExprInteger 1) -> a
+  (ExprNumeric na, ExprNumeric nb) -> numericPower na nb
+  -- If the power is an integer, then expand by taking the power of each factor
   (Times :@ exprs, i@(ExprInteger _)) -> Times :@ (fmap (flip normalizePower i) exprs)
-  (_, _)                              -> Expr.binary Power a b
+  -- Otherwise, we factor out the numeric part
+  (Times :@ exprs, _) ->
+    let
+      (numericTerms, rest) = extractFromExprs exprs
+      n = product numericTerms
+      nAbs = abs n
+    in
+      case (n, signum n) of
+        (1, _)  -> Expr.binary Power (Times :@ rest) b
+        (_, 0)  -> Expr.binary Power (ExprInteger 0) b
+        (-1,_)  -> Expr.binary Power (Times :@ (ExprInteger (-1) :<| rest)) b
+        (_, -1) ->
+          Times :@ Pair (normalizePower (ExprNumeric nAbs) b) (Expr.binary Power (Times :@ (ExprInteger (-1) :<| rest)) b)
+        (_, _)  ->
+          Times :@ Pair (normalizePower (ExprNumeric n) b) (Expr.binary Power (Times :@ rest) b)
+  (_, _) -> Expr.binary Power a b
 
 -- TODO: Detect exact rational powers, e.g. Sqrt[12] -> 2*Sqrt[3]
 numericPower :: Numeric -> Numeric -> Expr
 numericPower nx ny = case (nx, ny) of
   (NInteger  x, NInteger  y)
-    | y >= 0    -> fromInteger $ x^y
-    | otherwise -> fromRational $ toRational x^^y
+    | y >= 0    -> ExprInteger $ x^y
+    | otherwise -> ExprRational $ toRational x^^y
   (NInteger  x, NRational y) -> Expr.binary Power (ExprInteger x) (ExprRational y)
   (NInteger  x, NReal     y) -> toExpr $ realToFrac x ** y
-  (NRational x, NInteger  y) -> fromRational $ x^^y
+  (NRational x, NInteger  y) -> ExprRational $ x^^y
   (NRational x, NRational y) -> Expr.binary Power (ExprRational x) (ExprRational y)
   (NRational x, NReal     y) -> toExpr $ realToFrac x ** y
   (NReal     x, NInteger  y) -> toExpr $ x ** realToFrac y
@@ -519,13 +513,11 @@ replaceRepeated expr rules = go expr
 ---------- NumericFunctionQ ----------
 
 numericFunctionQ :: Symbol -> EvalM Bool
-numericFunctionQ sym = do
-  ctx <- getContext
-  pure (lookupAttributes sym ctx).numericFunction
+numericFunctionQ = fmap (.numericFunction) . lookupAttributes
 
 -- ========== Building Contexts ========== --
 
-decls :: MonadState Context m => [Text] -> m ()
+decls :: [Text] -> EvalM ()
 decls = mapM_ (addDecl . parseDecl)
 
 parseDecl :: Text -> Decl
@@ -543,10 +535,10 @@ parseDecl declText =
         Nothing  -> error $ "Pattern has no root symbol: " ++ show pat
     _ -> Nothing
 
-function :: (ToBuiltin f, MonadState Context m) => Symbol -> f -> m ()
+function :: ToBuiltin f => Symbol -> f -> EvalM ()
 function sym f = addDecl $ builtinDecl sym f
 
-addStdLib :: MonadState Context m => m ()
+addStdLib :: EvalM ()
 addStdLib = do
   addDecl functionDecl
   modifyAttributes "Function" (setHoldType HoldAll)
@@ -622,7 +614,7 @@ addStdLib = do
     , "Expand[expr_] := expr"
     ]
 
-addVectorCalculus :: MonadState Context m => m ()
+addVectorCalculus :: EvalM ()
 addVectorCalculus = do
   modifyAttributes "CenterDot" setOrderless
   decls
@@ -644,9 +636,8 @@ addVectorCalculus = do
     , "laplacian[x_][expr_] := Module[{i}, deriv[basis[i],x][deriv[basis[i],x][expr]]]"
     ]
 
-
-myContext :: Context
-myContext = createContext $ do
+myProgram :: EvalM Expr
+myProgram = do
   addStdLib
   addVectorCalculus
   decls
@@ -675,9 +666,10 @@ myContext = createContext $ do
     --, "main := Let[x=2, Function[x, Function[x,x+9]][12][x]]"
     -- , "bar := Function[x,x+2]"
     -- , "main := bar /. x:>10"
-    , "main := Expand[laplacian[x][CenterDot[x,x]^((2-dim)/2)]]"
+    --, "main := Expand[laplacian[x][CenterDot[x,x]^((2-dim)/2)]]"
     --, "main := Expand[(x+2)*(x+3)*(x^2 + 9*x+12)]"
     -- , "main := Expand[(x+2)^3*(1+2*y+3*x)]"
     --, "main := x^3 /. { Power[a_,b_Integer] /; (b>=0) :>FOO[a,b] }"
+    , "main := { (-3*x*y)^2, (-3*x*y)^(1/3), (-3*x*y)^x }"
     ]
-
+  eval "main"

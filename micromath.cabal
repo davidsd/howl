@@ -30,6 +30,7 @@ library
       MicroMath.Expr
       MicroMath.Expr.Internal
       MicroMath.Expr.Num
+      MicroMath.Expr.Numeric
       MicroMath.Expr.Syntax
       MicroMath.Expr.TH
       MicroMath.Parser
@@ -38,7 +39,6 @@ library
       MicroMath.StdLib
       MicroMath.Symbol
       MicroMath.ToBuiltin
-      MicroMath.ToBuiltin2
       MicroMath.Util
   other-modules:
       Paths_micromath

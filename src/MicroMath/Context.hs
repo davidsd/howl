@@ -14,11 +14,11 @@ module MicroMath.Context
   , emptyAttributes
   , SymbolRecord(..)
   , EvalM(..)
+  , runEvalMWithContext
   , runEvalM
   , getContext
   , Decl(..)
-  , emptyContext
-  , createContext
+  , newContext
   , lookupSymbolRecord
   , lookupAttributes
   , addDownValue
@@ -35,35 +35,44 @@ module MicroMath.Context
   , newModuleSymbol
   ) where
 
-import Control.Monad.State.Strict (MonadState, State, evalState, execState, get,
-                                   modify', state)
-import Data.IntMap.Strict         (IntMap)
-import Data.IntMap.Strict         qualified as IntMap
-import Data.Sequence              (Seq, (|>))
-import Data.Sequence              qualified as Seq
-import Data.Text.Short            qualified as ShortText
-import MicroMath.Expr             (Expr (..))
-import MicroMath.Pat              (Pat (..))
-import MicroMath.PPrint           (PPrint (..))
-import MicroMath.Symbol           (Symbol, symbolFromShortText, symbolIndex,
-                                   symbolToShortText)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader   (MonadReader, ReaderT, ask, runReaderT)
+import Data.HashTable.IO      qualified as HT
+import Data.IORef             (IORef, atomicModifyIORef', newIORef)
+import Data.Sequence          (Seq, pattern Empty, (|>))
+import Data.Sequence          qualified as Seq
+import Data.Text.Short        qualified as ShortText
+import MicroMath.Expr         (Expr (..))
+import MicroMath.Pat          (Pat (..))
+import MicroMath.PPrint       (PPrint (..))
+import MicroMath.Symbol       (Symbol, symbolFromShortText, symbolToShortText)
+
+type HashTable k v = HT.BasicHashTable k v
 
 data Context = MkContext
-  { symbolMap    :: !(IntMap SymbolRecord)
-  , moduleNumber :: !Int
-  } deriving (Show)
+  { symbolRecordTable :: !(HashTable Symbol SymbolRecord)
+  , moduleNumberRef   :: !(IORef Int)
+  }
 
-emptyContext :: Context
-emptyContext = MkContext IntMap.empty 0
+newContext :: IO Context
+newContext = do
+  symbolRecordTable <- HT.new
+  moduleNumberRef <- newIORef 0
+  pure $ MkContext symbolRecordTable moduleNumberRef
 
-newtype EvalM a = EvalM (State Context a)
-  deriving newtype (Functor, Applicative, Monad, MonadState Context)
+newtype EvalM a = EvalM (ReaderT Context IO a)
+  deriving newtype (Functor, Applicative, Monad, MonadReader Context, MonadIO)
 
-runEvalM :: Context -> EvalM a -> a
-runEvalM ctx (EvalM f) = evalState f ctx
+runEvalMWithContext :: Context -> EvalM a -> IO a
+runEvalMWithContext ctx (EvalM f) = runReaderT f ctx
+
+runEvalM :: EvalM a -> IO a
+runEvalM go = do
+  ctx <- newContext
+  runEvalMWithContext ctx go
 
 getContext :: EvalM Context
-getContext = get
+getContext = ask
 
 data Rule
   = PatRule Pat Expr
@@ -117,8 +126,7 @@ setHoldType ty attr = attr { holdType = Just ty }
 -- as a pointer to the SymbolRecord exists.
 --
 data SymbolRecord = MkSymbolRecord
-  { symbol     :: !Symbol
-  , ownValue   :: !(Maybe Expr)
+  { ownValue   :: !(Maybe Expr)
   , downValues :: !(Seq Rule) -- ^ A rule that matches expressions where
                               -- the given symbol is the head
   , upValues   :: !(Seq Rule) -- ^ A rule that matches expressions where
@@ -128,8 +136,8 @@ data SymbolRecord = MkSymbolRecord
   }
   deriving (Show)
 
-emptySymbolRecord :: Symbol -> SymbolRecord
-emptySymbolRecord sym = MkSymbolRecord sym Nothing Seq.empty Seq.empty EmptyAttributes
+emptySymbolRecord :: SymbolRecord
+emptySymbolRecord = MkSymbolRecord Nothing Seq.empty Seq.empty EmptyAttributes
 
 modifyRecordOwnValue :: (Maybe Expr -> Maybe Expr) -> SymbolRecord -> SymbolRecord
 modifyRecordOwnValue f record = record { ownValue = f record.ownValue }
@@ -143,46 +151,50 @@ modifyRecordUpValues f record = record { upValues = f record.upValues }
 modifyRecordAttributes :: (Attributes -> Attributes) -> SymbolRecord -> SymbolRecord
 modifyRecordAttributes f record = record { attributes = f record.attributes }
 
-lookupSymbolRecord :: Symbol -> Context -> Maybe SymbolRecord
-lookupSymbolRecord s ctx = IntMap.lookup (symbolIndex s) ctx.symbolMap
-
 -- | Apply the given function to a record, and remove the record from
 -- the map if it is empty.
-modifyRecord' :: Symbol -> (SymbolRecord -> SymbolRecord) -> Context -> Context
-modifyRecord' sym f ctx = ctx { symbolMap = newSymbolMap }
+modifyRecord :: Symbol -> (SymbolRecord -> SymbolRecord) -> EvalM ()
+modifyRecord sym f = do
+  ctx <- getContext
+  let withUnit x = (x, ())
+  liftIO $ HT.mutate ctx.symbolRecordTable sym $ withUnit . \case
+    Nothing -> Just $ f emptySymbolRecord
+    Just record ->
+      let
+        newRecord = f record
+      in
+        if isEmpty newRecord
+        then Nothing
+        else Just newRecord
   where
-    changeRecord = f . maybe (emptySymbolRecord sym) id
+    isEmpty (MkSymbolRecord Nothing Empty Empty EmptyAttributes) = True
+    isEmpty _                                                    = False
 
-    checkNotEmpty (MkSymbolRecord _ Nothing Seq.Empty Seq.Empty EmptyAttributes) = Nothing
-    checkNotEmpty r = Just r
+lookupSymbolRecord :: Symbol -> EvalM (Maybe SymbolRecord)
+lookupSymbolRecord sym = do
+  ctx <- getContext
+  liftIO $ HT.lookup ctx.symbolRecordTable sym
 
-    newSymbolMap = IntMap.alter (checkNotEmpty . changeRecord) (symbolIndex sym) ctx.symbolMap
+lookupSymbolRecordDefault :: Symbol -> EvalM SymbolRecord
+lookupSymbolRecordDefault =
+  fmap (maybe emptySymbolRecord id) . lookupSymbolRecord
 
-createContext :: State Context () -> Context
-createContext cm = execState cm emptyContext
+lookupAttributes :: Symbol -> EvalM Attributes
+lookupAttributes = fmap (.attributes) . lookupSymbolRecordDefault
 
-modifyRecord :: MonadState Context m => Symbol -> (SymbolRecord -> SymbolRecord) -> m ()
-modifyRecord sym f = modify' (modifyRecord' sym f)
-
-lookupSymbolRecordDefault :: Symbol -> Context -> SymbolRecord
-lookupSymbolRecordDefault sym = maybe (emptySymbolRecord sym) id . lookupSymbolRecord sym
-
-lookupAttributes :: Symbol -> Context -> Attributes
-lookupAttributes sym ctx = (lookupSymbolRecordDefault sym ctx).attributes
-
-modifyOwnValue :: MonadState Context m => Symbol -> (Maybe Expr -> Maybe Expr) -> m ()
+modifyOwnValue :: Symbol -> (Maybe Expr -> Maybe Expr) -> EvalM ()
 modifyOwnValue sym f = modifyRecord sym (modifyRecordOwnValue f)
 
-modifyDownValues :: MonadState Context m => Symbol -> (Seq Rule -> Seq Rule) -> m ()
+modifyDownValues :: Symbol -> (Seq Rule -> Seq Rule) -> EvalM ()
 modifyDownValues sym f = modifyRecord sym (modifyRecordDownValues f)
 
-modifyUpValues :: MonadState Context m => Symbol -> (Seq Rule -> Seq Rule) -> m ()
+modifyUpValues :: Symbol -> (Seq Rule -> Seq Rule) -> EvalM ()
 modifyUpValues sym f = modifyRecord sym (modifyRecordUpValues f)
 
-addDownValue :: MonadState Context m => Symbol -> Rule -> m ()
+addDownValue :: Symbol -> Rule -> EvalM ()
 addDownValue sym rule = modifyDownValues sym (|> rule)
 
-addUpValue :: MonadState Context m => Symbol -> Rule -> m ()
+addUpValue :: Symbol -> Rule -> EvalM ()
 addUpValue sym rule = modifyUpValues sym (|> rule)
 
 data Decl
@@ -190,34 +202,31 @@ data Decl
   | DownValue Symbol Rule
   | UpValue Symbol Rule
 
-addDecl :: MonadState Context m => Decl -> m ()
+addDecl :: Decl -> EvalM ()
 addDecl = \case
-  OwnValue sym expr  -> modifyOwnValue sym (const (Just expr))
-  DownValue sym rule -> addDownValue sym rule
-  UpValue sym rule   -> addUpValue sym rule
+  OwnValue  sym expr -> modifyOwnValue sym (const (Just expr))
+  DownValue sym rule -> addDownValue   sym rule
+  UpValue   sym rule -> addUpValue     sym rule
 
-modifyAttributes :: MonadState Context m => Symbol -> (Attributes -> Attributes) -> m ()
+modifyAttributes :: Symbol -> (Attributes -> Attributes) -> EvalM ()
 modifyAttributes sym f = modifyRecord sym (modifyRecordAttributes f)
 
-setAttributes :: MonadState Context m => Symbol -> Attributes -> m ()
+setAttributes :: Symbol -> Attributes -> EvalM ()
 setAttributes sym attrs = modifyAttributes sym (const attrs)
 
-clear :: MonadState Context m => Symbol -> m ()
+clear :: Symbol -> EvalM ()
 clear sym = modifyRecord sym $
   modifyRecordOwnValue (const Nothing) .
   modifyRecordDownValues (const Seq.empty) .
   modifyRecordUpValues (const Seq.empty)
 
-clearAll :: MonadState Context m => Symbol -> m ()
-clearAll sym = modify' $ \ctx ->
-  ctx { symbolMap = IntMap.delete (symbolIndex sym) ctx.symbolMap }
+clearAll :: Symbol -> EvalM ()
+clearAll sym = modifyRecord sym (const emptySymbolRecord)
 
-newModuleSymbol :: MonadState Context m => Symbol -> m Symbol
-newModuleSymbol x = state $ \ctx ->
-  let
-    n = ctx.moduleNumber
-    xNew =
-      symbolFromShortText $
-      symbolToShortText x <> ShortText.pack ("$" <> show n)
-  in
-    (xNew, ctx { moduleNumber = n + 1})
+newModuleSymbol :: Symbol -> EvalM Symbol
+newModuleSymbol x = do
+  ctx <- ask
+  n   <- liftIO $ atomicModifyIORef' ctx.moduleNumberRef $ \n -> (n+1,n)
+  pure $
+    symbolFromShortText $
+    symbolToShortText x <> ShortText.pack ("$" <> show n)
