@@ -10,7 +10,7 @@
 
 module MicroMath.StdLib where
 
-import Control.Monad       (guard)
+import Control.Monad       (guard, void)
 import Data.Foldable       qualified as Foldable
 import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
@@ -20,7 +20,7 @@ import Data.String         (fromString)
 import Data.Text           (Text)
 import Debug.Trace         qualified as Debug
 import Math.Combinat       (binomial, multinomial)
-import MicroMath.Context   (Attributes (..), Decl (..), EvalM (..),
+import MicroMath.Context   (Attributes (..), Decl (..), Eval (..),
                             HoldType (..), Rule (..), addDecl, lookupAttributes,
                             modifyAttributes, newModuleSymbol, setFlat,
                             setHoldType, setNumericFunction, setOrderless)
@@ -33,12 +33,12 @@ import MicroMath.Expr      (Expr (..), FromExpr (..), Numeric (..), ToExpr (..),
                             pattern ExprInteger, pattern ExprNumeric,
                             pattern ExprRational, pattern ExprView,
                             pattern List, pattern Or, pattern Plus,
-                            pattern Power, pattern Set, pattern SetDelayed,
-                            pattern Slot, pattern TagSetDelayed, pattern Times)
+                            pattern Power, pattern Set, pattern Slot,
+                            pattern TagSetDelayed, pattern Times)
 import MicroMath.Expr      qualified as Expr
 import MicroMath.Expr.TH   (declareBuiltin)
 import MicroMath.Parser    (parseExprText)
-import MicroMath.Pat       (patFromExpr, patRootSymbol)
+import MicroMath.Pat       (Pat, patFromExpr, patRootSymbol)
 import MicroMath.Symbol    (Symbol)
 import MicroMath.ToBuiltin (ToBuiltin (..), builtinDecl)
 import MicroMath.Util      (pattern Pair, pattern Solo)
@@ -141,7 +141,7 @@ extractFromExprs = go Empty Empty
       | otherwise            = go as (bs |> x) xs
 
 normalizePower :: Expr -> Expr -> Expr
-normalizePower a b = Debug.traceShow ("normalizePower" :: String, a, b) $ case (a, b) of
+normalizePower a b = case (a, b) of
   (ExprInteger 1, _) -> ExprInteger 1
   (_, ExprInteger 0) -> ExprInteger 1
   (_, ExprInteger 1) -> a
@@ -435,7 +435,7 @@ letDef (MkListOrSolo bindings) body = Foldable.foldr funApp body bindings
 
 ---------- Module ----------
 
-moduleDef :: ListOrSolo Symbol -> Expr -> EvalM (Maybe Expr)
+moduleDef :: ListOrSolo Symbol -> Expr -> Eval (Maybe Expr)
 moduleDef (MkListOrSolo vars) body = go vars
   where
     go varSymbols = do
@@ -479,7 +479,7 @@ instance FromExpr ARuleDelayed where
 -- > bar /. x:>10
 -- >>> Function[Slot[1]+2]
 --
-replaceAll :: Expr -> ListOrSolo ARuleDelayed -> EvalM Expr
+replaceAll :: Expr -> ListOrSolo ARuleDelayed -> Eval Expr
 replaceAll e (MkListOrSolo rules) = go e
   where
     -- Repeatedly try rules in the given Sequence until one of them
@@ -501,7 +501,7 @@ replaceAll e (MkListOrSolo rules) = go e
 
 ---------- ReplaceRepeated ----------
 
-replaceRepeated :: Expr -> ListOrSolo ARuleDelayed -> EvalM Expr
+replaceRepeated :: Expr -> ListOrSolo ARuleDelayed -> Eval Expr
 replaceRepeated expr rules = go expr
   where
     go currentExpr = do
@@ -512,34 +512,62 @@ replaceRepeated expr rules = go expr
 
 ---------- NumericFunctionQ ----------
 
-numericFunctionQ :: Symbol -> EvalM Bool
+numericFunctionQ :: Symbol -> Eval Bool
 numericFunctionQ = fmap (.numericFunction) . lookupAttributes
+
+---------- SetDelayed and Set ----------
+
+data LHS
+  = LHSSymbol Symbol
+  | LHSPat Symbol Pat
+  | LHSTaggedPat Symbol Pat
+  deriving (Show)
+
+-- | TODO: Add UpSet
+instance FromExpr LHS where
+  fromExpr = \case
+    ExprSymbol sym                                   -> Just $ LHSSymbol sym
+    TagSetDelayed :@ (Pair (ExprSymbol sym) patExpr) -> Just $ LHSTaggedPat sym (patFromExpr patExpr)
+    patExpr ->
+      let pat = patFromExpr patExpr
+      in case patRootSymbol pat of
+        Just rootSym -> Just (LHSPat rootSym pat)
+        Nothing      -> Nothing
+
+setPairToDecl :: LHS -> Expr -> Decl
+setPairToDecl lhs rhs = case lhs of
+  LHSSymbol sym        -> OwnValue sym rhs
+  LHSPat sym pat       -> DownValue sym (PatRule pat rhs)
+  LHSTaggedPat sym pat -> UpValue sym (PatRule pat rhs)
+
+setDef :: LHS -> Expr -> Eval ()
+setDef lhs rhs = addDecl $ setPairToDecl lhs rhs
 
 -- ========== Building Contexts ========== --
 
-decls :: [Text] -> EvalM ()
-decls = mapM_ (addDecl . parseDecl)
+-- | TODO: Print the result?
+run :: Text -> Eval ()
+run input = case parseExprText input of
+  Just expr -> void $ eval expr
+  Nothing   -> error $ "Couldn't parse: " <> show input
 
-parseDecl :: Text -> Decl
-parseDecl declText =
-  maybe (error $ "Couldn't parse declaration: " ++ show declText) id $ do
-  declExpr <- parseExprText declText
-  case declExpr of
-    SetDelayed :@ (Pair (ExprSymbol sym) rhs) -> Just $ OwnValue sym rhs
-    SetDelayed :@ (Pair (TagSetDelayed :@ (Pair (ExprSymbol sym) patExpr)) rhs) ->
-      Just $ UpValue sym (PatRule (patFromExpr patExpr) rhs)
-    SetDelayed :@ (Pair patExpr rhs) ->
-      let pat = patFromExpr patExpr
-      in case patRootSymbol pat of
-        Just sym -> Just $ DownValue sym (PatRule pat rhs)
-        Nothing  -> error $ "Pattern has no root symbol: " ++ show pat
-    _ -> Nothing
-
-function :: ToBuiltin f => Symbol -> f -> EvalM ()
+function :: ToBuiltin f => Symbol -> f -> Eval ()
 function sym f = addDecl $ builtinDecl sym f
 
-addStdLib :: EvalM ()
+addStdLib :: Eval ()
 addStdLib = do
+  -- NB: The only difference between SetDelayed and Set is in the
+  -- attributes. SetDelayed has attribute HoldAll, so that the rhs is
+  -- unevaluated when the rule is added to the Context. By contrast,
+  -- Set has attribute HoldFirst, so that the rhs (its second
+  -- argument) is evaluated before the rule is added to the Context.
+  --
+  modifyAttributes "Set" (setHoldType HoldFirst)
+  function "Set" setDef
+
+  modifyAttributes "SetDelayed" (setHoldType HoldAll)
+  function "SetDelayed" setDef
+
   addDecl functionDecl
   modifyAttributes "Function" (setHoldType HoldAll)
 
@@ -550,7 +578,7 @@ addStdLib = do
   modifyAttributes "Module" (setHoldType HoldAll)
 
   modifyAttributes "If" (setHoldType HoldRest)
-  decls
+  mapM_ run
     [ "If[True,  x_, _ ] := x"
     , "If[False, _,  y_] := y"
     ]
@@ -590,14 +618,14 @@ addStdLib = do
     pure $ modifyAttributes numFn setNumericFunction
 
   function "NumericQ" $ \(_ :: Numeric) -> True
-  decls
+  mapM_ run
     [ "NumericQ[Pi] := True"
     , "NumericQ[E] := True"
     , "NumericQ[f_[xs___]] := NumericFunctionQ[f] && And @@ Map[NumericQ, {xs}]"
     , "NumericQ[_] := False"
     ]
 
-  decls
+  mapM_ run
     [ "Apply[h_,hp_[xs___]] := h[xs]"
     , "UnsameQ[xs___] := Not[SameQ[xs]]"
     , "Not[True]    := False"
@@ -606,7 +634,7 @@ addStdLib = do
     ]
 
   function "MultinomialPowerExpand" multinomialPowerExpand
-  decls
+  mapM_ run
     [ "Expand[a_ * b_Plus] := (Expand[a*#]&) /@ b"
     , "Expand[b_Plus] := Expand /@ b"
     , "Expand[Power[b_Plus, c_Integer]]      /; c >= 0 := Expand /@ MultinomialPowerExpand[b,c]"
@@ -614,10 +642,10 @@ addStdLib = do
     , "Expand[expr_] := expr"
     ]
 
-addVectorCalculus :: EvalM ()
+addVectorCalculus :: Eval ()
 addVectorCalculus = do
   modifyAttributes "CenterDot" setOrderless
-  decls
+  mapM_ run
     [ "ScalarQ[x_]/;NumericQ[x] := True"
     , "ScalarQ[_] := False"
     , "CenterDot[0, v_] := 0"
@@ -636,11 +664,11 @@ addVectorCalculus = do
     , "laplacian[x_][expr_] := Module[{i}, deriv[basis[i],x][deriv[basis[i],x][expr]]]"
     ]
 
-myProgram :: EvalM Expr
+myProgram :: Eval Expr
 myProgram = do
   addStdLib
   addVectorCalculus
-  decls
+  mapM_ run
     [ "square[x_] := x*x"
     , "fib[0] := 0"
     , "fib[1] := 1"
@@ -654,7 +682,7 @@ myProgram = do
     -- , "main := (1+#&) /@ baz[1,2,3] + (#1*#2&)[2,3]"
     -- , "main := CenterDot[2*x+y,u+v]"
     --, "main := CenterDot[x,basis[i]]*CenterDot[y,basis[i]] + CenterDot[2*x,basis[i]]^2 + CenterDot[basis[j],basis[j]]^2 /. dim :> 3"
-    -- , "main := deriv[u,x][CenterDot[x,y]+2*CenterDot[x,x]^3]"
+    , "main := deriv[u,x][CenterDot[x,y]+2*CenterDot[x,x]^3]"
     -- , "main := ScalarQ[1+3^(1/2)]"
     -- , "main := CenterDot[3*x,2*y+v-v-2*y]"
     -- , "main := Function[Slot[1]*Function[1+Slot[1]]][y]"
@@ -670,6 +698,6 @@ myProgram = do
     --, "main := Expand[(x+2)*(x+3)*(x^2 + 9*x+12)]"
     -- , "main := Expand[(x+2)^3*(1+2*y+3*x)]"
     --, "main := x^3 /. { Power[a_,b_Integer] /; (b>=0) :>FOO[a,b] }"
-    , "main := { (-3*x*y)^2, (-3*x*y)^(1/3), (-3*x*y)^x }"
+    --, "main := { (-3*x*y)^2, (-3*x*y)^(1/3), (-3*x*y)^x }"
     ]
   eval "main"

@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -58,6 +59,7 @@ $(declareBuiltins ''Expr 'fromString
    , "UpSet"
    , "UpSetDelayed"
    , "TagSetDelayed"
+   , "Null"
    ])
 
 fromBool :: Bool -> Expr
@@ -79,3 +81,11 @@ instance FromExpr Bool where
 
 instance ToExpr Bool where
   toExpr = fromBool
+
+instance FromExpr () where
+  fromExpr = \case
+    Null -> Just ()
+    _    -> Nothing
+
+instance ToExpr () where
+  toExpr () = Null

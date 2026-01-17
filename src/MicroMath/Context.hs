@@ -13,9 +13,9 @@ module MicroMath.Context
   , HoldType(..)
   , emptyAttributes
   , SymbolRecord(..)
-  , EvalM(..)
-  , runEvalMWithContext
-  , runEvalM
+  , Eval(..)
+  , runEvalWithContext
+  , runEval
   , getContext
   , Decl(..)
   , newContext
@@ -60,23 +60,23 @@ newContext = do
   moduleNumberRef <- newIORef 0
   pure $ MkContext symbolRecordTable moduleNumberRef
 
-newtype EvalM a = EvalM (ReaderT Context IO a)
+newtype Eval a = Eval (ReaderT Context IO a)
   deriving newtype (Functor, Applicative, Monad, MonadReader Context, MonadIO)
 
-runEvalMWithContext :: Context -> EvalM a -> IO a
-runEvalMWithContext ctx (EvalM f) = runReaderT f ctx
+runEvalWithContext :: Context -> Eval a -> IO a
+runEvalWithContext ctx (Eval f) = runReaderT f ctx
 
-runEvalM :: EvalM a -> IO a
-runEvalM go = do
+runEval :: Eval a -> IO a
+runEval go = do
   ctx <- newContext
-  runEvalMWithContext ctx go
+  runEvalWithContext ctx go
 
-getContext :: EvalM Context
+getContext :: Eval Context
 getContext = ask
 
 data Rule
   = PatRule Pat Expr
-  | BuiltinRule (Expr -> EvalM (Maybe Expr))
+  | BuiltinRule (Expr -> Eval (Maybe Expr))
 
 instance Show Rule where
   show (PatRule p expr) = pPrint p ++ " := " ++ pPrint expr
@@ -153,7 +153,7 @@ modifyRecordAttributes f record = record { attributes = f record.attributes }
 
 -- | Apply the given function to a record, and remove the record from
 -- the map if it is empty.
-modifyRecord :: Symbol -> (SymbolRecord -> SymbolRecord) -> EvalM ()
+modifyRecord :: Symbol -> (SymbolRecord -> SymbolRecord) -> Eval ()
 modifyRecord sym f = do
   ctx <- getContext
   let withUnit x = (x, ())
@@ -170,60 +170,61 @@ modifyRecord sym f = do
     isEmpty (MkSymbolRecord Nothing Empty Empty EmptyAttributes) = True
     isEmpty _                                                    = False
 
-lookupSymbolRecord :: Symbol -> EvalM (Maybe SymbolRecord)
+lookupSymbolRecord :: Symbol -> Eval (Maybe SymbolRecord)
 lookupSymbolRecord sym = do
   ctx <- getContext
   liftIO $ HT.lookup ctx.symbolRecordTable sym
 
-lookupSymbolRecordDefault :: Symbol -> EvalM SymbolRecord
+lookupSymbolRecordDefault :: Symbol -> Eval SymbolRecord
 lookupSymbolRecordDefault =
   fmap (maybe emptySymbolRecord id) . lookupSymbolRecord
 
-lookupAttributes :: Symbol -> EvalM Attributes
+lookupAttributes :: Symbol -> Eval Attributes
 lookupAttributes = fmap (.attributes) . lookupSymbolRecordDefault
 
-modifyOwnValue :: Symbol -> (Maybe Expr -> Maybe Expr) -> EvalM ()
+modifyOwnValue :: Symbol -> (Maybe Expr -> Maybe Expr) -> Eval ()
 modifyOwnValue sym f = modifyRecord sym (modifyRecordOwnValue f)
 
-modifyDownValues :: Symbol -> (Seq Rule -> Seq Rule) -> EvalM ()
+modifyDownValues :: Symbol -> (Seq Rule -> Seq Rule) -> Eval ()
 modifyDownValues sym f = modifyRecord sym (modifyRecordDownValues f)
 
-modifyUpValues :: Symbol -> (Seq Rule -> Seq Rule) -> EvalM ()
+modifyUpValues :: Symbol -> (Seq Rule -> Seq Rule) -> Eval ()
 modifyUpValues sym f = modifyRecord sym (modifyRecordUpValues f)
 
-addDownValue :: Symbol -> Rule -> EvalM ()
+addDownValue :: Symbol -> Rule -> Eval ()
 addDownValue sym rule = modifyDownValues sym (|> rule)
 
-addUpValue :: Symbol -> Rule -> EvalM ()
+addUpValue :: Symbol -> Rule -> Eval ()
 addUpValue sym rule = modifyUpValues sym (|> rule)
 
 data Decl
   = OwnValue Symbol Expr
   | DownValue Symbol Rule
   | UpValue Symbol Rule
+  deriving (Show)
 
-addDecl :: Decl -> EvalM ()
+addDecl :: Decl -> Eval ()
 addDecl = \case
   OwnValue  sym expr -> modifyOwnValue sym (const (Just expr))
   DownValue sym rule -> addDownValue   sym rule
   UpValue   sym rule -> addUpValue     sym rule
 
-modifyAttributes :: Symbol -> (Attributes -> Attributes) -> EvalM ()
+modifyAttributes :: Symbol -> (Attributes -> Attributes) -> Eval ()
 modifyAttributes sym f = modifyRecord sym (modifyRecordAttributes f)
 
-setAttributes :: Symbol -> Attributes -> EvalM ()
+setAttributes :: Symbol -> Attributes -> Eval ()
 setAttributes sym attrs = modifyAttributes sym (const attrs)
 
-clear :: Symbol -> EvalM ()
+clear :: Symbol -> Eval ()
 clear sym = modifyRecord sym $
   modifyRecordOwnValue (const Nothing) .
   modifyRecordDownValues (const Seq.empty) .
   modifyRecordUpValues (const Seq.empty)
 
-clearAll :: Symbol -> EvalM ()
+clearAll :: Symbol -> Eval ()
 clearAll sym = modifyRecord sym (const emptySymbolRecord)
 
-newModuleSymbol :: Symbol -> EvalM Symbol
+newModuleSymbol :: Symbol -> Eval Symbol
 newModuleSymbol x = do
   ctx <- ask
   n   <- liftIO $ atomicModifyIORef' ctx.moduleNumberRef $ \n -> (n+1,n)

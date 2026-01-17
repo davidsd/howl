@@ -30,7 +30,7 @@ import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence       qualified as Seq
 import Data.Traversable    (for)
 import Debug.Trace         qualified as Debug
-import MicroMath.Context   (Attributes (..), EvalM (..),
+import MicroMath.Context   (Attributes (..), Eval (..),
                             HoldType (..), Rule (..), SymbolRecord (..),
                             lookupAttributes, lookupSymbolRecord)
 import MicroMath.Expr      (Expr (..), flattenWithHead, mapSymbols,
@@ -66,7 +66,7 @@ data AppType
   | AppAC Symbol (Maybe Marking)
     deriving (Eq, Ord, Show)
 
-symbolAppType :: Symbol -> EvalM AppType
+symbolAppType :: Symbol -> Eval AppType
 symbolAppType s = do
   attr <- lookupAttributes s
   pure $ case (attr.flat, attr.orderless) of
@@ -75,7 +75,7 @@ symbolAppType s = do
     (False, True ) -> AppC
     (True,  True ) -> AppAC s Nothing
 
-exprAppType :: Expr -> EvalM AppType
+exprAppType :: Expr -> Eval AppType
 exprAppType (ExprSymbol s) = symbolAppType s
 exprAppType _              = pure AppFree
 
@@ -164,7 +164,7 @@ checkHead h expr x = if matchesHead h expr then [x] else []
     matchesHead (Just "String")   (ExprString _)     = True
     matchesHead _ _                                  = False
 
-transformMatch :: MatchingEq -> EvalM [MatchStep]
+transformMatch :: MatchingEq -> Eval [MatchStep]
 transformMatch eq = case eq of
 
   -- | T: Trivial
@@ -347,13 +347,13 @@ transformMatch eq = case eq of
 
   _ -> pure []
 
-checkTrue :: Expr -> EvalM Bool
+checkTrue :: Expr -> Eval Bool
 checkTrue = fmap (== Expr.True) . eval
 
-solveMatch :: MatchingEq -> EvalM [SubstitutionSet]
+solveMatch :: MatchingEq -> Eval [SubstitutionSet]
 solveMatch initialMatchEq = go [initialMatchEq] emptySubstitutionSet
   where
-    go :: [MatchingEq] -> SubstitutionSet -> EvalM [SubstitutionSet]
+    go :: [MatchingEq] -> SubstitutionSet -> Eval [SubstitutionSet]
     go [] substSet = pure [substSet]
     go (matchEq : matchEqs) substSet = do
       transformations <- transformMatch matchEq
@@ -461,7 +461,7 @@ Out[1] := TerminatedEvaluation[RecursionLimit]
 -- multiple matches, we pick the first one. Note that since solveMatch
 -- returns lists, which are computed lazily, this means we terminate
 -- early as soon as a match is found.
-tryApplyRule :: Rule -> Expr -> EvalM (Maybe Expr)
+tryApplyRule :: Rule -> Expr -> Eval (Maybe Expr)
 tryApplyRule rule expr = case rule of
   PatRule pat rhs -> do
     matches <- solveMatch (SingleEq pat expr)
@@ -492,7 +492,7 @@ level0Symbol = \case
   ExprApp (ExprSymbol s) _ -> Just s
   _                        -> Nothing
 
-eval :: Expr -> EvalM Expr
+eval :: Expr -> Eval Expr
 eval expr = do
   case expr of
     ExprSymbol s -> do

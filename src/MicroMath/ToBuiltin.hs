@@ -9,7 +9,7 @@ module MicroMath.ToBuiltin
   ) where
 
 import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
-import MicroMath.Context (Decl (..), EvalM (..), Rule (..))
+import MicroMath.Context (Decl (..), Eval (..), Rule (..))
 import MicroMath.Expr    (Expr (..), FromExpr (..), ToExpr (..), pattern (:@))
 import MicroMath.Symbol  (Symbol)
 
@@ -17,15 +17,15 @@ import MicroMath.Symbol  (Symbol)
 -- Expr' (which we think of as the arguments to a symbolic function).
 --
 class ToBuiltin f where
-  toBuiltin :: f -> (Seq Expr -> EvalM (Maybe Expr))
+  toBuiltin :: f -> (Seq Expr -> Eval (Maybe Expr))
 
 -- | We provide instances for return types that could reasonably be
 -- turned into a rule. The return values can be:
 --
--- - EvalM (Maybe a) : A monadic function that might fail to match
+-- - Eval (Maybe a) : A monadic function that might fail to match
 --   its arguments (signified by Nothing).
 --
--- - EvalM a : A monadic function that always matches its
+-- - Eval a : A monadic function that always matches its
 --   arguments.
 --
 -- - Maybe a: A pure function that might fail to match its
@@ -34,24 +34,24 @@ class ToBuiltin f where
 -- - a : A pure function that always matches its arguments
 --
 -- Where a is any instance of ToExpr.
-instance {-# OVERLAPPABLE #-} ToExpr a => ToBuiltin (EvalM (Maybe a)) where
+instance {-# OVERLAPPABLE #-} ToExpr a => ToBuiltin (Eval (Maybe a)) where
   toBuiltin f0 = \case
     Empty -> fmap (fmap toExpr) f0
     _     -> pure Nothing
 instance {-# OVERLAPPABLE #-} ToExpr a => ToBuiltin (Maybe a) where
-  toBuiltin = toBuiltin @(EvalM (Maybe Expr)) . pure . fmap toExpr
-instance {-# OVERLAPPABLE #-} ToExpr a => ToBuiltin (EvalM a) where
-  toBuiltin = toBuiltin @(EvalM (Maybe Expr)) . fmap (Just . toExpr)
+  toBuiltin = toBuiltin @(Eval (Maybe Expr)) . pure . fmap toExpr
+instance {-# OVERLAPPABLE #-} ToExpr a => ToBuiltin (Eval a) where
+  toBuiltin = toBuiltin @(Eval (Maybe Expr)) . fmap (Just . toExpr)
 instance {-# OVERLAPPABLE #-} ToExpr a => ToBuiltin a where
-  toBuiltin = toBuiltin @(EvalM (Maybe Expr)) . pure . Just . toExpr
+  toBuiltin = toBuiltin @(Eval (Maybe Expr)) . pure . Just . toExpr
 
 -- | Provide instances for variadic functions with these return types,
 -- i.e. functions that take a 'Seq Expr' as an argument. The
 -- OVERLAPPING pragma instructs GHC to prefer these instances when
 -- they apply.
-instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> EvalM (Maybe a)) where
+instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> Eval (Maybe a)) where
   toBuiltin f = fmap (fmap toExpr) . f
-instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> EvalM a) where
+instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> Eval a) where
   toBuiltin f = fmap (Just . toExpr) . f
 instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> Maybe a) where
   toBuiltin f = pure . fmap toExpr . f
@@ -68,7 +68,7 @@ instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> a) where
 --
 -- Integer -> Double -> Text -> Bool
 -- Symbol -> Maybe Double
--- Expr -> Integer -> EvalM (Maybe Numeric)
+-- Expr -> Integer -> Eval (Maybe Numeric)
 -- ...
 --
 instance {-# OVERLAPPABLE #-} (FromExpr a, ToBuiltin f) => ToBuiltin (a -> f) where
@@ -83,7 +83,7 @@ withHeadMaybeM h f = \case
   h' :@ args | h == h' -> f args
   _                    -> pure Nothing
 
-builtinFunctionMaybeM :: Symbol -> (Seq Expr -> EvalM (Maybe Expr)) -> Decl
+builtinFunctionMaybeM :: Symbol -> (Seq Expr -> Eval (Maybe Expr)) -> Decl
 builtinFunctionMaybeM sym f = DownValue sym $ BuiltinRule $ withHeadMaybeM (ExprSymbol sym) f
 
 builtinDecl :: ToBuiltin f => Symbol -> f -> Decl
