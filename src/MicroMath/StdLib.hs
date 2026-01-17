@@ -10,11 +10,13 @@
 
 module MicroMath.StdLib where
 
+import Control.Monad.IO.Class (liftIO)
+import Data.Text.IO qualified as Text
 import Control.Monad       (guard, void)
 import Data.Foldable       qualified as Foldable
 import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
-import Data.Sequence       (Seq, pattern (:<|), pattern Empty, (|>))
+import Data.Sequence       (Seq, pattern (:<|), pattern (:|>), pattern Empty)
 import Data.Sequence       qualified as Seq
 import Data.String         (fromString)
 import Data.Text           (Text)
@@ -32,12 +34,12 @@ import MicroMath.Expr      (Expr (..), FromExpr (..), Numeric (..), ToExpr (..),
                             builtinNumericFunctions, pattern (:@), pattern And,
                             pattern ExprInteger, pattern ExprNumeric,
                             pattern ExprRational, pattern ExprView,
-                            pattern List, pattern Or, pattern Plus,
-                            pattern Power, pattern Set, pattern Slot,
-                            pattern TagSetDelayed, pattern Times)
+                            pattern List, pattern Null, pattern Or,
+                            pattern Plus, pattern Power, pattern Set,
+                            pattern Slot, pattern TagSetDelayed, pattern Times)
 import MicroMath.Expr      qualified as Expr
 import MicroMath.Expr.TH   (declareBuiltin)
-import MicroMath.Parser    (parseExprText)
+import MicroMath.Parser    (parseCompoundExpressionText)
 import MicroMath.Pat       (Pat, patFromExpr, patRootSymbol)
 import MicroMath.Symbol    (Symbol)
 import MicroMath.ToBuiltin (ToBuiltin (..), builtinDecl)
@@ -137,8 +139,8 @@ extractFromExprs = go Empty Empty
   where
     go as bs Empty = (as, bs)
     go as bs (x :<| xs)
-      | Just y <- fromExpr x = go (as |> y) bs xs
-      | otherwise            = go as (bs |> x) xs
+      | Just y <- fromExpr x = go (as :|> y) bs xs
+      | otherwise            = go as (bs :|> x) xs
 
 normalizePower :: Expr -> Expr -> Expr
 normalizePower a b = case (a, b) of
@@ -540,41 +542,92 @@ setPairToDecl lhs rhs = case lhs of
   LHSPat sym pat       -> DownValue sym (PatRule pat rhs)
   LHSTaggedPat sym pat -> UpValue sym (PatRule pat rhs)
 
-setDef :: LHS -> Expr -> Eval ()
-setDef lhs rhs = addDecl $ setPairToDecl lhs rhs
+-- | There are two differences between SetDelayed and Set. Firstly,
+-- SetDelayed has attribute HoldAll, so that the rhs is unevaluated
+-- when the rule is added to the Context. By contrast, Set has
+-- attribute HoldFirst, so that the rhs (its second argument) is
+-- evaluated before the rule is added to the Context. Secondly, 'Set'
+-- returns the rhs, which has already been evaluated.
+--
+setDef :: LHS -> Expr -> Eval Expr
+setDef lhs rhs = do
+  addDecl $ setPairToDecl lhs rhs
+  pure rhs
+
+setDelayedDef :: LHS -> Expr -> Eval ()
+setDelayedDef lhs rhs = addDecl $ setPairToDecl lhs rhs
+
+---------- CompoundExpression ----------
+
+-- | Since we don't give CompoundExpression any attributes, all of its
+-- arguments will be pre-evaluated by the evaluator. All we have to do
+-- here is return the final one.
+compoundExpression :: Seq Expr -> Expr
+compoundExpression = \case
+  Empty       -> Null
+  _ :|> final -> final
+
+---------- Get ----------
+
+get :: FilePath -> Eval Expr
+get path = do
+  contents <- liftIO $ Text.readFile path
+  case parseCompoundExpressionText path contents of
+    Left err -> logMsg err
+    Right expr -> pure expr
+
+logMsg :: String -> Eval Expr
+logMsg msg = liftIO (putStrLn msg) >> pure Expr.Null
+
+---------- Attributes ----------
+
+newtype AttrModifier = MkAttrModifier { getModifier :: Attributes -> Attributes }
+
+instance FromExpr AttrModifier where
+  fromExpr = fmap MkAttrModifier . \case
+    "Flat"      -> Just setFlat
+    "Orderless" -> Just setOrderless
+    "HoldAll"   -> Just $ setHoldType HoldAll
+    "HoldFirst" -> Just $ setHoldType HoldFirst
+    "HoldRest"  -> Just $ setHoldType HoldRest
+    _           -> Nothing
+
+setAttributes :: Symbol -> (ListOrSolo AttrModifier) -> Eval ()
+setAttributes sym (MkListOrSolo attrs) =
+  mapM_ (modifyAttributes sym . (.getModifier)) attrs
 
 -- ========== Building Contexts ========== --
 
--- | TODO: Print the result?
-run :: Text -> Eval ()
-run input = case parseExprText input of
-  Just expr -> void $ eval expr
-  Nothing   -> error $ "Couldn't parse: " <> show input
+run :: Text -> Eval Expr
+run input = case parseCompoundExpressionText "" input of
+  Left err   -> logMsg err
+  Right expr -> eval expr
 
-function :: ToBuiltin f => Symbol -> f -> Eval ()
-function sym f = addDecl $ builtinDecl sym f
+run_ :: Text -> Eval ()
+run_ = void . run
+
+def :: ToBuiltin f => Symbol -> f -> Eval ()
+def sym f = addDecl $ builtinDecl sym f
 
 addStdLib :: Eval ()
 addStdLib = do
-  -- NB: The only difference between SetDelayed and Set is in the
-  -- attributes. SetDelayed has attribute HoldAll, so that the rhs is
-  -- unevaluated when the rule is added to the Context. By contrast,
-  -- Set has attribute HoldFirst, so that the rhs (its second
-  -- argument) is evaluated before the rule is added to the Context.
-  --
   modifyAttributes "Set" (setHoldType HoldFirst)
-  function "Set" setDef
+  def "Set" setDef
 
   modifyAttributes "SetDelayed" (setHoldType HoldAll)
-  function "SetDelayed" setDef
+  def "SetDelayed" setDelayedDef
+
+  def "CompoundExpression" compoundExpression
+  def "Get" get
+  def "SetAttributes" setAttributes
 
   addDecl functionDecl
   modifyAttributes "Function" (setHoldType HoldAll)
 
-  function "Let" letDef
+  def "Let" letDef
   modifyAttributes "Let" (setHoldType HoldAll)
 
-  function "Module" moduleDef
+  def "Module" moduleDef
   modifyAttributes "Module" (setHoldType HoldAll)
 
   modifyAttributes "If" (setHoldType HoldRest)
@@ -583,41 +636,41 @@ addStdLib = do
     , "If[False, _,  y_] := y"
     ]
 
-  function "And" normalizeAnd
+  def "And" normalizeAnd
   modifyAttributes "And" setFlat
 
-  function "Or" normalizeOr
+  def "Or" normalizeOr
   modifyAttributes "Or" setFlat
 
-  function "Equal" equalDef
-  function "Greater" greaterDef
-  function "Less" lessDef
-  function "GreaterEqual" greaterEqualDef
-  function "LessEqual" lessEqualDef
+  def "Equal" equalDef
+  def "Greater" greaterDef
+  def "Less" lessDef
+  def "GreaterEqual" greaterEqualDef
+  def "LessEqual" lessEqualDef
 
-  function "ReplaceAll" replaceAll
-  function "ReplaceRepeated" replaceRepeated
+  def "ReplaceAll" replaceAll
+  def "ReplaceRepeated" replaceRepeated
   modifyAttributes "RuleDelayed" (setHoldType HoldAll)
 
-  function "Map" mapDef
+  def "Map" mapDef
 
-  function "Plus" normalizePlus
+  def "Plus" normalizePlus
   modifyAttributes "Plus" (setFlat . setOrderless)
 
-  function "Times" normalizeTimes
+  def "Times" normalizeTimes
   modifyAttributes "Times" (setFlat . setOrderless)
 
-  function "Power" normalizePower
+  def "Power" normalizePower
 
-  function "SameQ" sameQ
-  function "OrderedQ" orderedQ
+  def "SameQ" sameQ
+  def "OrderedQ" orderedQ
 
-  function "NumericFunctionQ" numericFunctionQ
+  def "NumericFunctionQ" numericFunctionQ
   sequence_ $ do
     numFn <- builtinNumericFunctions
     pure $ modifyAttributes numFn setNumericFunction
 
-  function "NumericQ" $ \(_ :: Numeric) -> True
+  def "NumericQ" $ \(_ :: Numeric) -> True
   mapM_ run
     [ "NumericQ[Pi] := True"
     , "NumericQ[E] := True"
@@ -633,7 +686,7 @@ addStdLib = do
     , "Not[Not[x_]] := x"
     ]
 
-  function "MultinomialPowerExpand" multinomialPowerExpand
+  def "MultinomialPowerExpand" multinomialPowerExpand
   mapM_ run
     [ "Expand[a_ * b_Plus] := (Expand[a*#]&) /@ b"
     , "Expand[b_Plus] := Expand /@ b"
@@ -642,32 +695,15 @@ addStdLib = do
     , "Expand[expr_] := expr"
     ]
 
-addVectorCalculus :: Eval ()
-addVectorCalculus = do
-  modifyAttributes "CenterDot" setOrderless
-  mapM_ run
-    [ "ScalarQ[x_]/;NumericQ[x] := True"
-    , "ScalarQ[_] := False"
-    , "CenterDot[0, v_] := 0"
-    , "CenterDot[x_Plus,y_] := (CenterDot[#,y]&) /@ x"
-    , "CenterDot[a_*u_, v_] /; ScalarQ[a] := a*CenterDot[u,v]"
-    , "CenterDot /: Times[CenterDot[u_,basis[i_]], CenterDot[v_,basis[i_]], xs___] := Times[CenterDot[u,v],xs]"
-    , "CenterDot /: Power[CenterDot[u_,basis[i_]],2] := CenterDot[u,u]"
-    , "CenterDot[basis[i_],basis[i_]] := dim"
-    , "deriv[u_,x_][expr_Plus] := deriv[u,x] /@ expr"
-    , "deriv[u_,x_][a_*b_] := deriv[u,x][a]*b + a*deriv[u,x][b]"
-    , "deriv[u_,x_][a_^b_] := b*deriv[u,x][a]*a^(b-1)"
-    , "deriv[u_,x_][CenterDot[x_,x_]] := 2*CenterDot[u,x]"
-    , "deriv[u_,x_][CenterDot[x_,y_]] := CenterDot[u,y]"
-    , "deriv[_,_][n_] /; NumericQ[n] := 0"
-    , "deriv[_,_][dim] := 0"
-    , "laplacian[x_][expr_] := Module[{i}, deriv[basis[i],x][deriv[basis[i],x][expr]]]"
-    ]
+fibProgram :: Eval Expr
+fibProgram = do
+  addStdLib
+  run "Get[\"/Users/davidsd/Dropbox/Notes/2026/matching/examples/fib.wl\"]; fib[4]"
 
 myProgram :: Eval Expr
 myProgram = do
   addStdLib
-  addVectorCalculus
+  run_ "Get[\"/Users/davidsd/Dropbox/Notes/2026/matching/examples/vector_calculus.wl\"];"
   mapM_ run
     [ "square[x_] := x*x"
     , "fib[0] := 0"

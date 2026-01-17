@@ -8,4 +8,4 @@ import MicroMath.Expr    as Exports hiding (True, False)
 import MicroMath.Parser  as Exports
 import MicroMath.Pat     as Exports
 import MicroMath.PPrint  as Exports
-import MicroMath.StdLib  as Exports
+import MicroMath.StdLib  as Exports (addStdLib, run, run_)

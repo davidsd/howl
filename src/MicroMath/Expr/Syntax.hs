@@ -59,6 +59,7 @@ $(declareBuiltins ''Expr 'fromString
    , "UpSet"
    , "UpSetDelayed"
    , "TagSetDelayed"
+   , "CompoundExpression"
    , "Null"
    ])
 

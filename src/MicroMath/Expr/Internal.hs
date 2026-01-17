@@ -6,16 +6,17 @@
 
 module MicroMath.Expr.Internal where
 
-import Data.Foldable    qualified as Foldable
-import Data.List        (intercalate)
-import Data.Ratio       (denominator, numerator)
-import Data.Sequence    (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence    qualified as Seq
-import Data.String      (IsString (..))
-import Data.Text        (Text)
-import MicroMath.PPrint (PPrint (..))
-import MicroMath.Symbol (Symbol)
-import MicroMath.Expr.Numeric (Numeric(..))
+import Data.Foldable          qualified as Foldable
+import Data.List              (intercalate)
+import Data.Ratio             (denominator, numerator)
+import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence          qualified as Seq
+import Data.String            (IsString (..))
+import Data.Text              (Text)
+import Data.Text              qualified as Text
+import MicroMath.Expr.Numeric (Numeric (..))
+import MicroMath.PPrint       (PPrint (..))
+import MicroMath.Symbol       (Symbol)
 
 -- | NB: The ordering of constructors is chosen so that the derived
 -- Ord instance gives the correct ordering of expressions.
@@ -114,6 +115,11 @@ instance FromExpr Text where
   fromExpr = \case { ExprString x -> Just x; _ -> Nothing }
 instance ToExpr Text where
   toExpr = ExprString
+
+instance FromExpr String where
+  fromExpr = fmap Text.unpack . fromExpr
+instance ToExpr String where
+  toExpr = toExpr . Text.pack
 
 unary :: Expr -> Expr -> Expr
 unary e x = ExprApp e (Seq.singleton x)

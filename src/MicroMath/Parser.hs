@@ -9,7 +9,7 @@ import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Char                      (isAlphaNum)
 import Data.List                      (sortOn)
 import Data.Ord                       (Down (..))
-import Data.Sequence                  (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence                  (Seq, pattern (:<|), pattern Empty, (|>))
 import Data.Sequence                  qualified as Seq
 import Data.Set                       qualified as Set
 import Data.String                    (IsString (..))
@@ -24,11 +24,12 @@ import MicroMath.Expr                 (Expr (..), pattern (:@), pattern And,
                                        pattern Subtract, pattern Times)
 import MicroMath.Expr                 qualified as Expr
 import MicroMath.Symbol               (Symbol)
-import Text.Megaparsec                (Parsec, Stream, Token, anySingle, choice,
-                                       empty, eof, many, manyTill,
-                                       notFollowedBy, optional, parseMaybe,
-                                       satisfy, sepBy, single, token, try,
-                                       (<|>))
+import MicroMath.Util                 (pattern Solo)
+import Text.Megaparsec                (Parsec, Stream, Token, anySingle, choice, parse,
+                                       empty, eof, errorBundlePretty, many,
+                                       manyTill, notFollowedBy, optional,
+                                       parseMaybe, satisfy, sepBy, single,
+                                       token, try, (<|>))
 import Text.Megaparsec.Char           (char, letterChar, space1, string)
 import Text.Megaparsec.Char.Lexer     qualified as Lex
 
@@ -403,8 +404,6 @@ opTable =
 -- parser. Replace (-) and (/) with their definitions in terms of
 -- times and power. Flatten out Plus and Times and remove 0's and 1's,
 -- respectively. Remove redundant Sequence's.
---
--- TODO: Some of these should be builtin rules...
 normalize :: Expr -> Expr
 normalize expr = case expr of
   ExprLit _ -> expr
@@ -441,10 +440,29 @@ parseExprText txt = do
   toks <- parseMaybe lexAll txt
   parseMaybe parseExpr toks
 
-parseProgram :: TokParser [Expr]
-parseProgram = many (parseExpr <* single TSemi)
+parseCompoundExpression :: TokParser Expr
+parseCompoundExpression = do
+  (exprs, hasTrailing) <- getExpr Empty
+  pure $ case (exprs, hasTrailing) of
+    (Empty, _)         -> Expr.Null
+    (Solo expr, False) -> expr
+    (_        , True)  -> Expr.CompoundExpression :@ (exprs |> Expr.Null)
+    (_        , False) -> Expr.CompoundExpression :@ exprs
+  where
+    getExpr exprs = optional parseExpr >>= \case
+      Just expr -> getSemi (exprs |> expr)
+      -- Has trailing semicolon
+      Nothing   -> pure (exprs, True)
+    getSemi exprs = optional (single TSemi) >>= \case
+      Just _ -> getExpr exprs
+      -- No trailing semicolon
+      Nothing -> pure (exprs, False)
 
-parseProgramText :: Text -> Maybe [Expr]
-parseProgramText prg = do
-  toks <- parseMaybe lexAll prg
-  parseMaybe parseProgram toks
+parseCompoundExpressionText :: FilePath -> Text -> Either String Expr
+parseCompoundExpressionText path ce =
+  case parse lexAll path ce of
+    Left bundle -> Left $ errorBundlePretty bundle
+    Right toks ->
+      case parse parseCompoundExpression path toks of
+        Left _     -> Left $ "Error parsing: " <> show ce
+        Right expr -> Right expr
