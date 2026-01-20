@@ -10,40 +10,42 @@
 
 module MicroMath.StdLib where
 
+import Control.Monad          (guard, void)
 import Control.Monad.IO.Class (liftIO)
-import Data.Text.IO qualified as Text
-import Control.Monad       (guard, void)
-import Data.Foldable       qualified as Foldable
-import Data.Map.Strict     (Map)
-import Data.Map.Strict     qualified as Map
-import Data.Sequence       (Seq, pattern (:<|), pattern (:|>), pattern Empty)
-import Data.Sequence       qualified as Seq
-import Data.String         (fromString)
-import Data.Text           (Text)
-import Debug.Trace         qualified as Debug
-import Math.Combinat       (binomial, multinomial)
-import MicroMath.Context   (Attributes (..), Decl (..), Eval (..),
-                            HoldType (..), Rule (..), addDecl, lookupAttributes,
-                            modifyAttributes, newModuleSymbol, setFlat,
-                            setHoldType, setNumericFunction, setOrderless)
-import MicroMath.Eval      (Substitution (..), SubstitutionSet,
-                            emptySubstitutionSet, eval, insertSubstitution,
-                            insertSubstitutions, lookupBinding, removeBindings,
-                            tryApplyRule)
-import MicroMath.Expr      (Expr (..), FromExpr (..), Numeric (..), ToExpr (..),
-                            builtinNumericFunctions, pattern (:@), pattern And,
-                            pattern ExprInteger, pattern ExprNumeric,
-                            pattern ExprRational, pattern ExprView,
-                            pattern List, pattern Null, pattern Or,
-                            pattern Plus, pattern Power, pattern Set,
-                            pattern Slot, pattern TagSetDelayed, pattern Times)
-import MicroMath.Expr      qualified as Expr
-import MicroMath.Expr.TH   (declareBuiltin)
-import MicroMath.Parser    (parseCompoundExpressionText)
-import MicroMath.Pat       (Pat, patFromExpr, patRootSymbol)
-import MicroMath.Symbol    (Symbol)
-import MicroMath.ToBuiltin (ToBuiltin (..), builtinDecl)
-import MicroMath.Util      (pattern Pair, pattern Solo)
+import Data.Foldable          qualified as Foldable
+import Data.Map.Strict        (Map)
+import Data.Map.Strict        qualified as Map
+import Data.Sequence          (Seq, pattern (:<|), pattern (:|>), pattern Empty)
+import Data.Sequence          qualified as Seq
+import Data.String            (fromString)
+import Data.Text              (Text)
+import Data.Text.IO           qualified as Text
+import Debug.Trace            qualified as Debug
+import Math.Combinat          (binomial, multinomial)
+import MicroMath.Context      (Attributes (..), Decl (..), Eval (..),
+                               HoldType (..), Rule (..), addDecl, clear,
+                               clearAll, lookupAttributes, lookupSymbolRecord,
+                               modifyAttributes, newModuleSymbol, setFlat,
+                               setHoldType, setNumericFunction, setOrderless)
+import MicroMath.Eval         (Substitution (..), SubstitutionSet,
+                               emptySubstitutionSet, eval, insertSubstitution,
+                               insertSubstitutions, lookupBinding,
+                               removeBindings, tryApplyRule)
+import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
+                               ToExpr (..), builtinNumericFunctions,
+                               pattern (:@), pattern And, pattern ExprInteger,
+                               pattern ExprNumeric, pattern ExprRational,
+                               pattern ExprView, pattern List, pattern Null,
+                               pattern Or, pattern Plus, pattern Power,
+                               pattern Set, pattern Slot, pattern TagSetDelayed,
+                               pattern Times)
+import MicroMath.Expr         qualified as Expr
+import MicroMath.Expr.TH      (declareBuiltin)
+import MicroMath.Parser       (parseCompoundExpressionText)
+import MicroMath.Pat          (Pat, patFromExpr, patRootSymbol)
+import MicroMath.Symbol       (Symbol)
+import MicroMath.ToBuiltin    (ToBuiltin (..), builtinDecl)
+import MicroMath.Util         (pattern Pair, pattern Solo)
 
 ---------- Plus ----------
 
@@ -165,6 +167,8 @@ normalizePower a b = case (a, b) of
           Times :@ Pair (normalizePower (ExprNumeric nAbs) b) (Expr.binary Power (Times :@ (ExprInteger (-1) :<| rest)) b)
         (_, _)  ->
           Times :@ Pair (normalizePower (ExprNumeric n) b) (Expr.binary Power (Times :@ rest) b)
+  (Power :@ Pair expr y@(ExprNumeric _), _) ->
+    Power :@ Pair expr (normalizeTimes (Pair y b))
   (_, _) -> Expr.binary Power a b
 
 -- TODO: Detect exact rational powers, e.g. Sqrt[12] -> 2*Sqrt[3]
@@ -573,7 +577,7 @@ get :: FilePath -> Eval Expr
 get path = do
   contents <- liftIO $ Text.readFile path
   case parseCompoundExpressionText path contents of
-    Left err -> logMsg err
+    Left err   -> logMsg err
     Right expr -> pure expr
 
 logMsg :: String -> Eval Expr
@@ -596,6 +600,13 @@ setAttributes :: Symbol -> (ListOrSolo AttrModifier) -> Eval ()
 setAttributes sym (MkListOrSolo attrs) =
   mapM_ (modifyAttributes sym . (.getModifier)) attrs
 
+---------- Help ----------
+
+help :: Symbol -> Eval ()
+help sym = do
+  maybeRecord <- lookupSymbolRecord sym
+  liftIO $ putStrLn $ show maybeRecord
+
 -- ========== Building Contexts ========== --
 
 run :: Text -> Eval Expr
@@ -609,8 +620,8 @@ run_ = void . run
 def :: ToBuiltin f => Symbol -> f -> Eval ()
 def sym f = addDecl $ builtinDecl sym f
 
-addStdLib :: Eval ()
-addStdLib = do
+defStdLib :: Eval ()
+defStdLib = do
   modifyAttributes "Set" (setHoldType HoldFirst)
   def "Set" setDef
 
@@ -620,6 +631,9 @@ addStdLib = do
   def "CompoundExpression" compoundExpression
   def "Get" get
   def "SetAttributes" setAttributes
+  def "Clear" clear
+  def "ClearAll" clearAll
+  def "Help" help
 
   addDecl functionDecl
   modifyAttributes "Function" (setHoldType HoldAll)
@@ -661,6 +675,7 @@ addStdLib = do
   modifyAttributes "Times" (setFlat . setOrderless)
 
   def "Power" normalizePower
+  def "Sqrt" $ \e -> normalizePower e (ExprRational (1/2))
 
   def "SameQ" sameQ
   def "OrderedQ" orderedQ
@@ -697,12 +712,12 @@ addStdLib = do
 
 fibProgram :: Eval Expr
 fibProgram = do
-  addStdLib
+  defStdLib
   run "Get[\"/Users/davidsd/Dropbox/Notes/2026/matching/examples/fib.wl\"]; fib[4]"
 
 myProgram :: Eval Expr
 myProgram = do
-  addStdLib
+  defStdLib
   run_ "Get[\"/Users/davidsd/Dropbox/Notes/2026/matching/examples/vector_calculus.wl\"];"
   mapM_ run
     [ "square[x_] := x*x"
@@ -718,7 +733,7 @@ myProgram = do
     -- , "main := (1+#&) /@ baz[1,2,3] + (#1*#2&)[2,3]"
     -- , "main := CenterDot[2*x+y,u+v]"
     --, "main := CenterDot[x,basis[i]]*CenterDot[y,basis[i]] + CenterDot[2*x,basis[i]]^2 + CenterDot[basis[j],basis[j]]^2 /. dim :> 3"
-    , "main := deriv[u,x][CenterDot[x,y]+2*CenterDot[x,x]^3]"
+    --, "main := deriv[u,x][CenterDot[x,y]+2*CenterDot[x,x]^3]"
     -- , "main := ScalarQ[1+3^(1/2)]"
     -- , "main := CenterDot[3*x,2*y+v-v-2*y]"
     -- , "main := Function[Slot[1]*Function[1+Slot[1]]][y]"
@@ -737,3 +752,7 @@ myProgram = do
     --, "main := { (-3*x*y)^2, (-3*x*y)^(1/3), (-3*x*y)^x }"
     ]
   eval "main"
+
+-- Mysterious garbage collection bug: run this
+-- Get["/Users/davidsd/Dropbox/Notes/2026/matching/examples/vector_calculus.wl"]
+-- Expand[laplacian[x][CenterDot[x,x]^((2-dim)/2)]]

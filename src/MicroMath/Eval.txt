@@ -493,16 +493,6 @@ traverseWithHoldType (Just HoldRest)  f (x :<| xs) = do
 flattenSequences :: Seq Expr -> Seq Expr
 flattenSequences = flattenWithHead Expr.Sequence
 
-flattenWithHeadAndSequence :: Expr -> Seq Expr -> Seq Expr
-flattenWithHeadAndSequence h exprs = do
-  expr <- exprs
-  case expr of
-    ExprApp h' args
-      | h' == h || h' == Expr.Sequence
-        -> flattenWithHeadAndSequence h args
-    _ -> pure expr
-
-
 -- | Extract the symbol g from expressions that are pure g or of the form g[...]
 level0Symbol :: Expr -> Maybe Symbol
 level0Symbol = \case
@@ -541,10 +531,10 @@ eval expr = do
         ExprSymbol s -> do
           attr <- lookupAttributes s
           let
-            flatten       = if attr.flat      then flattenWithHeadAndSequence h' else flattenSequences
+            maybeFlatten  = if attr.flat      then flattenWithHead h' else id
             maybeSort     = if attr.orderless then Seq.unstableSort   else id
             maybeEvalArgs = traverseWithHoldType attr.holdType eval
-          fmap (maybeSort . flatten) . maybeEvalArgs $ cs
+          fmap (maybeSort . maybeFlatten . flattenSequences) . maybeEvalArgs $ cs
         _ -> fmap flattenSequences . traverse eval $ cs
 
       let

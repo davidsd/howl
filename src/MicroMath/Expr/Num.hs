@@ -7,8 +7,7 @@
 module MicroMath.Expr.Num where
 
 import Data.String             (fromString)
-import MicroMath.Expr.Internal (Expr (..), ToExpr (..), binary, unary)
-import MicroMath.Expr.Syntax   (pattern Plus, pattern Power, pattern Times)
+import MicroMath.Expr.Internal (Expr (..))
 import MicroMath.Expr.TH       (declareBuiltins)
 import MicroMath.Symbol        (Symbol)
 

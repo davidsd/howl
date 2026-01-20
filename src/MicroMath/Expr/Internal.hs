@@ -33,7 +33,8 @@ instance PPrint Literal where
 -- Ord instance gives the correct ordering of expressions.
 data Expr
   = ExprLit !Literal
-  | ExprSymbol {-# UNPACK #-} !Symbol
+  -- | ExprSymbol {-# UNPACK #-} !Symbol
+  | ExprSymbol !Symbol
   | ExprApp !Expr !(Seq Expr)
   deriving (Eq, Ord)
 

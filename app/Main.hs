@@ -1,6 +1,96 @@
+{-# LANGUAGE NoFieldSelectors    #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE PatternSynonyms     #-}
+
 module Main (main) where
 
-import MicroMath ()
+import Control.Monad.IO.Class   (liftIO)
+import Control.Monad.Trans      (lift)
+import Data.Text                (Text)
+import Data.Text                qualified as Text
+import MicroMath                (Eval, Expr, defStdLib, eval, get, pattern Null,
+                                 run, runEval)
+import Options.Applicative
+import System.Console.Haskeline (InputT, defaultSettings, getInputLine,
+                                 outputStrLn, runInputT)
+
+-- | Top-level mode of operation
+data Mode
+  = Repl
+  | EvalFile FilePath
+  | EvalExpr Text.Text
+
+modeParser :: Parser Mode
+modeParser =
+  EvalFile <$> strOption
+  ( long "file"
+    <> short 'f'
+    <> metavar "FILE"
+    <> help "Evaluate FILE and print the result"
+  )
+  <|> EvalExpr . Text.pack <$> strOption
+  ( long "expr"
+    <> short 'e'
+    <> metavar "EXPR"
+    <> help "Evaluate EXPR and print the result"
+  )
+  <|> pure Repl
+
+optsInfo :: ParserInfo Mode
+optsInfo =
+  info (modeParser <**> helper)
+  ( fullDesc
+    <> progDesc "MicroMath REPL / evaluator"
+    <> header "micromath"
+  )
 
 main :: IO ()
-main = putStrLn "Hello world!"
+main = do
+  mode <- execParser optsInfo
+  runEval $ case mode of
+    Repl         -> runRepl
+    EvalFile fp  -> runFile fp
+    EvalExpr txt -> runExpr txt
+
+runFile :: FilePath -> Eval ()
+runFile fp = do
+  defStdLib
+  inputExpr <- get fp
+  result <- eval inputExpr
+  unlessNull result $ liftIO . putStrLn . show
+
+runExpr :: Text -> Eval ()
+runExpr input = do
+  defStdLib
+  result <- run input
+  unlessNull result $ liftIO . putStrLn . show
+
+runRepl :: Eval ()
+runRepl = runInputT defaultSettings evalRepl
+
+evalRepl :: InputT Eval ()
+evalRepl = do
+  outputStrLn "MicroMath, version 0.1 :? for help"
+  lift defStdLib
+  loop
+  where
+    loop :: InputT Eval ()
+    loop = do
+      maybeInput <- getInputLine "> "
+      case maybeInput of
+        Nothing -> pure ()
+        Just ":?" -> do
+          showHelp
+          loop
+        Just ":quit" -> pure ()
+        Just input -> do
+          result <- lift $ run (Text.pack input)
+          unlessNull result $ outputStrLn . show
+          loop
+
+showHelp :: InputT Eval ()
+showHelp = outputStrLn $ "Commands: :quit -> exit"
+
+unlessNull :: Monad m => Expr -> (Expr -> m ()) -> m ()
+unlessNull Null _  = pure ()
+unlessNull expr go = go expr

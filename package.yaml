@@ -28,6 +28,8 @@ dependencies:
 - template-haskell
 - symbolize
 - combinat
+- exceptions
+- optparse-applicative
 
 ghc-options:
 - -Wall
@@ -38,6 +40,7 @@ ghc-options:
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -Wredundant-constraints
+- -O2
 
 library:
   source-dirs: src
@@ -50,8 +53,11 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -O2
     dependencies:
     - micromath
+    - haskeline
+    - text
 
 # tests:
 #   micromath-test:

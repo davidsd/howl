@@ -398,6 +398,8 @@ opTable =
     , binaryR OpUpSet           (Expr.binary "UpSet")
     , binaryR OpUpSetDelayed    (Expr.binary "UpSetDelayed")
     ]
+  , [ prefix OpQuestion         (Expr.unary "Help")
+    ]
   ]
 
 -- | Do some basic normalization to deal with quirks of the expression

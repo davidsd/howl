@@ -17,6 +17,8 @@ module MicroMath.Context
   , runEvalWithContext
   , runEval
   , getContext
+  , returnIfInCache
+  , addToEvalCache
   , Decl(..)
   , newContext
   , lookupSymbolRecord
@@ -35,33 +37,46 @@ module MicroMath.Context
   , newModuleSymbol
   ) where
 
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader   (MonadReader, ReaderT, ask, runReaderT)
-import Data.HashTable.IO      qualified as HT
-import Data.IORef             (IORef, atomicModifyIORef', newIORef)
-import Data.Sequence          (Seq, pattern Empty, (|>))
-import Data.Sequence          qualified as Seq
-import Data.Text.Short        qualified as ShortText
-import MicroMath.Expr         (Expr (..))
-import MicroMath.Pat          (Pat (..))
-import MicroMath.PPrint       (PPrint (..))
-import MicroMath.Symbol       (Symbol, symbolFromShortText, symbolToShortText)
+import Control.Monad.Catch      (MonadCatch, MonadMask, MonadThrow)
+import Control.Monad.IO.Class   (MonadIO, liftIO)
+import Control.Monad.Reader     (MonadReader, ReaderT, ask, runReaderT)
+import Data.HashTable.IO        qualified as HT
+import Data.IORef               (IORef, atomicModifyIORef', newIORef)
+import Data.Sequence            (Seq, pattern Empty, (|>))
+import Data.Sequence            qualified as Seq
+import Data.Text.Short          qualified as ShortText
+import Debug.Trace              qualified as Debug
+import MicroMath.Expr           (Expr (..))
+import MicroMath.Expr.EvalCache (EvalCache, insertEvalCache, lookupEvalCache,
+                                 newEvalCache)
+import MicroMath.Pat            (Pat (..))
+import MicroMath.PPrint         (PPrint (..))
+import MicroMath.Symbol         (Symbol, symbolFromShortText, symbolToShortText)
+
 
 type HashTable k v = HT.BasicHashTable k v
 
 data Context = MkContext
-  { symbolRecordTable :: !(HashTable Symbol SymbolRecord)
-  , moduleNumberRef   :: !(IORef Int)
+  { symbolRecordTable      :: !(HashTable Symbol SymbolRecord)
+  , moduleNumberRef        :: !(IORef Int)
+  , addToEvalCacheHandler  :: Expr -> Eval ()
+  , returnIfInCacheHandler :: Expr -> Eval Expr -> Eval Expr
   }
+
+newtype Eval a = Eval (ReaderT Context IO a)
+  deriving newtype (Functor, Applicative, Monad, MonadReader Context, MonadIO, MonadMask, MonadCatch, MonadThrow)
 
 newContext :: IO Context
 newContext = do
   symbolRecordTable <- HT.new
   moduleNumberRef <- newIORef 0
-  pure $ MkContext symbolRecordTable moduleNumberRef
-
-newtype Eval a = Eval (ReaderT Context IO a)
-  deriving newtype (Functor, Applicative, Monad, MonadReader Context, MonadIO)
+  evalCache <- newEvalCache
+  pure $ MkContext
+    { symbolRecordTable      = symbolRecordTable
+    , moduleNumberRef        = moduleNumberRef
+    , addToEvalCacheHandler  = dummyAddToEvalCache evalCache
+    , returnIfInCacheHandler = dummyReturnIfInCache evalCache
+    }
 
 runEvalWithContext :: Context -> Eval a -> IO a
 runEvalWithContext ctx (Eval f) = runReaderT f ctx
@@ -73,6 +88,31 @@ runEval go = do
 
 getContext :: Eval Context
 getContext = ask
+
+dummyAddToEvalCache :: EvalCache -> Expr -> Eval ()
+dummyAddToEvalCache _ _ = pure ()
+
+dummyReturnIfInCache :: EvalCache -> Expr -> Eval Expr -> Eval Expr
+dummyReturnIfInCache _ _ go = go
+
+defaultAddToEvalCache :: EvalCache -> Expr -> Eval ()
+defaultAddToEvalCache evalCache expr = liftIO $ insertEvalCache evalCache expr
+
+defaultReturnIfInCache :: EvalCache -> Expr -> Eval Expr -> Eval Expr
+defaultReturnIfInCache evalCache expr go =
+  liftIO (lookupEvalCache evalCache expr) >>= \case
+  True -> pure expr
+  False -> go
+
+returnIfInCache :: Expr -> Eval Expr -> Eval Expr
+returnIfInCache expr go = do
+  ctx <- getContext
+  ctx.returnIfInCacheHandler expr go
+
+addToEvalCache :: Expr -> Eval ()
+addToEvalCache expr = do
+  ctx <- getContext
+  ctx.addToEvalCacheHandler expr
 
 data Rule
   = PatRule Pat Expr
@@ -126,7 +166,8 @@ setHoldType ty attr = attr { holdType = Just ty }
 -- as a pointer to the SymbolRecord exists.
 --
 data SymbolRecord = MkSymbolRecord
-  { ownValue   :: !(Maybe Expr)
+  { -- symbol     :: Symbol
+    ownValue   :: !(Maybe Expr)
   , downValues :: !(Seq Rule) -- ^ A rule that matches expressions where
                               -- the given symbol is the head
   , upValues   :: !(Seq Rule) -- ^ A rule that matches expressions where
@@ -136,8 +177,8 @@ data SymbolRecord = MkSymbolRecord
   }
   deriving (Show)
 
-emptySymbolRecord :: SymbolRecord
-emptySymbolRecord = MkSymbolRecord Nothing Seq.empty Seq.empty EmptyAttributes
+emptySymbolRecord :: Symbol -> SymbolRecord
+emptySymbolRecord _ = MkSymbolRecord Nothing Seq.empty Seq.empty EmptyAttributes
 
 modifyRecordOwnValue :: (Maybe Expr -> Maybe Expr) -> SymbolRecord -> SymbolRecord
 modifyRecordOwnValue f record = record { ownValue = f record.ownValue }
@@ -158,7 +199,7 @@ modifyRecord sym f = do
   ctx <- getContext
   let withUnit x = (x, ())
   liftIO $ HT.mutate ctx.symbolRecordTable sym $ withUnit . \case
-    Nothing -> Just $ f emptySymbolRecord
+    Nothing -> Just $ f (emptySymbolRecord sym)
     Just record ->
       let
         newRecord = f record
@@ -167,6 +208,7 @@ modifyRecord sym f = do
         then Nothing
         else Just newRecord
   where
+    --isEmpty (MkSymbolRecord _ Nothing Empty Empty EmptyAttributes) = True
     isEmpty (MkSymbolRecord Nothing Empty Empty EmptyAttributes) = True
     isEmpty _                                                    = False
 
@@ -176,8 +218,8 @@ lookupSymbolRecord sym = do
   liftIO $ HT.lookup ctx.symbolRecordTable sym
 
 lookupSymbolRecordDefault :: Symbol -> Eval SymbolRecord
-lookupSymbolRecordDefault =
-  fmap (maybe emptySymbolRecord id) . lookupSymbolRecord
+lookupSymbolRecordDefault sym =
+  fmap (maybe (emptySymbolRecord sym) id) $ lookupSymbolRecord sym
 
 lookupAttributes :: Symbol -> Eval Attributes
 lookupAttributes = fmap (.attributes) . lookupSymbolRecordDefault
@@ -222,7 +264,7 @@ clear sym = modifyRecord sym $
   modifyRecordUpValues (const Seq.empty)
 
 clearAll :: Symbol -> Eval ()
-clearAll sym = modifyRecord sym (const emptySymbolRecord)
+clearAll sym = modifyRecord sym (const (emptySymbolRecord sym))
 
 newModuleSymbol :: Symbol -> Eval Symbol
 newModuleSymbol x = do
