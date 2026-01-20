@@ -16,18 +16,20 @@ module MicroMath.Eval
   , removeBindings
   , applySubstitutions
   , tryApplyRule
-  , solveMatch
+  , solveMatchAll
+  , solveMatchMaybe
   , eval
   ) where
 
 import Control.Applicative (Alternative, empty)
 import Control.Monad       (foldM, guard)
-import Data.Foldable       qualified as Foldable
 import Data.Map.Strict     (Map)
 import Data.Map.Strict     qualified as Map
-import Data.Maybe          (catMaybes, mapMaybe)
+import Data.Maybe          (catMaybes)
 import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence       qualified as Seq
+import Data.Set            (Set)
+import Data.Set            qualified as Set
 import Data.Traversable    (for)
 import Debug.Trace         qualified as Debug
 import MicroMath.Context   (Attributes (..), Eval (..), HoldType (..),
@@ -140,14 +142,26 @@ guardSeqTy OneOrMore Empty = empty
 guardSeqTy _         _     = pure ()
 
 data MatchingEq
-  = SingleEq Pat Expr
-  | SeqEq AppType (Seq Pat) (Seq Expr)
+  = SingleEq !Pat !Expr
+  | SeqEq !AppType !(Seq Pat) !(Seq Expr)
   deriving (Eq, Ord, Show)
 
+-- | The ListMod's are transformations to the list of matching
+-- equations: in practice, they are consing on 0,1, or 2 elements.
 data MatchStep
-  = MatchBranch [Substitution] [MatchingEq]
-  | MatchCondition [MatchingEq] Expr
-  deriving (Eq, Ord, Show)
+  = MatchBranch [Substitution] !(ListMod MatchingEq)
+  | MatchCondition !(ListMod MatchingEq) !Expr
+
+type ListMod a = [a] -> [a]
+
+zero :: ListMod a
+zero = id
+
+one :: a -> ListMod a
+one x xs = x:xs
+
+two :: a -> a -> ListMod a
+two x y xs = x:y:xs
 
 -- | The _h (constrained head) pattern in Mathematica is a little
 -- funny. For ExprApp's, it behaves just like h[___]. However, certain
@@ -170,16 +184,16 @@ transformMatch eq = case eq of
 
   -- | T: Trivial
   SingleEq (PatLit xs s) expr@(ExprLit s')
-    | s == s'   -> pure [MatchBranch (bindVars xs expr) []]
+    | s == s'   -> pure [MatchBranch (bindVars xs expr) zero]
     | otherwise -> pure []
 
   SingleEq (PatSymbol xs s) expr@(ExprSymbol s')
-    | s == s'   -> pure [MatchBranch (bindVars xs expr) []]
+    | s == s'   -> pure [MatchBranch (bindVars xs expr) zero]
     | otherwise -> pure []
 
   -- | IVE: Individual variable elimination
   SingleEq (PatVar x xHead) t -> pure $
-    checkHead xHead t (MatchBranch (bindVars x t) [])
+    checkHead xHead t (MatchBranch (bindVars x t) zero)
 
   -- | A symbol or literal cannot match with an ExprApp
   SingleEq (PatSymbol _ _) (ExprApp _ _) -> pure []
@@ -189,13 +203,13 @@ transformMatch eq = case eq of
   -- patterns. NB: This only makes sense if the same free pattern
   -- variables are present in each alternative.
   SingleEq (PatAlt xs p1 p2) t -> pure
-    [ MatchBranch [] [SingleEq (addNames xs p1) t]
-    , MatchBranch [] [SingleEq (addNames xs p2) t]
+    [ MatchBranch [] (one $ SingleEq (addNames xs p1) t)
+    , MatchBranch [] (one $ SingleEq (addNames xs p2) t)
     ]
 
   -- | Conditional pattern
   SingleEq (PatCondition xs p test) t -> pure
-    [ MatchCondition [SingleEq (addNames xs p) t] test ]
+    [ MatchCondition (one $ SingleEq (addNames xs p) t) test ]
 
   -- | A PatApp matches an ExprApp if the heads match and the sequences match
   SingleEq
@@ -209,22 +223,31 @@ transformMatch eq = case eq of
       PatVar _ _ -> pure AppFree
       _          -> exprAppType g
     pure $
-      [MatchBranch (bindVars xs expr) [SingleEq f g, SeqEq appTy fArgs gArgs]]
+      [MatchBranch (bindVars xs expr) (two (SingleEq f g) (SeqEq appTy fArgs gArgs))]
 
   -- | Free head
 
   -- | The empty sequence matches itself under any head.
-  SeqEq _ Empty Empty -> pure [MatchBranch [] []]
+  SeqEq _ Empty Empty -> pure [MatchBranch [] zero]
+
+  -- | SVE-last: Special case: last sequence variable. If we are
+  -- matching a single sequence variable to a sequence of expressions,
+  -- we don't need to compute splits or pursue further branches. There
+  -- is only one possibility: the sequence variable is bound to the
+  -- given sequence of expressions.
+  SeqEq _ (PatSeqVar x seqTy :<| Empty) ts -> pure $ do
+    guardSeqTy seqTy ts
+    pure $ MatchBranch (bindSeqVars x ts) zero
 
   -- | SVE: Sequence variable elimination (applies under any head)
   SeqEq appTy (PatSeqVar x seqTy :<| ss) ts -> pure $ do
     (ts1, ts2) <- splits ts
     guardSeqTy seqTy ts1
-    pure $ MatchBranch (bindSeqVars x ts1) [SeqEq appTy ss ts2]
+    pure $ MatchBranch (bindSeqVars x ts1) (one $ SeqEq appTy ss ts2)
 
   -- | Dec-F: Decomposition under Free head
   SeqEq AppFree (s :<| ss) (t :<| ts) -> pure
-    [MatchBranch [] [SingleEq s t, SeqEq AppFree ss ts]]
+    [MatchBranch [] (two (SingleEq s t) (SeqEq AppFree ss ts))]
 
   -- | Commutative head
   --
@@ -234,7 +257,7 @@ transformMatch eq = case eq of
   -- | Dec-C: Decomposition under commutative head
   SeqEq AppC (s :<| ss) ts -> pure $ do
     (ts1, t, ts2) <- splits1 ts
-    pure $ MatchBranch [] [SingleEq s t, SeqEq AppFree ss (ts1 <> ts2)]
+    pure $ MatchBranch [] (two (SingleEq s t) (SeqEq AppFree ss (ts1 <> ts2)))
 
   SeqEq AppC _ _ -> pure []
 
@@ -270,7 +293,7 @@ transformMatch eq = case eq of
                 _       -> marking
               newTy = AppA f newMarking
             in
-              [MatchBranch [] [SingleEq s t, SeqEq newTy ss ts']]
+              [MatchBranch [] (two (SingleEq s t) (SeqEq newTy ss ts'))]
         _   -> []
     , case s of
         -- | IVE-A-strict: Individual variable elimination under
@@ -294,7 +317,7 @@ transformMatch eq = case eq of
           checkHead xHead xExpr $
             MatchBranch
             (bindVars x xExpr)
-            [SeqEq newTy ss ts2]
+            (one $ SeqEq newTy ss ts2)
         _ -> []
     ]
 
@@ -325,7 +348,7 @@ transformMatch eq = case eq of
               Nothing -> Just Mark0
               _       -> marking
             newTy = AppAC f newMarking
-          pure $ MatchBranch [] [SingleEq s t, SeqEq newTy ss (ts1 <> ts2)]
+          pure $ MatchBranch [] (two (SingleEq s t) (SeqEq newTy ss (ts1 <> ts2)))
     ,
       case s of
         -- | IVE-AC-strict: Individual variable elimination under AC
@@ -342,7 +365,7 @@ transformMatch eq = case eq of
           checkHead xHead xExpr $
             MatchBranch
             (bindVars x xExpr)
-            [SeqEq newTy ss rest]
+            (one $ SeqEq newTy ss rest)
         _ -> []
     ]
 
@@ -351,8 +374,10 @@ transformMatch eq = case eq of
 checkTrue :: Expr -> Eval Bool
 checkTrue = fmap (== Expr.True) . eval
 
-solveMatch :: MatchingEq -> Eval [SubstitutionSet]
-solveMatch initialMatchEq = go [initialMatchEq] emptySubstitutionSet
+-- | Solve the given MatchingEq and return all possible solutions.
+{-# INLINE solveMatchAll #-}
+solveMatchAll :: MatchingEq -> Eval [SubstitutionSet]
+solveMatchAll initialMatchEq = go [initialMatchEq] emptySubstitutionSet
   where
     go :: [MatchingEq] -> SubstitutionSet -> Eval [SubstitutionSet]
     go [] substSet = pure [substSet]
@@ -361,18 +386,60 @@ solveMatch initialMatchEq = go [initialMatchEq] emptySubstitutionSet
       fmap concat $
         for transformations $ \transformation ->
         case transformation of
-          MatchBranch newSubstitutions newMatchEqs ->
+          MatchBranch newSubstitutions addNewMatchEqs ->
             case insertSubstitutions newSubstitutions substSet of
-              Just newSubstSet -> go (newMatchEqs ++ matchEqs) newSubstSet
+              Just newSubstSet -> go (addNewMatchEqs matchEqs) newSubstSet
               Nothing          -> pure []
-          MatchCondition newMatchEqs testExpr -> do
-            solutionSets <- go (newMatchEqs ++ matchEqs) substSet
+          MatchCondition addNewMatchEqs testExpr -> do
+            solutionSets <- go (addNewMatchEqs matchEqs) substSet
             fmap catMaybes $
               for solutionSets $ \solutionSet -> do
               ok <- checkTrue (applySubstitutions solutionSet testExpr)
               if ok
                 then pure (Just solutionSet)
                 else pure Nothing
+
+-- | Solve the given MatchingEq and return the first possible
+-- solution, via DFS.
+{-# INLINE solveMatchMaybe #-}
+solveMatchMaybe :: MatchingEq -> Eval (Maybe SubstitutionSet)
+solveMatchMaybe initialMatchEq = go [initialMatchEq] emptySubstitutionSet []
+  where
+    -- pending conditions to check once we reach a full solution
+    go :: [MatchingEq] -> SubstitutionSet -> [Expr] -> Eval (Maybe SubstitutionSet)
+    go [] substSet conds = do
+      ok <- checkAll substSet conds
+      pure $ if ok then Just substSet else Nothing
+
+    go (matchEq : matchEqs) substSet conds = do
+      steps <- transformMatch matchEq
+      trySteps steps
+      where
+        trySteps :: [MatchStep] -> Eval (Maybe SubstitutionSet)
+        trySteps [] = pure Nothing
+        trySteps (step : restSteps) =
+          case step of
+            MatchBranch newSubstitutions addNewMatchEqs ->
+              case insertSubstitutions newSubstitutions substSet of
+                Nothing -> trySteps restSteps
+                Just substSet' -> do
+                  r <- go (addNewMatchEqs matchEqs) substSet' conds
+                  case r of
+                    Just _  -> pure r
+                    Nothing -> trySteps restSteps
+
+            -- Defer condition checking until the leaf.
+            MatchCondition addNewMatchEqs testExpr -> do
+              r <- go (addNewMatchEqs matchEqs) substSet (testExpr : conds)
+              case r of
+                Just _  -> pure r
+                Nothing -> trySteps restSteps
+
+    checkAll :: SubstitutionSet -> [Expr] -> Eval Bool
+    checkAll _ [] = pure True
+    checkAll substSet (testExpr : rest) = do
+      ok <- checkTrue (applySubstitutions substSet testExpr)
+      if ok then checkAll substSet rest else pure False
 
 {- ============== Evaluation ================
 
@@ -458,26 +525,18 @@ Out[1] := TerminatedEvaluation[RecursionLimit]
 -}
 
 -- | Try to apply a rule to the given expression. If the rule matches,
--- return 'Just result' otherwise return nothing. If there are
--- multiple matches, we pick the first one. Note that since solveMatch
--- returns lists, which are computed lazily, this means we terminate
--- early as soon as a match is found.
+-- return 'Just result' otherwise return nothing.
+{-# INLINE tryApplyRule #-}
 tryApplyRule :: Rule -> Expr -> Eval (Maybe Expr)
 tryApplyRule rule expr = case rule of
   PatRule pat rhs -> do
-    matches <- solveMatch (SingleEq pat expr)
-    pure
-      -- $ Debug.traceShow
-      -- ( "pat"::String, pat
-      -- , "rhs"::String, rhs
-      -- , "expr"::String, expr
-      -- , "matches"::String, matches
-      -- )
-      $ case matches of
-      []             -> Nothing
-      (substSet : _) -> Just (applySubstitutions substSet rhs)
+    maybeMatch <- solveMatchMaybe (SingleEq pat expr)
+    pure $ case maybeMatch of
+      Nothing       -> Nothing
+      Just substSet -> Just (applySubstitutions substSet rhs)
   BuiltinRule f -> f expr
 
+{-# INLINE traverseWithHoldType #-}
 traverseWithHoldType :: Monad m => Maybe HoldType -> (a -> m a) -> Seq a -> m (Seq a)
 traverseWithHoldType Nothing          f xs         = traverse f xs
 traverseWithHoldType _                _ Empty      = pure Empty
@@ -504,6 +563,7 @@ flattenWithHeadAndSequence h exprs = do
 
 
 -- | Extract the symbol g from expressions that are pure g or of the form g[...]
+{-# INLINE level0Symbol #-}
 level0Symbol :: Expr -> Maybe Symbol
 level0Symbol = \case
   ExprSymbol s             -> Just s
@@ -550,36 +610,45 @@ eval expr = do
       let
         expr' = ExprApp h' cs'
 
-        level1Symbols = mapMaybe level0Symbol (Foldable.toList cs')
+        tryRulesSeq :: Seq Rule -> Eval (Maybe Expr)
+        tryRulesSeq = \case
+          Empty -> pure Nothing
+          rule :<| rules -> do
+            result <- tryApplyRule rule expr'
+            case result of
+              Just transformedExpr
+                | transformedExpr /= expr' -> pure result
+              _ -> tryRulesSeq rules
 
-        tryRules [] = pure Nothing
-        tryRules (rule : rules) = do
-          result <- tryApplyRule rule expr'
-          case result of
-            -- Check that the transformation doesn't result in an
-            -- identical expression. If it does, we'd get an infinite loop
-            -- if we evaluated again.
-            Just transformedExpr
-              | transformedExpr /= expr' ->
-                --Debug.traceShow (rule, expr', transformedExpr) pure $ result
-                pure result
-            _ -> tryRules rules
+        tryUpValuesFromArgs :: Set Symbol -> Seq Expr -> Eval (Maybe Expr)
+        tryUpValuesFromArgs !seen args = case args of
+          Empty -> pure Nothing
+          e :<| es -> case level0Symbol e of
+            Nothing -> tryUpValuesFromArgs seen es
+            Just sym
+              | Set.member sym seen -> tryUpValuesFromArgs seen es
+              | otherwise -> do
+                  maybeRecord <- lookupSymbolRecord sym
+                  let seen' = Set.insert sym seen
+                  case maybeRecord of
+                    Nothing -> tryUpValuesFromArgs seen' es
+                    Just record -> do
+                      maybeResult <- tryRulesSeq record.upValues
+                      case maybeResult of
+                        Nothing -> tryUpValuesFromArgs seen' es
+                        Just _  -> pure maybeResult
 
-      downRules <- case Expr.rootSymbol h' of
-        Just rootSym -> do
-          maybeRecord <- lookupSymbolRecord rootSym
-          pure $ case maybeRecord of
-            Just record -> Foldable.toList record.downValues
-            Nothing     -> []
-        Nothing -> pure []
+        tryDownValues :: Eval (Maybe Expr)
+        tryDownValues = case Expr.rootSymbol h' of
+          Nothing -> pure Nothing
+          Just rootSym -> do
+            maybeRecord <- lookupSymbolRecord rootSym
+            case maybeRecord of
+              Nothing     -> pure Nothing
+              Just record -> tryRulesSeq record.downValues
 
-      upRules <- fmap concat $ for level1Symbols $ \sym -> do
-        maybeRecord <- lookupSymbolRecord sym
-        pure $ case maybeRecord of
-          Just record -> Foldable.toList record.upValues
-          Nothing     -> []
-
-      -- Try upRules before downRules
-      tryRules (upRules <> downRules) >>= \case
-        Nothing              -> addToEvalCache expr' >> pure expr'
+      tryUpValuesFromArgs Set.empty cs' >>= \case
         Just transformedExpr -> eval transformedExpr
+        Nothing -> tryDownValues >>= \case
+          Just transformedExpr -> eval transformedExpr
+          Nothing -> addToEvalCache expr' >> pure expr'

@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module MicroMath.Util
@@ -9,15 +10,16 @@ module MicroMath.Util
   , mapMaybeSeq
   ) where
 
+import Data.Foldable qualified as Foldable
 import Data.Sequence (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence qualified as Seq
-import Data.Foldable qualified as Foldable
 
 -- | All splits of xs into (t1,t2) where xs == t1++t2
--- 
+--
 -- Examples (writing sequences as lists):
 -- > splits [2,3] = ([],[2,3]), ([2],[3]), ([2,3],[])
 -- > splits [1,2,3] = ([],[1,2,3]), ([1],[2,3]), ([1,2],[3]), ([1,2,3],[])
+{-# INLINE splits #-}
 splits :: Seq a -> [(Seq a, Seq a)]
 splits xs = zip (Foldable.toList (Seq.inits xs)) (Foldable.toList (Seq.tails xs))
 
@@ -25,6 +27,7 @@ splits xs = zip (Foldable.toList (Seq.inits xs)) (Foldable.toList (Seq.tails xs)
 --
 -- Examples:
 -- > splits1 [1,2] = ([],1,[2]), ([1],2,[])
+{-# INLINE splits1 #-}
 splits1 :: Seq a -> [(Seq a, a, Seq a)]
 splits1 xs = do
   (l, x :<| r) <- splits xs
@@ -39,15 +42,16 @@ splits1 xs = do
 --
 -- Note that the number of return values is 2^(length xs). This could
 -- introduce performance issues, so should be used with care.
+{-# INLINE subSequences #-}
 subSequences :: Seq a -> [(Seq a, Seq a)]
-subSequences =
-  map (\(xs,ys) -> (Seq.fromList xs, Seq.fromList ys)) . subSequencesList . Foldable.toList
-
-subSequencesList :: [a] -> [([a], [a])]
-subSequencesList [] = [([], [])]
-subSequencesList (x:xs) = do
-  (s,rest) <- subSequencesList xs
-  [(x:s, rest), (s, x:rest)]
+subSequences = \case
+  Empty -> [(Empty, Empty)]
+  x :<| xs' ->
+    let
+      rec = subSequences xs'
+    in
+      [ (x :<| s, rest) | (s, rest) <- rec ] ++
+      [ (s, x :<| rest) | (s, rest) <- rec ]
 
 pattern Solo :: a -> Seq a
 pattern Solo x = x :<| Empty
@@ -55,6 +59,7 @@ pattern Solo x = x :<| Empty
 pattern Pair :: a -> a -> Seq a
 pattern Pair x y = x :<| y :<| Empty
 
+{-# INLINE mapMaybeSeq #-}
 mapMaybeSeq :: (a -> Maybe b) -> Seq a -> Seq b
 mapMaybeSeq _ Empty = Empty
 mapMaybeSeq f (x :<| xs)
