@@ -21,6 +21,7 @@ module MicroMath.Eval
   , eval
   ) where
 
+import Data.Foldable qualified as Foldable
 import Control.Applicative (Alternative, empty)
 import Control.Monad       (foldM, guard)
 import Data.Map.Strict     (Map)
@@ -561,7 +562,6 @@ flattenWithHeadAndSequence h exprs = do
         -> flattenWithHeadAndSequence h args
     _ -> pure expr
 
-
 -- | Extract the symbol g from expressions that are pure g or of the form g[...]
 {-# INLINE level0Symbol #-}
 level0Symbol :: Expr -> Maybe Symbol
@@ -585,8 +585,6 @@ eval expr = do
         Nothing -> pure expr
     ExprLit _ -> pure expr
     ExprApp h cs -> returnIfInCache expr $ do
-
-
       -- Evaluate the head and children, and flatten any sequences
       -- appearing in the children.
       --
