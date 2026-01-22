@@ -19,6 +19,8 @@ module MicroMath.Eval
   , solveMatchAll
   , solveMatchMaybe
   , eval
+  -- TEMP:
+  , flattenWithHeadAndSequence
   ) where
 
 import Data.Foldable qualified as Foldable
