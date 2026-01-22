@@ -16,36 +16,28 @@ module MicroMath.Eval
   , removeBindings
   , applySubstitutions
   , tryApplyRule
-  , solveMatchAll
   , solveMatchMaybe
   , eval
-  -- TEMP:
-  , flattenWithHeadAndSequence
   ) where
 
-import Data.Foldable qualified as Foldable
-import Control.Applicative (Alternative, empty)
-import Control.Monad       (foldM, guard)
-import Data.Map.Strict     (Map)
-import Data.Map.Strict     qualified as Map
-import Data.Maybe          (catMaybes)
-import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence       qualified as Seq
-import Data.Set            (Set)
-import Data.Set            qualified as Set
-import Data.Traversable    (for)
-import Debug.Trace         qualified as Debug
-import MicroMath.Context   (Attributes (..), Eval (..), HoldType (..),
-                            Rule (..), SymbolRecord (..), addToEvalCache,
-                            lookupAttributes, lookupSymbolRecord,
-                            returnIfInCache)
-import MicroMath.Expr      (Expr (..), flattenWithHead, mapSymbols,
-                            pattern ExprInteger, pattern ExprRational,
-                            pattern ExprReal, pattern ExprString)
-import MicroMath.Expr      qualified as Expr
-import MicroMath.Pat       (Pat (..), SeqType (..), addNames)
-import MicroMath.Symbol    (Symbol)
-import MicroMath.Util      (splits, splits1, subSequences)
+import Control.Monad     (foldM)
+import Data.Map.Strict   (Map)
+import Data.Map.Strict   qualified as Map
+import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence     qualified as Seq
+import Data.Set          (Set)
+import Data.Set          qualified as Set
+import Debug.Trace       qualified as Debug
+import MicroMath.Context (Attributes (..), Eval (..), HoldType (..), Rule (..),
+                          SymbolRecord (..), addToEvalCache, lookupAttributes,
+                          lookupSymbolRecord, returnIfInCache)
+import MicroMath.Expr    (Expr (..), flattenWithHead, mapSymbols,
+                          pattern ExprInteger, pattern ExprRational,
+                          pattern ExprReal, pattern ExprString)
+import MicroMath.Expr    qualified as Expr
+import MicroMath.Pat     (Pat (..), SeqType (..), addNames)
+import MicroMath.Symbol  (Symbol)
+import MicroMath.Util    (splits, splits1, subSequences)
 
 {- ============== Pattern Matching ================
 
@@ -140,10 +132,6 @@ bindVars xs t = [MkSubstitution x t | x <- xs]
 bindSeqVars :: [Symbol] -> Seq Expr -> [Substitution]
 bindSeqVars xs ts = [MkSubstitution x (ExprApp Expr.Sequence ts) | x <- xs]
 
-guardSeqTy :: Alternative f => SeqType -> Seq a -> f ()
-guardSeqTy OneOrMore Empty = empty
-guardSeqTy _         _     = pure ()
-
 data MatchingEq
   = SingleEq !Pat !Expr
   | SeqEq !AppType !(Seq Pat) !(Seq Expr)
@@ -166,6 +154,13 @@ one x xs = x:xs
 two :: a -> a -> ListMod a
 two x y xs = x:y:xs
 
+zeroOrOneElts :: Seq a -> Bool
+zeroOrOneElts = \case
+  Empty       -> True
+  _ :<| Empty -> True
+  _           -> False
+
+
 -- | The _h (constrained head) pattern in Mathematica is a little
 -- funny. For ExprApp's, it behaves just like h[___]. However, certain
 -- h's can match literals as well. The list below is from
@@ -182,42 +177,50 @@ checkHead h expr x = if matchesHead h expr then [x] else []
     matchesHead (Just "String")   (ExprString _)     = True
     matchesHead _ _                                  = False
 
-transformMatch :: MatchingEq -> Eval [MatchStep]
-transformMatch eq = case eq of
 
-  -- | T: Trivial
+-- | Produce MatchSteps lazily via CPS (no intermediate [MatchStep] list).
+--   'k' is called once per MatchStep; the 'rest' action continues enumeration.
+transformMatchK
+  :: forall r .
+     MatchingEq
+  -> (MatchStep -> Eval r -> Eval r)  -- ^ step consumer
+  -> Eval r                           -- ^ no-more-steps continuation
+  -> Eval r
+transformMatchK eq k z = case eq of
+
+  -- | T: Trivial literal
   SingleEq (PatLit xs s) expr@(ExprLit s')
-    | s == s'   -> pure [MatchBranch (bindVars xs expr) zero]
-    | otherwise -> pure []
+    | s == s'   -> k (MatchBranch (bindVars xs expr) zero) z
+    | otherwise -> z
 
+  -- | T: Trivial symbol
   SingleEq (PatSymbol xs s) expr@(ExprSymbol s')
-    | s == s'   -> pure [MatchBranch (bindVars xs expr) zero]
-    | otherwise -> pure []
+    | s == s'   -> k (MatchBranch (bindVars xs expr) zero) z
+    | otherwise -> z
 
   -- | IVE: Individual variable elimination
-  SingleEq (PatVar x xHead) t -> pure $
-    checkHead xHead t (MatchBranch (bindVars x t) zero)
+  SingleEq (PatVar x xHead) t ->
+    foldr (\step rest -> k step rest) z
+      (checkHead xHead t (MatchBranch (bindVars x t) zero))
 
   -- | A symbol or literal cannot match with an ExprApp
-  SingleEq (PatSymbol _ _) (ExprApp _ _) -> pure []
-  SingleEq (PatLit _ _)    (ExprApp _ _) -> pure []
+  SingleEq (PatSymbol _ _) (ExprApp _ _) -> z
+  SingleEq (PatLit _ _)    (ExprApp _ _) -> z
 
   -- | A PatAlt has two branches corresponding to the two
   -- patterns. NB: This only makes sense if the same free pattern
   -- variables are present in each alternative.
-  SingleEq (PatAlt xs p1 p2) t -> pure
-    [ MatchBranch [] (one $ SingleEq (addNames xs p1) t)
-    , MatchBranch [] (one $ SingleEq (addNames xs p2) t)
-    ]
+  SingleEq (PatAlt xs p1 p2) t ->
+    k (MatchBranch [] (one $ SingleEq (addNames xs p1) t)) $
+    k (MatchBranch [] (one $ SingleEq (addNames xs p2) t)) $
+    z
 
   -- | Conditional pattern
-  SingleEq (PatCondition xs p test) t -> pure
-    [ MatchCondition (one $ SingleEq (addNames xs p) t) test ]
+  SingleEq (PatCondition xs p test) t ->
+    k (MatchCondition (one $ SingleEq (addNames xs p) t) test) z
 
   -- | A PatApp matches an ExprApp if the heads match and the sequences match
-  SingleEq
-    (PatApp xs f fArgs)
-    expr@(ExprApp g gArgs) -> do
+  SingleEq (PatApp xs f fArgs) expr@(ExprApp g gArgs) -> do
     -- | FVE-M: Function variable elimination (Mathematica). If we
     -- eliminate a function variable, then the head becomes Free,
     -- regardless of the symbol it is bound to. This is a little
@@ -225,32 +228,46 @@ transformMatch eq = case eq of
     appTy <- case f of
       PatVar _ _ -> pure AppFree
       _          -> exprAppType g
-    pure $
-      [MatchBranch (bindVars xs expr) (two (SingleEq f g) (SeqEq appTy fArgs gArgs))]
+    k (MatchBranch (bindVars xs expr) (two (SingleEq f g) (SeqEq appTy fArgs gArgs))) z
+
+  ----------------------------------------------------------------------
+  -- SeqEq rules
+  ----------------------------------------------------------------------
 
   -- | Free head
 
   -- | The empty sequence matches itself under any head.
-  SeqEq _ Empty Empty -> pure [MatchBranch [] zero]
+  SeqEq _ Empty Empty ->
+    k (MatchBranch [] zero) z
 
   -- | SVE-last: Special case: last sequence variable. If we are
   -- matching a single sequence variable to a sequence of expressions,
   -- we don't need to compute splits or pursue further branches. There
   -- is only one possibility: the sequence variable is bound to the
   -- given sequence of expressions.
-  SeqEq _ (PatSeqVar x seqTy :<| Empty) ts -> pure $ do
-    guardSeqTy seqTy ts
-    pure $ MatchBranch (bindSeqVars x ts) zero
+  SeqEq _ (PatSeqVar x seqTy :<| Empty) ts ->
+    case seqTy of
+      OneOrMore | ts == Empty -> z
+      _                       -> k (MatchBranch (bindSeqVars x ts) zero) z
 
   -- | SVE: Sequence variable elimination (applies under any head)
-  SeqEq appTy (PatSeqVar x seqTy :<| ss) ts -> pure $ do
-    (ts1, ts2) <- splits ts
-    guardSeqTy seqTy ts1
-    pure $ MatchBranch (bindSeqVars x ts1) (one $ SeqEq appTy ss ts2)
+  SeqEq appTy (PatSeqVar x seqTy :<| ss) ts ->
+    -- enumerate splits ts = (ts1,ts2)
+    let
+      goSplits :: [(Seq Expr, Seq Expr)] -> Eval r
+      goSplits [] = z
+      goSplits ((ts1, ts2) : rest) =
+        case seqTy of
+          OneOrMore | ts1 == Empty -> goSplits rest
+          _ ->
+            k (MatchBranch (bindSeqVars x ts1) (one $ SeqEq appTy ss ts2))
+              (goSplits rest)
+    in
+      goSplits (splits ts)
 
   -- | Dec-F: Decomposition under Free head
-  SeqEq AppFree (s :<| ss) (t :<| ts) -> pure
-    [MatchBranch [] (two (SingleEq s t) (SeqEq AppFree ss ts))]
+  SeqEq AppFree (s :<| ss) (t :<| ts) ->
+    k (MatchBranch [] (two (SingleEq s t) (SeqEq AppFree ss ts))) z
 
   -- | Commutative head
   --
@@ -258,11 +275,17 @@ transformMatch eq = case eq of
   -- head. Dropped in Mathematica -- use SVE instead.
   --
   -- | Dec-C: Decomposition under commutative head
-  SeqEq AppC (s :<| ss) ts -> pure $ do
-    (ts1, t, ts2) <- splits1 ts
-    pure $ MatchBranch [] (two (SingleEq s t) (SeqEq AppFree ss (ts1 <> ts2)))
+  SeqEq AppC (s :<| ss) ts ->
+    let
+      goSplits1 :: [(Seq Expr, Expr, Seq Expr)] -> Eval r
+      goSplits1 [] = z
+      goSplits1 ((ts1, t, ts2) : rest) =
+        k (MatchBranch [] (two (SingleEq s t) (SeqEq AppFree ss (ts1 <> ts2))))
+          (goSplits1 rest)
+    in
+      goSplits1 (splits1 ts)
 
-  SeqEq AppC _ _ -> pure []
+  SeqEq AppC _ _ -> z
 
   -- | Associative head
   --
@@ -274,55 +297,67 @@ transformMatch eq = case eq of
   -- difficult to formulate this rule in the case where the function
   -- variable application is named: y:(x_[...]).
   --
-  SeqEq (AppA f marking) (s :<| ss) ts -> pure $
-    concat
-    [ case ts of
-        -- | Dec-A: Decomposition under associative head
-        -- TODO: What is the strict version of this rule? Is it
-        -- already strict?
-        --
-        -- Markings:
-        --
-        -- - If unmarked, mark by 0
-        -- - If marked by 1, then Dec-A-strict does not apply
-        -- - If marked by 0, then retain marking 0
-        --
-        t :<| ts'
-          | marking /= Just Mark1
-            ->
+  SeqEq (AppA f marking) (s :<| ss) ts ->
+    let
+      -- | Dec-A: Decomposition under associative head
+      -- TODO: What is the strict version of this rule? Is it
+      -- already strict?
+      --
+      -- Markings:
+      --
+      -- - If unmarked, mark by 0
+      -- - If marked by 1, then Dec-A-strict does not apply
+      -- - If marked by 0, then retain marking 0
+      --
+      emitDecA :: Eval r -> Eval r
+      emitDecA rest =
+        case ts of
+          t :<| ts'
+            | marking /= Just Mark1 ->
+              let newMarking = case marking of
+                    Nothing -> Just Mark0
+                    _       -> marking
+                  newTy = AppA f newMarking
+              in k (MatchBranch [] (two (SingleEq s t) (SeqEq newTy ss ts'))) rest
+          _ -> rest
+
+      -- | IVE-A-strict: Individual variable elimination under
+      -- associative head. The strict variant imposes that t1 not be
+      -- null.
+      --
+      -- Markings:
+      --
+      -- - IVE-A-strict does not apply if mark=0 and length ts1<=1.
+      -- - If unmarked and ts1 has length 1, mark by 1
+      -- - otherwise retain the marking
+      emitIVEA :: Eval r -> Eval r
+      emitIVEA rest =
+        case s of
+          PatVar x xHead ->
             let
-              newMarking = case marking of
-                Nothing -> Just Mark0
-                _       -> marking
-              newTy = AppA f newMarking
+              goSplitsA :: [(Seq Expr, Seq Expr)] -> Eval r
+              goSplitsA [] = rest
+              goSplitsA ((ts1, ts2) : more) =
+                case ts1 of
+                  Empty -> goSplitsA more
+                  _ ->
+                    if  (marking == Just Mark0) && zeroOrOneElts ts1
+                    then goSplitsA more
+                    else
+                      let
+                        xExpr = ExprApp (ExprSymbol f) ts1
+                        newMarking = case marking of
+                          Nothing | zeroOrOneElts ts1 -> Just Mark1
+                          _                           -> marking
+                        newTy = AppA f newMarking
+                        steps = checkHead xHead xExpr $
+                          MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss ts2)
+                      in foldr (\step r2 -> k step r2) (goSplitsA more) steps
             in
-              [MatchBranch [] (two (SingleEq s t) (SeqEq newTy ss ts'))]
-        _   -> []
-    , case s of
-        -- | IVE-A-strict: Individual variable elimination under
-        -- associative head. The strict variant imposes that t1 not be
-        -- null.
-        --
-        -- Markings:
-        --
-        -- - IVE-A-strict does not apply if mark=0 and length ts1<=1.
-        -- - If unmarked and ts1 has length 1, mark by 1
-        -- - otherwise retain the marking
-        PatVar x xHead -> do
-          (ts1@(_:<|_), ts2) <- splits ts
-          guard $ not $ marking == Just Mark0 && length ts1 <= 1
-          let
-            xExpr = ExprApp (ExprSymbol f) ts1
-            newMarking = case marking of
-              Nothing | length ts1 <= 1 -> Just Mark1
-              _                         -> marking
-            newTy = AppA f newMarking
-          checkHead xHead xExpr $
-            MatchBranch
-            (bindVars x xExpr)
-            (one $ SeqEq newTy ss ts2)
-        _ -> []
-    ]
+              goSplitsA (splits ts)
+          _ -> rest
+    in
+      emitDecA (emitIVEA z)
 
   -- | Associative-Commutative head
   --
@@ -337,112 +372,100 @@ transformMatch eq = case eq of
   -- splits vs subSequences for IVE-A-strict vs IVE-AC-strict. We could
   -- try to deduplicate the code.
   --
-  SeqEq (AppAC f marking) (s :<| ss) ts -> pure $
-    concat
-    [
+  SeqEq (AppAC f marking) (s :<| ss) ts ->
+    let
       -- | Dec-AC: Decomposition under AC head. Marking rules the same as AppA.
       -- TODO: Is this already strict?
-      case marking of
-        Just Mark1 -> []
-        _ -> do
-          (ts1, t, ts2) <- splits1 ts
-          let
-            newMarking = case marking of
-              Nothing -> Just Mark0
-              _       -> marking
-            newTy = AppAC f newMarking
-          pure $ MatchBranch [] (two (SingleEq s t) (SeqEq newTy ss (ts1 <> ts2)))
-    ,
-      case s of
-        -- | IVE-AC-strict: Individual variable elimination under AC
-        -- head. The strict variant imposes that subSeq not be null.
-        PatVar x xHead -> do
-          (subSeq@(_:<|_), rest) <- subSequences ts
-          guard $ not $ marking == Just Mark0 && length subSeq <= 1
-          let
-            xExpr = ExprApp (ExprSymbol f) subSeq
-            newMarking = case marking of
-              Nothing | length subSeq <= 1 -> Just Mark1
-              _                            -> marking
-            newTy = AppAC f newMarking
-          checkHead xHead xExpr $
-            MatchBranch
-            (bindVars x xExpr)
-            (one $ SeqEq newTy ss rest)
-        _ -> []
-    ]
+      emitDecAC :: Eval r -> Eval r
+      emitDecAC rest =
+        case marking of
+          Just Mark1 -> rest
+          _ ->
+            let
+              goSplits1AC :: [(Seq Expr, Expr, Seq Expr)] -> Eval r
+              goSplits1AC [] = rest
+              goSplits1AC ((ts1, t, ts2) : more) =
+                let newMarking = case marking of
+                      Nothing -> Just Mark0
+                      _       -> marking
+                    newTy = AppAC f newMarking
+                in
+                  k (MatchBranch [] (two (SingleEq s t) (SeqEq newTy ss (ts1 <> ts2))))
+                    (goSplits1AC more)
+            in
+              goSplits1AC (splits1 ts)
 
-  _ -> pure []
+      -- | IVE-AC-strict: Individual variable elimination under AC
+      -- head. The strict variant imposes that subSeq not be null.
+      emitIVEAC :: Eval r -> Eval r
+      emitIVEAC rest =
+        case s of
+          PatVar x xHead ->
+            let
+              goSubs :: [(Seq Expr, Seq Expr)] -> Eval r
+              goSubs [] = rest
+              goSubs ((subSeq, restSeq) : more) =
+                case subSeq of
+                  Empty -> goSubs more
+                  _ ->
+                    if (marking == Just Mark0) && zeroOrOneElts subSeq
+                    then goSubs more
+                    else
+                      let
+                        xExpr = ExprApp (ExprSymbol f) subSeq
+                        newMarking = case marking of
+                          Nothing | zeroOrOneElts subSeq -> Just Mark1
+                          _                              -> marking
+                        newTy = AppAC f newMarking
+                        steps = checkHead xHead xExpr $
+                          MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss restSeq)
+                      in foldr (\step r2 -> k step r2) (goSubs more) steps
+            in
+              goSubs (subSequences ts)
+          _ -> rest
+    in
+      emitDecAC (emitIVEAC z)
 
-checkTrue :: Expr -> Eval Bool
-checkTrue = fmap (== Expr.True) . eval
+  _ -> z
 
--- | Solve the given MatchingEq and return all possible solutions.
-{-# INLINE solveMatchAll #-}
-solveMatchAll :: MatchingEq -> Eval [SubstitutionSet]
-solveMatchAll initialMatchEq = go [initialMatchEq] emptySubstitutionSet
-  where
-    go :: [MatchingEq] -> SubstitutionSet -> Eval [SubstitutionSet]
-    go [] substSet = pure [substSet]
-    go (matchEq : matchEqs) substSet = do
-      transformations <- transformMatch matchEq
-      fmap concat $
-        for transformations $ \transformation ->
-        case transformation of
-          MatchBranch newSubstitutions addNewMatchEqs ->
-            case insertSubstitutions newSubstitutions substSet of
-              Just newSubstSet -> go (addNewMatchEqs matchEqs) newSubstSet
-              Nothing          -> pure []
-          MatchCondition addNewMatchEqs testExpr -> do
-            solutionSets <- go (addNewMatchEqs matchEqs) substSet
-            fmap catMaybes $
-              for solutionSets $ \solutionSet -> do
-              ok <- checkTrue (applySubstitutions solutionSet testExpr)
-              if ok
-                then pure (Just solutionSet)
-                else pure Nothing
-
--- | Solve the given MatchingEq and return the first possible
--- solution, via DFS.
 {-# INLINE solveMatchMaybe #-}
 solveMatchMaybe :: MatchingEq -> Eval (Maybe SubstitutionSet)
 solveMatchMaybe initialMatchEq = go [initialMatchEq] emptySubstitutionSet []
   where
-    -- pending conditions to check once we reach a full solution
     go :: [MatchingEq] -> SubstitutionSet -> [Expr] -> Eval (Maybe SubstitutionSet)
     go [] substSet conds = do
       ok <- checkAll substSet conds
       pure $ if ok then Just substSet else Nothing
 
-    go (matchEq : matchEqs) substSet conds = do
-      steps <- transformMatch matchEq
-      trySteps steps
+    go (matchEq : matchEqs) substSet conds =
+      transformMatchK matchEq stepCase (pure Nothing)
       where
-        trySteps :: [MatchStep] -> Eval (Maybe SubstitutionSet)
-        trySteps [] = pure Nothing
-        trySteps (step : restSteps) =
+        stepCase :: MatchStep -> Eval (Maybe SubstitutionSet) -> Eval (Maybe SubstitutionSet)
+        stepCase step rest =
           case step of
-            MatchBranch newSubstitutions addNewMatchEqs ->
-              case insertSubstitutions newSubstitutions substSet of
-                Nothing -> trySteps restSteps
+            MatchBranch newSubs addNewMatchEqs ->
+              case insertSubstitutions newSubs substSet of
+                Nothing -> rest
                 Just substSet' -> do
                   r <- go (addNewMatchEqs matchEqs) substSet' conds
                   case r of
                     Just _  -> pure r
-                    Nothing -> trySteps restSteps
+                    Nothing -> rest
 
-            -- Defer condition checking until the leaf.
             MatchCondition addNewMatchEqs testExpr -> do
               r <- go (addNewMatchEqs matchEqs) substSet (testExpr : conds)
               case r of
                 Just _  -> pure r
-                Nothing -> trySteps restSteps
+                Nothing -> rest
 
     checkAll :: SubstitutionSet -> [Expr] -> Eval Bool
     checkAll _ [] = pure True
     checkAll substSet (testExpr : rest) = do
       ok <- checkTrue (applySubstitutions substSet testExpr)
       if ok then checkAll substSet rest else pure False
+
+checkTrue :: Expr -> Eval Bool
+checkTrue = fmap (== Expr.True) . eval
 
 {- ============== Evaluation ================
 
