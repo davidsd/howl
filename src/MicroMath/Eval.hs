@@ -21,8 +21,8 @@ module MicroMath.Eval
   ) where
 
 import Control.Monad     (foldM)
-import Data.Map.Strict   (Map)
-import Data.Map.Strict   qualified as Map
+import Data.Map.Lazy   (Map)
+import Data.Map.Lazy   qualified as Map
 import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence     qualified as Seq
 import Data.Set          (Set)
@@ -137,21 +137,21 @@ data MatchingEq
   | SeqEq !AppType !(Seq Pat) !(Seq Expr)
   deriving (Eq, Ord, Show)
 
--- | The ListMod's are transformations to the list of matching
+-- | The DList's are transformations to the list of matching
 -- equations: in practice, they are consing on 0,1, or 2 elements.
 data MatchStep
-  = MatchBranch [Substitution] !(ListMod MatchingEq)
-  | MatchCondition !(ListMod MatchingEq) !Expr
+  = MatchBranch [Substitution] !(DList MatchingEq)
+  | MatchCondition !(DList MatchingEq) !Expr
 
-type ListMod a = [a] -> [a]
+type DList a = [a] -> [a]
 
-zero :: ListMod a
+zero :: DList a
 zero = id
 
-one :: a -> ListMod a
+one :: a -> DList a
 one x xs = x:xs
 
-two :: a -> a -> ListMod a
+two :: a -> a -> DList a
 two x y xs = x:y:xs
 
 zeroOrOneElts :: Seq a -> Bool
@@ -160,23 +160,25 @@ zeroOrOneElts = \case
   _ :<| Empty -> True
   _           -> False
 
-
 -- | The _h (constrained head) pattern in Mathematica is a little
 -- funny. For ExprApp's, it behaves just like h[___]. However, certain
 -- h's can match literals as well. The list below is from
 -- experimenting (TODO: is it documented anywhere?).
-checkHead :: Maybe Symbol -> Expr -> a -> [a]
-checkHead h expr x = if matchesHead h expr then [x] else []
-  where
-    matchesHead Nothing _                            = True
-    matchesHead (Just s) (ExprApp (ExprSymbol s') _) = s == s'
-    matchesHead (Just "Symbol")   (ExprSymbol _)     = True
-    matchesHead (Just "Integer")  (ExprInteger _)    = True
-    matchesHead (Just "Rational") (ExprRational _)   = True
-    matchesHead (Just "Real")     (ExprReal _)       = True
-    matchesHead (Just "String")   (ExprString _)     = True
-    matchesHead _ _                                  = False
+{-# INLINE matchesHead #-}
+matchesHead :: Maybe Symbol -> Expr -> Bool    
+matchesHead Nothing _                            = True
+matchesHead h (ExprApp (ExprSymbol s) _)         = matchesHeadSymbol h s
+matchesHead (Just "Symbol")   (ExprSymbol _)     = True
+matchesHead (Just "Integer")  (ExprInteger _)    = True
+matchesHead (Just "Rational") (ExprRational _)   = True
+matchesHead (Just "Real")     (ExprReal _)       = True
+matchesHead (Just "String")   (ExprString _)     = True
+matchesHead _ _                                  = False
 
+{-# INLINE matchesHeadSymbol #-}
+matchesHeadSymbol :: Maybe Symbol -> Symbol -> Bool
+matchesHeadSymbol Nothing  _  = True
+matchesHeadSymbol (Just s) s' = s == s'
 
 -- | Produce MatchSteps lazily via CPS (no intermediate [MatchStep] list).
 --   'k' is called once per MatchStep; the 'rest' action continues enumeration.
@@ -199,9 +201,9 @@ transformMatchK eq k z = case eq of
     | otherwise -> z
 
   -- | IVE: Individual variable elimination
-  SingleEq (PatVar x xHead) t ->
-    foldr (\step rest -> k step rest) z
-      (checkHead xHead t (MatchBranch (bindVars x t) zero))
+  SingleEq (PatVar x xHead) t
+    | matchesHead xHead t -> k (MatchBranch (bindVars x t) zero) z
+    | otherwise -> z
 
   -- | A symbol or literal cannot match with an ExprApp
   SingleEq (PatSymbol _ _) (ExprApp _ _) -> z
@@ -341,7 +343,9 @@ transformMatchK eq k z = case eq of
                 case ts1 of
                   Empty -> goSplitsA more
                   _ ->
-                    if  (marking == Just Mark0) && zeroOrOneElts ts1
+                    if
+                      ((marking == Just Mark0) && zeroOrOneElts ts1)
+                      || not (matchesHeadSymbol xHead f)
                     then goSplitsA more
                     else
                       let
@@ -350,9 +354,8 @@ transformMatchK eq k z = case eq of
                           Nothing | zeroOrOneElts ts1 -> Just Mark1
                           _                           -> marking
                         newTy = AppA f newMarking
-                        steps = checkHead xHead xExpr $
-                          MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss ts2)
-                      in foldr (\step r2 -> k step r2) (goSplitsA more) steps
+                      in
+                        k (MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss ts2)) (goSplitsA more)
             in
               goSplitsA (splits ts)
           _ -> rest
@@ -408,7 +411,9 @@ transformMatchK eq k z = case eq of
                 case subSeq of
                   Empty -> goSubs more
                   _ ->
-                    if (marking == Just Mark0) && zeroOrOneElts subSeq
+                    if
+                      ((marking == Just Mark0) && zeroOrOneElts subSeq)
+                      || not (matchesHeadSymbol xHead f)
                     then goSubs more
                     else
                       let
@@ -417,9 +422,8 @@ transformMatchK eq k z = case eq of
                           Nothing | zeroOrOneElts subSeq -> Just Mark1
                           _                              -> marking
                         newTy = AppAC f newMarking
-                        steps = checkHead xHead xExpr $
-                          MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss restSeq)
-                      in foldr (\step r2 -> k step r2) (goSubs more) steps
+                      in
+                        k (MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss restSeq)) (goSubs more)
             in
               goSubs (subSequences ts)
           _ -> rest

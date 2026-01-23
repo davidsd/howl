@@ -53,9 +53,11 @@ subSequences = \case
       [ (x :<| s, rest) | (s, rest) <- rec ] ++
       [ (s, x :<| rest) | (s, rest) <- rec ]
 
+{-# INLINE Solo #-}
 pattern Solo :: a -> Seq a
 pattern Solo x = x :<| Empty
 
+{-# INLINE Pair #-}
 pattern Pair :: a -> a -> Seq a
 pattern Pair x y = x :<| y :<| Empty
 
