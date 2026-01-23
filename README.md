@@ -107,8 +107,8 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   ```
   MicroMath does not recognize that `Times[a,b,c]` can be rewritten as `Times[Times[a,c],b]` which has `Times[a,c]` as a sub-expression that matches the pattern. However, you can do this:
   ```
-  > a*b*c /. {Times[a,c,rest___] :> Times[Foobar,rest]}
-  Times[Foobar, b]
+  > a*b*c /. {a*c*x___ :> Foobar*x}
+  b*Foobar
   ```
   This works because the left-hand side matches the whole expression `a*b*c`, taking into account commutativity of `Times` (which the MicroMath pattern matcher does).
   
