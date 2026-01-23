@@ -74,8 +74,8 @@ newContext = do
   pure $ MkContext
     { symbolRecordTable      = symbolRecordTable
     , moduleNumberRef        = moduleNumberRef
-    , addToEvalCacheHandler  = dummyAddToEvalCache evalCache
-    , returnIfInCacheHandler = dummyReturnIfInCache evalCache
+    , addToEvalCacheHandler  = defaultAddToEvalCache evalCache
+    , returnIfInCacheHandler = defaultReturnIfInCache evalCache
     }
 
 runEvalWithContext :: Context -> Eval a -> IO a
@@ -89,11 +89,17 @@ runEval go = do
 getContext :: Eval Context
 getContext = ask
 
+{-
+-- To Turn off the eval cache, replace defaultAddToEvalCache with
+-- dummyAddToEvalCache and defaultReturnIfInCache with
+-- dummyReturnIfInCache. TODO: Make this user-configurable.
+
 dummyAddToEvalCache :: EvalCache -> Expr -> Eval ()
 dummyAddToEvalCache _ _ = pure ()
 
 dummyReturnIfInCache :: EvalCache -> Expr -> Eval Expr -> Eval Expr
 dummyReturnIfInCache _ _ go = go
+-}
 
 defaultAddToEvalCache :: EvalCache -> Expr -> Eval ()
 defaultAddToEvalCache evalCache expr = liftIO $ insertEvalCache evalCache expr
