@@ -1,6 +1,6 @@
 # MicroMath
 
-MicroMath is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica) in Haskell. It is both a Haskell library and executable. As a Haskell library, MicroMath makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions.  One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages.
+MicroMath is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica), in Haskell. It is both a Haskell library and executable. As a Haskell library, MicroMath makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions.  One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages.
 
 ## Intro: trees and replacement rules
 
@@ -43,6 +43,37 @@ The core algorithm needed to implement the Wolfram Language is a procedure for m
 [pdf](https://www3.risc.jku.at/publications/download/risc_6260/variadic-equational-matching-jsc-final-with-mma-versions.pdf). 
 
 [loris](https://github.com/rljacobson/loris) is another implementation (in Rust) of the Wolfram Language based on this paper. Loris was important inspiration for MicroMath.
+
+## Interoperation with Haskell
+
+When MicroMath is used as a Haskell library, you can easily define replacement rules that use Haskell functions.
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+
+module Main where
+
+import MicroMath
+
+fibs :: [Integer]
+fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
+
+fib :: Int -> Integer
+fib n = fibs !! n
+
+myProgram :: Eval Expr
+myProgram = do
+  defStdLib
+  def "Fib" fib
+  run "Fib[35]"
+
+main :: IO ()
+main = runEval myProgram >>= print
+```
+The type of the function `fib :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal, and returns an integer literal. For example, `Fib[x]` (where x is a symbol) doesn't match the rule we defined, and remains `Fib[x]`. To make this work for your own types, all they need is a `FromExpr/ToExpr` instance.
+
+Why would you want to do this? Well, it is generally horrible to write actual programs in Mathematica. It does not have a type system, it is slow, lists are the only conveniently available data structure, editing interfaces are bad. So instead, you can write your programs in Haskell. But Haskell does not have much in the way of computer algebra. So when you need mathematical expressions and simplification using replacement rules, you can use a `MicroMath` `Expr`.
+
+Often in theoretical physics, we encounter a need to define custom symbolic manipulation rules. Some examples are Clifford matrix algebra used in Feynman diagrams, algebras of creation and annihilation operators, or vector calculus. The Wolfram Language was designed (in part) to make it easy to create these custom systems. That is an application where it really shines, and MicroMath makes it possible to do this in Haskell.
 
 ## Differences with Mathematica
 
