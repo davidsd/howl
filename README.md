@@ -64,9 +64,9 @@ myProgram :: Eval Expr
 myProgram = do
   defStdLib
   def "Fib" fib
-  run "Expand[(x + Fib[35])^Fib[3]]"
+  run "Expand[(x + Fib[100])^Fib[3]]"
 
--- Prints: Plus[85146110326225, Power[x, 2], Times[18454930, x]]
+-- Prints: Plus[125475243067621153271396401396356512255625, Power[x, 2], Times[708449696358523830150, x]]
 main :: IO ()
 main = runEval myProgram >>= print
 ```
