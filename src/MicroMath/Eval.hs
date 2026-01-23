@@ -21,13 +21,12 @@ module MicroMath.Eval
   ) where
 
 import Control.Monad     (foldM)
-import Data.Map.Lazy   (Map)
-import Data.Map.Lazy   qualified as Map
+import Data.Map.Lazy     (Map)
+import Data.Map.Lazy     qualified as Map
 import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence     qualified as Seq
 import Data.Set          (Set)
 import Data.Set          qualified as Set
-import Debug.Trace       qualified as Debug
 import MicroMath.Context (Attributes (..), Eval (..), HoldType (..), Rule (..),
                           SymbolRecord (..), addToEvalCache, lookupAttributes,
                           lookupSymbolRecord, returnIfInCache)
@@ -165,15 +164,15 @@ zeroOrOneElts = \case
 -- h's can match literals as well. The list below is from
 -- experimenting (TODO: is it documented anywhere?).
 {-# INLINE matchesHead #-}
-matchesHead :: Maybe Symbol -> Expr -> Bool    
-matchesHead Nothing _                            = True
-matchesHead h (ExprApp (ExprSymbol s) _)         = matchesHeadSymbol h s
-matchesHead (Just "Symbol")   (ExprSymbol _)     = True
-matchesHead (Just "Integer")  (ExprInteger _)    = True
-matchesHead (Just "Rational") (ExprRational _)   = True
-matchesHead (Just "Real")     (ExprReal _)       = True
-matchesHead (Just "String")   (ExprString _)     = True
-matchesHead _ _                                  = False
+matchesHead :: Maybe Symbol -> Expr -> Bool
+matchesHead Nothing _                          = True
+matchesHead h (ExprApp (ExprSymbol s) _)       = matchesHeadSymbol h s
+matchesHead (Just "Symbol")   (ExprSymbol _)   = True
+matchesHead (Just "Integer")  (ExprInteger _)  = True
+matchesHead (Just "Rational") (ExprRational _) = True
+matchesHead (Just "Real")     (ExprReal _)     = True
+matchesHead (Just "String")   (ExprString _)   = True
+matchesHead _ _                                = False
 
 {-# INLINE matchesHeadSymbol #-}
 matchesHeadSymbol :: Maybe Symbol -> Symbol -> Bool

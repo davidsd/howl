@@ -45,7 +45,6 @@ import Data.IORef               (IORef, atomicModifyIORef', newIORef)
 import Data.Sequence            (Seq, pattern Empty, (|>))
 import Data.Sequence            qualified as Seq
 import Data.Text.Short          qualified as ShortText
-import Debug.Trace              qualified as Debug
 import MicroMath.Expr           (Expr (..))
 import MicroMath.Expr.EvalCache (EvalCache, insertEvalCache, lookupEvalCache,
                                  newEvalCache)

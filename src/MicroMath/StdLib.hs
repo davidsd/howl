@@ -20,7 +20,6 @@ import Data.Sequence          qualified as Seq
 import Data.String            (fromString)
 import Data.Text              (Text)
 import Data.Text.IO           qualified as Text
-import Debug.Trace            qualified as Debug
 import Math.Combinat          (binomial, multinomial)
 import MicroMath.Context      (Attributes (..), Decl (..), Eval (..),
                                HoldType (..), Rule (..), addDecl, clear,
