@@ -8,10 +8,11 @@ module MicroMath.ToBuiltin
   , builtinDecl
   ) where
 
-import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
-import MicroMath.Context (Decl (..), Eval (..), Rule (..))
-import MicroMath.Expr    (Expr (..), FromExpr (..), ToExpr (..), pattern (:@))
-import MicroMath.Symbol  (Symbol)
+import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
+import MicroMath.Eval.Context (Decl (..), Eval (..), Rule (..))
+import MicroMath.Expr         (Expr (..), FromExpr (..), ToExpr (..),
+                               pattern (:@))
+import MicroMath.Symbol       (Symbol)
 
 -- | Given a function type f, turn it into an operation on a 'Seq
 -- Expr' (which we think of as the arguments to a symbolic function).

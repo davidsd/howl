@@ -1,6 +1,11 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module MicroMath.Expr.Equality where
+{-| This module implements a version of equality that uses StableNames
+  to try to short-circuit the equality check. It does not seem to
+  improve performance, so it is not currently used.
+-}
+
+module MicroMath.Eval.Equality where
 
 import Debug.Trace qualified as Debug
 import Data.Sequence           (pattern (:<|), pattern Empty)

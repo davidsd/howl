@@ -21,15 +21,15 @@ import Data.String            (fromString)
 import Data.Text              (Text)
 import Data.Text.IO           qualified as Text
 import Math.Combinat          (binomial, multinomial)
-import MicroMath.Context      (Attributes (..), Decl (..), Eval (..),
-                               HoldType (..), Rule (..), addDecl, clear,
-                               clearAll, lookupAttributes, lookupSymbolRecord,
-                               modifyAttributes, newModuleSymbol, setFlat,
-                               setHoldType, setNumericFunction, setOrderless)
 import MicroMath.Eval         (Substitution (..), SubstitutionSet,
                                emptySubstitutionSet, eval, insertSubstitution,
                                insertSubstitutions, lookupBinding,
                                removeBindings, tryApplyRule)
+import MicroMath.Eval.Context (Attributes (..), Decl (..), Eval (..),
+                               HoldType (..), Rule (..), addDecl, clear,
+                               clearAll, lookupAttributes, lookupSymbolRecord,
+                               modifyAttributes, newModuleSymbol, setFlat,
+                               setHoldType, setNumericFunction, setOrderless)
 import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                ToExpr (..), builtinNumericFunctions,
                                pattern (:@), pattern And, pattern ExprInteger,

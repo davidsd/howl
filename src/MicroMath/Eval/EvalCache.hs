@@ -1,6 +1,6 @@
 {-# LANGUAGE NoFieldSelectors #-}
 
-module MicroMath.Expr.EvalCache
+module MicroMath.Eval.EvalCache
   ( EvalCache
   , newEvalCache
   , lookupEvalCache

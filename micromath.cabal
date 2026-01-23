@@ -25,11 +25,11 @@ source-repository head
 library
   exposed-modules:
       MicroMath
-      MicroMath.Context
       MicroMath.Eval
+      MicroMath.Eval.Context
+      MicroMath.Eval.Equality
+      MicroMath.Eval.EvalCache
       MicroMath.Expr
-      MicroMath.Expr.Equality
-      MicroMath.Expr.EvalCache
       MicroMath.Expr.Internal
       MicroMath.Expr.Num
       MicroMath.Expr.Numeric

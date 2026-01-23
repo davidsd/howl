@@ -6,7 +6,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
-module MicroMath.Context
+module MicroMath.Eval.Context
   ( Rule(..)
   , Context(..)
   , Attributes(..)
@@ -46,7 +46,7 @@ import Data.Sequence            (Seq, pattern Empty, (|>))
 import Data.Sequence            qualified as Seq
 import Data.Text.Short          qualified as ShortText
 import MicroMath.Expr           (Expr (..))
-import MicroMath.Expr.EvalCache (EvalCache, insertEvalCache, lookupEvalCache,
+import MicroMath.Eval.EvalCache (EvalCache, insertEvalCache, lookupEvalCache,
                                  newEvalCache)
 import MicroMath.Pat            (Pat (..))
 import MicroMath.PPrint         (PPrint (..))

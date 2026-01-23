@@ -20,23 +20,24 @@ module MicroMath.Eval
   , eval
   ) where
 
-import Control.Monad     (foldM)
-import Data.Map.Lazy     (Map)
-import Data.Map.Lazy     qualified as Map
-import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence     qualified as Seq
-import Data.Set          (Set)
-import Data.Set          qualified as Set
-import MicroMath.Context (Attributes (..), Eval (..), HoldType (..), Rule (..),
-                          SymbolRecord (..), addToEvalCache, lookupAttributes,
-                          lookupSymbolRecord, returnIfInCache)
-import MicroMath.Expr    (Expr (..), flattenWithHead, mapSymbols,
-                          pattern ExprInteger, pattern ExprRational,
-                          pattern ExprReal, pattern ExprString)
-import MicroMath.Expr    qualified as Expr
-import MicroMath.Pat     (Pat (..), SeqType (..), addNames)
-import MicroMath.Symbol  (Symbol)
-import MicroMath.Util    (splits, splits1, subSequences)
+import Control.Monad          (foldM)
+import Data.Map.Lazy          (Map)
+import Data.Map.Lazy          qualified as Map
+import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence          qualified as Seq
+import Data.Set               (Set)
+import Data.Set               qualified as Set
+import MicroMath.Eval.Context (Attributes (..), Eval (..), HoldType (..),
+                               Rule (..), SymbolRecord (..), addToEvalCache,
+                               lookupAttributes, lookupSymbolRecord,
+                               returnIfInCache)
+import MicroMath.Expr         (Expr (..), flattenWithHead, mapSymbols,
+                               pattern ExprInteger, pattern ExprRational,
+                               pattern ExprReal, pattern ExprString)
+import MicroMath.Expr         qualified as Expr
+import MicroMath.Pat          (Pat (..), SeqType (..), addNames)
+import MicroMath.Symbol       (Symbol)
+import MicroMath.Util         (splits, splits1, subSequences)
 
 {- ============== Pattern Matching ================
 
