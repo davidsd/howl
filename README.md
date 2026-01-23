@@ -64,8 +64,9 @@ myProgram :: Eval Expr
 myProgram = do
   defStdLib
   def "Fib" fib
-  run "Fib[35]"
+  run "Expand[(x + Fib[35])^Fib[3]]"
 
+-- Prints: Plus[85146110326225, Power[x, 2], Times[18454930, x]]
 main :: IO ()
 main = runEval myProgram >>= print
 ```
@@ -75,7 +76,7 @@ Why would you want to do this? Well, it is generally horrible to write actual pr
 
 Often in theoretical physics, we encounter a need to define custom symbolic manipulation rules. Some examples are Clifford matrix algebra used in Feynman diagrams, algebras of creation and annihilation operators, or vector calculus. The Wolfram Language was designed (in part) to make it easy to create these custom systems. That is an application where it really shines, and MicroMath makes it possible to do this in Haskell.
 
-## Differences with Mathematica
+## Some differences from Mathematica
 
 Here is a woefully incomplete list of differences between MicroMath and Mathematica
 
@@ -89,6 +90,13 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   ```
 - The MicroMath parser (currently) does not recognize whitespace as multiplication. You have to use `*`.
 - MicroMath does not evaluate patterns as if they were expressions. In other words, you can imagine that every pattern in MicroMath is wrapped in `HoldPattern`.
+- MicroMath does not currently attempt to sort user-defined rules in reverse order of specificity. It stores rules in the order that they are defined. For example:
+  ```mathematica
+  Foo[_] := True;
+  Foo[3] := False;
+  (* Evaluates to False in Mathematica, but True in MicroMath *)
+  Foo[3]
+  ```
 - MicroMath does not have `Block` or `With`. Instead, it defines `Let`, which implements shadowing, as is standard in most functional languages. For example:
   ```
   > Let[x=12,Let[x=9,x+3]+x]
