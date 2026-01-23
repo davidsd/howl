@@ -1,6 +1,6 @@
 # MicroMath
 
-MicroMath is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica), in Haskell. It is both a Haskell library and executable. As a Haskell library, MicroMath makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions.  One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages.
+MicroMath is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica), in Haskell. It is both a Haskell library and executable. As a Haskell library, MicroMath makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions.  One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages, see [StdLib.hs](https://github.com/davidsd/micromath/blob/main/src/MicroMath/StdLib.hs) as an example.
 
 ## Intro: trees and replacement rules
 
