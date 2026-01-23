@@ -1,12 +1,14 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
 module MicroMath.Expr.Syntax where
 
+import Data.Foldable           qualified as Foldable
+import Data.Sequence           qualified as Seq
 import Data.String             (fromString)
 import MicroMath.Expr.Internal (Expr (..), FromExpr (..), ToExpr (..))
 import MicroMath.Expr.TH       (declareBuiltins)
@@ -90,3 +92,10 @@ instance FromExpr () where
 
 instance ToExpr () where
   toExpr () = Null
+
+instance FromExpr a => FromExpr [a] where
+  fromExpr = \case
+    ExprApp List xs -> mapM fromExpr $ Foldable.toList xs
+    _               -> Nothing
+instance ToExpr a => ToExpr [a] where
+  toExpr xs = ExprApp List (Seq.fromList (map toExpr xs))

@@ -71,7 +71,68 @@ library
     , text-short
   default-language: GHC2021
 
-executable micromath-exe
+executable fib
+  main-is: Main.hs
+  other-modules:
+      Paths_micromath
+  autogen-modules:
+      Paths_micromath
+  hs-source-dirs:
+      examples/fib
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  build-depends:
+      base >=4.7 && <5
+    , combinat
+    , containers
+    , deepseq
+    , exceptions
+    , hashable
+    , hashtables
+    , megaparsec
+    , micromath
+    , mtl
+    , optparse-applicative
+    , parser-combinators
+    , primitive
+    , scientific
+    , symbolize
+    , template-haskell
+    , text
+    , text-short
+  default-language: GHC2021
+
+executable laplace
+  main-is: Main.hs
+  other-modules:
+      Paths_micromath
+  autogen-modules:
+      Paths_micromath
+  hs-source-dirs:
+      examples/laplace
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  build-depends:
+      base >=4.7 && <5
+    , combinat
+    , containers
+    , deepseq
+    , exceptions
+    , file-embed
+    , hashable
+    , hashtables
+    , megaparsec
+    , micromath
+    , mtl
+    , optparse-applicative
+    , parser-combinators
+    , primitive
+    , scientific
+    , symbolize
+    , template-haskell
+    , text
+    , text-short
+  default-language: GHC2021
+
+executable micromath
   main-is: Main.hs
   other-modules:
       Paths_micromath

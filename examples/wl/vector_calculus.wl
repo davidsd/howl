@@ -3,7 +3,7 @@
 ScalarQ[x_]/;NumericQ[x] := True;
 
 (* The spatial dimension dim is a scalar *)
-ScalarQ[dim] := True
+ScalarQ[dim] := True;
                 
 (* For now nothing else is a scalar *)
 ScalarQ[_] := False;
@@ -63,4 +63,3 @@ unique new variable that won't clash with other variables that might
 be in the expression. *)
 laplacian[x_][expr_] := Module[{i}, deriv[basis[i],x][deriv[basis[i],x][expr]]];
 
-Foo

@@ -35,6 +35,7 @@ module MicroMath.Eval.Context
   , clear
   , clearAll
   , newModuleSymbol
+  , getDefinedSymbols
   ) where
 
 import Control.Monad.Catch      (MonadCatch, MonadMask, MonadThrow)
@@ -278,3 +279,9 @@ newModuleSymbol x = do
   pure $
     symbolFromShortText $
     symbolToShortText x <> ShortText.pack ("$" <> show n)
+
+getDefinedSymbols :: Eval [Symbol]
+getDefinedSymbols = do
+  ctx <- ask
+  liftIO $ 
+    fmap (map fst) $ HT.toList ctx.symbolRecordTable

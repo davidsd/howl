@@ -13,7 +13,6 @@ import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence          qualified as Seq
 import Data.String            (IsString (..))
 import Data.Text              (Text)
-import Data.Text              qualified as Text
 import MicroMath.Expr.Numeric (Numeric (..))
 import MicroMath.PPrint       (PPrint (..))
 import MicroMath.Symbol       (Symbol)
@@ -117,10 +116,11 @@ instance FromExpr Text where
 instance ToExpr Text where
   toExpr = ExprString
 
-instance FromExpr String where
-  fromExpr = fmap Text.unpack . fromExpr
-instance ToExpr String where
-  toExpr = toExpr . Text.pack
+-- Warning: This could cause overflow
+instance FromExpr Int where
+  fromExpr = \case { ExprInteger x -> Just (fromIntegral x); _ -> Nothing }
+instance ToExpr Int where
+  toExpr = ExprInteger . fromIntegral
 
 unary :: Expr -> Expr -> Expr
 unary e x = ExprApp e (Seq.singleton x)

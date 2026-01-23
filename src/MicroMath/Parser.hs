@@ -6,6 +6,7 @@ module MicroMath.Parser where
 
 import Control.Monad                  (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
+import Control.Monad.IO.Class         (MonadIO, liftIO)
 import Data.Char                      (isAlphaNum)
 import Data.List                      (sortOn)
 import Data.Ord                       (Down (..))
@@ -15,6 +16,7 @@ import Data.Set                       qualified as Set
 import Data.String                    (IsString (..))
 import Data.Text                      (Text)
 import Data.Text                      qualified as Text
+import Data.Text.IO                   qualified as Text
 import Data.Void                      (Void)
 import MicroMath.Expr                 (Expr (..), pattern (:@), pattern And,
                                        pattern Divide, pattern ExprInteger,
@@ -25,9 +27,9 @@ import MicroMath.Expr                 (Expr (..), pattern (:@), pattern And,
 import MicroMath.Expr                 qualified as Expr
 import MicroMath.Symbol               (Symbol)
 import MicroMath.Util                 (pattern Solo)
-import Text.Megaparsec                (Parsec, Stream, Token, anySingle, choice, parse,
+import Text.Megaparsec                (Parsec, Stream, Token, anySingle, choice,
                                        empty, eof, errorBundlePretty, many,
-                                       manyTill, notFollowedBy, optional,
+                                       manyTill, notFollowedBy, optional, parse,
                                        parseMaybe, satisfy, sepBy, single,
                                        token, try, (<|>))
 import Text.Megaparsec.Char           (char, letterChar, space1, string)
@@ -468,3 +470,10 @@ parseCompoundExpressionText path ce =
       case parse parseCompoundExpression path toks of
         Left _     -> Left $ "Error parsing: " <> show ce
         Right expr -> Right expr
+
+readExprFile :: MonadIO m => FilePath -> m Expr
+readExprFile path = liftIO $ do
+  contents <- Text.readFile path
+  case parseCompoundExpressionText path contents of
+    Left err   -> putStrLn err >> pure Expr.Null
+    Right expr -> pure expr

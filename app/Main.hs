@@ -89,7 +89,11 @@ evalRepl = do
           loop
 
 showHelp :: InputT Eval ()
-showHelp = outputStrLn $ "Commands: :quit -> exit"
+showHelp = outputStrLn $ unlines
+  [ ":quit            : Exit"
+  , "?x (or Help[x])  : Print the SymbolRecord for the symbol x. Example: ?Expand."
+  , "DefinedSymbols[] : A list of all symbols with a nontrivial SymbolRecord"
+  ]
 
 unlessNull :: Monad m => Expr -> (Expr -> m ()) -> m ()
 unlessNull Null _  = pure ()

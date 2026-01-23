@@ -19,7 +19,7 @@ import Data.Sequence          (Seq, pattern (:<|), pattern (:|>), pattern Empty)
 import Data.Sequence          qualified as Seq
 import Data.String            (fromString)
 import Data.Text              (Text)
-import Data.Text.IO           qualified as Text
+import Data.Text              qualified as Text
 import Math.Combinat          (binomial, multinomial)
 import MicroMath.Eval         (Substitution (..), SubstitutionSet,
                                emptySubstitutionSet, eval, insertSubstitution,
@@ -27,9 +27,10 @@ import MicroMath.Eval         (Substitution (..), SubstitutionSet,
                                removeBindings, tryApplyRule)
 import MicroMath.Eval.Context (Attributes (..), Decl (..), Eval (..),
                                HoldType (..), Rule (..), addDecl, clear,
-                               clearAll, lookupAttributes, lookupSymbolRecord,
-                               modifyAttributes, newModuleSymbol, setFlat,
-                               setHoldType, setNumericFunction, setOrderless)
+                               clearAll, getDefinedSymbols, lookupAttributes,
+                               lookupSymbolRecord, modifyAttributes,
+                               newModuleSymbol, setFlat, setHoldType,
+                               setNumericFunction, setOrderless)
 import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                ToExpr (..), builtinNumericFunctions,
                                pattern (:@), pattern And, pattern ExprInteger,
@@ -40,7 +41,7 @@ import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                pattern Times)
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Expr.TH      (declareBuiltin)
-import MicroMath.Parser       (parseCompoundExpressionText)
+import MicroMath.Parser       (parseCompoundExpressionText, readExprFile)
 import MicroMath.Pat          (Pat, patFromExpr, patRootSymbol)
 import MicroMath.Symbol       (Symbol)
 import MicroMath.ToBuiltin    (ToBuiltin (..), builtinDecl)
@@ -570,18 +571,6 @@ compoundExpression = \case
   Empty       -> Null
   _ :|> final -> final
 
----------- Get ----------
-
-get :: FilePath -> Eval Expr
-get path = do
-  contents <- liftIO $ Text.readFile path
-  case parseCompoundExpressionText path contents of
-    Left err   -> logMsg err
-    Right expr -> pure expr
-
-logMsg :: String -> Eval Expr
-logMsg msg = liftIO (putStrLn msg) >> pure Expr.Null
-
 ---------- Attributes ----------
 
 newtype AttrModifier = MkAttrModifier { getModifier :: Attributes -> Attributes }
@@ -610,11 +599,17 @@ help sym = do
 
 run :: Text -> Eval Expr
 run input = case parseCompoundExpressionText "" input of
-  Left err   -> logMsg err
+  Left err   -> liftIO (putStrLn err) >> pure Expr.Null
   Right expr -> eval expr
 
 run_ :: Text -> Eval ()
 run_ = void . run
+
+get :: FilePath -> Eval Expr
+get path = readExprFile path >>= eval
+
+get_ :: FilePath -> Eval ()
+get_ = void . get
 
 def :: ToBuiltin f => Symbol -> f -> Eval ()
 def sym f = addDecl $ builtinDecl sym f
@@ -628,11 +623,12 @@ defStdLib = do
   def "SetDelayed" setDelayedDef
 
   def "CompoundExpression" compoundExpression
-  def "Get" get
+  def "Get" (readExprFile @Eval . Text.unpack)
   def "SetAttributes" setAttributes
   def "Clear" clear
   def "ClearAll" clearAll
   def "Help" help
+  def "DefinedSymbols" getDefinedSymbols
 
   addDecl functionDecl
   modifyAttributes "Function" (setHoldType HoldAll)
