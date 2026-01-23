@@ -74,7 +74,7 @@ The type of the function `fib :: Int -> Integer` is used to define a rule that o
 
 Why would you want to do this? Well, it is generally horrible to write actual programs in Mathematica. It does not have a type system, it is slow, lists are the only conveniently available data structure, editing interfaces are bad. So instead, you can write your programs in Haskell. But Haskell does not have much in the way of computer algebra. So when you need mathematical expressions and simplification using replacement rules, you can use a `MicroMath` `Expr`.
 
-Often in theoretical physics, we encounter a need to define custom symbolic manipulation rules. Some examples are Clifford matrix algebra used in Feynman diagrams, algebras of creation and annihilation operators, or vector calculus. The Wolfram Language was designed (in part) to make it easy to create these custom systems. That is an application where it really shines, and MicroMath makes it possible to do this in Haskell.
+Often in theoretical physics, we encounter a need to define custom symbolic manipulation rules. Some examples are Clifford matrix algebra used in Feynman diagrams, algebras of creation and annihilation operators, or vector calculus. The Wolfram Language was designed (in part) to make it easy to create these custom systems. That is an application where it really shines. MicroMath makes it possible to use these customized algebraic systems in Haskell.
 
 ## Some differences from Mathematica
 
