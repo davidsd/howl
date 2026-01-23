@@ -88,6 +88,7 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   fib[n_] := fib[n-1] + fib[n-2];
   fib[35]
   ```
+  If you know how to make it faster, please tell me!
 - The MicroMath parser (currently) does not recognize whitespace as multiplication. You have to use `*`.
 - MicroMath does not evaluate patterns as if they were expressions. In other words, you can imagine that every pattern in MicroMath is wrapped in `HoldPattern`.
 - MicroMath does not currently attempt to sort user-defined rules in reverse order of specificity. It stores rules in the order that they are defined. For example:
