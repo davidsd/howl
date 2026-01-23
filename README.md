@@ -70,7 +70,7 @@ myProgram = do
 main :: IO ()
 main = runEval myProgram >>= print
 ```
-The type of the function `fib :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal, and returns an integer literal. For example, `Fib[x]` (where x is a symbol) doesn't match the rule we defined, and remains `Fib[x]`. To make this work for your own types, all they need is a `FromExpr/ToExpr` instance.
+The type of the function `fib :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal, and returns an integer literal. For example, `Fib[x]` (where x is a symbol) doesn't match the rule we defined, and remains `Fib[x]`. The typeclasses `ToExpr`/`FromExpr` are used to automatically convert `Expr`'s to and from Haskell data, and define rules that only match `Expr`'s of the appropriate form.
 
 Why would you want to do this? Well, it is generally horrible to write actual programs in Mathematica. It does not have a type system, it is slow, lists are the only conveniently available data structure, editing interfaces are bad. So instead, you can write your programs in Haskell. But Haskell does not have much in the way of computer algebra. So when you need mathematical expressions and simplification using replacement rules, you can use a `MicroMath` `Expr`.
 
