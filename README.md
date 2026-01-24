@@ -21,10 +21,10 @@ Alternatively, we can write it using some syntactic sugar as
 
 ```mathematica
 (* Distributive property again *)
-x_(y_+z_) := x y+x z;
+x_(y_+z_) := x y + x z;
 ```
 
-If we add this to the global rules, then Mathematica will recognize that part of the tree above matches the left-hand side of this rule with the substitutions `{x -> a, y -> b, z -> c}`. It will then replace that part of the tree with the right-hand side of the rule, with the given substitutions, giving in this case `3+(a b+a c)`. Mathematica also knows that `Plus` is "Flat", i.e. associative, so it will further simplify this expression to `3+a b+a c`, which as a tree looks like this
+If we add this to the global rules, then Mathematica will recognize that part of the tree above matches the left-hand side of this rule with the substitutions `{x -> a, y -> b, z -> c}`. It will then replace that part of the tree with the right-hand side of the rule, with the given substitutions, giving in this case `3+(a b+a c)`. Mathematica also knows that `Plus` is "Flat", i.e. associative, so it will further simplify this expression to `3 + a b + a c`, which as a tree looks like this
 
 <img width="338" height="266" alt="Screenshot 2026-01-23 at 12 04 15 AM" src="https://github.com/user-attachments/assets/db9453b4-fed1-4c36-a658-dc3a329d0596" />
 
@@ -32,9 +32,9 @@ In actuality, this example doesn't work in Mathematica because the symbol `Times
 
 ```
 MicroMath, version 0.1 :? for help
-> x_(y_+z_) := x y+x z;
-> 3+a(b+c)
-Plus[3, Times[a, b], Times[a, c]]
+> x_(y_+z_) := x y + x z;
+> 3 + a (b + c)
+3 + a b + a c
 ```
 
 ## Matching algorithm and Loris
