@@ -5,6 +5,7 @@ module MicroMath
 import MicroMath.Eval         as Exports
 import MicroMath.Eval.Context as Exports
 import MicroMath.Expr         as Exports hiding (False, True)
+import MicroMath.Expr.PPrint  as Exports ()
 import MicroMath.Parser       as Exports (parseCompoundExpressionText, readExprFile)
 import MicroMath.Pat          as Exports
 import MicroMath.PPrint       as Exports

@@ -8,8 +8,8 @@ import Control.Monad.IO.Class   (liftIO)
 import Control.Monad.Trans      (lift)
 import Data.Text                (Text)
 import Data.Text                qualified as Text
-import MicroMath                (Eval, Expr, defStdLib, eval, get, pattern Null,
-                                 run, runEval)
+import MicroMath                (Eval, Expr, PPrint (..), defStdLib, eval, get,
+                                 pattern Null, run, runEval)
 import Options.Applicative
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine,
                                  outputStrLn, runInputT)
@@ -57,13 +57,13 @@ runFile fp = do
   defStdLib
   inputExpr <- get fp
   result <- eval inputExpr
-  unlessNull result $ liftIO . putStrLn . show
+  unlessNull result $ liftIO . putStrLn . pPrint
 
 runExpr :: Text -> Eval ()
 runExpr input = do
   defStdLib
   result <- run input
-  unlessNull result $ liftIO . putStrLn . show
+  unlessNull result $ liftIO . putStrLn . pPrint
 
 runRepl :: Eval ()
 runRepl = runInputT defaultSettings evalRepl
@@ -85,7 +85,7 @@ evalRepl = do
         Just ":quit" -> pure ()
         Just input -> do
           result <- lift $ run (Text.pack input)
-          unlessNull result $ outputStrLn . show
+          unlessNull result $ outputStrLn . pPrint
           loop
 
 showHelp :: InputT Eval ()

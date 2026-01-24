@@ -56,6 +56,7 @@ $(declareBuiltins ''Expr 'fromString
    , "SameQ"
    , "UnsameQ"
    , "Rule"
+   , "RuleDelayed"
    , "Set"
    , "SetDelayed"
    , "UpSet"

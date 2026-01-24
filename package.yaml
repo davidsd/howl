@@ -83,13 +83,15 @@ executables:
     - file-embed
 
 
-# tests:
-#   micromath-test:
-#     main:                MicroMath/Test.hs
-#     source-dirs:         test
-#     ghc-options:
-#     - -threaded
-#     - -rtsopts
-#     - -with-rtsopts=-N
-#     dependencies:
-#     - micromath
+tests:
+  micromath-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - micromath
+    - hspec
+    - QuickCheck

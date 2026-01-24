@@ -33,6 +33,7 @@ library
       MicroMath.Expr.Internal
       MicroMath.Expr.Num
       MicroMath.Expr.Numeric
+      MicroMath.Expr.PPrint
       MicroMath.Expr.Syntax
       MicroMath.Expr.TH
       MicroMath.Parser
@@ -150,6 +151,39 @@ executable mmath
     , hashable
     , hashtables
     , haskeline
+    , megaparsec
+    , micromath
+    , mtl
+    , optparse-applicative
+    , parser-combinators
+    , primitive
+    , scientific
+    , symbolize
+    , template-haskell
+    , text
+    , text-short
+  default-language: GHC2021
+
+test-suite micromath-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_micromath
+  autogen-modules:
+      Paths_micromath
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      QuickCheck
+    , base >=4.7 && <5
+    , combinat
+    , containers
+    , deepseq
+    , exceptions
+    , hashable
+    , hashtables
+    , hspec
     , megaparsec
     , micromath
     , mtl

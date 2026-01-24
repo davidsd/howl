@@ -128,19 +128,16 @@ unary e x = ExprApp e (Seq.singleton x)
 binary :: Expr -> Expr -> Expr -> Expr
 binary e x y = ExprApp e (Seq.fromList [x,y])
 
-instance PPrint Expr where
-  pPrint (ExprSymbol s) = pPrint s
-  pPrint (ExprLit l) = pPrint l
-  pPrint (ExprApp f args) =
+instance Show Expr where
+  show (ExprSymbol s) = pPrint s
+  show (ExprLit l) = pPrint l
+  show (ExprApp f args) =
     mconcat
-    [ pPrint f
+    [ show f
     , "["
-    , intercalate ", " (map pPrint (Foldable.toList args))
+    , intercalate ", " (map show (Foldable.toList args))
     , "]"
     ]
-
-instance Show Expr where
-  show = pPrint
 
 -- | Map a function over the symbols present in an expression
 mapSymbols :: (Symbol -> Expr) -> Expr -> Expr

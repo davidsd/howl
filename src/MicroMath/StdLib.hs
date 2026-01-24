@@ -118,11 +118,12 @@ addTimesArgument arg timesArgs = case arg of
     }
 
 normalizeTimes :: Seq Expr -> Expr
-normalizeTimes initialArgs =
-  case allTerms of
-    Empty  -> ExprInteger 1
-    Solo t -> t
-    _      -> Times :@ (Seq.unstableSort $ Expr.flattenWithHead Times allTerms)
+normalizeTimes initialArgs
+  | timesArgs.timesNum == 0 = ExprInteger 0
+  | otherwise = case allTerms of
+      Empty  -> ExprInteger 1
+      Solo t -> t
+      _      -> Times :@ (Seq.unstableSort $ Expr.flattenWithHead Times allTerms)
   where
     timesArgs = foldr addTimesArgument emptyTimesArguments initialArgs
     numericTerm = toExpr timesArgs.timesNum

@@ -397,7 +397,7 @@ opTable =
     ]
   , [ prefix OpMinus (Expr.binary "Times" (ExprInteger (-1)))
     ]
-  , [ binaryL OpPower           (Expr.binary "Power")
+  , [ binaryR OpPower           (Expr.binary "Power")
     ]
   , [ binaryL OpTimes           (Expr.binary "Times")
     , binaryL OpDivide          (Expr.binary "Divide")

@@ -11,15 +11,16 @@ module MicroMath.Pat
   , patFromExpr
   ) where
 
-import Data.Foldable    qualified as Foldable
-import Data.List        (intercalate)
-import Data.Sequence    (Seq, pattern (:<|), pattern Empty)
-import Data.String      (IsString (..))
-import MicroMath.Expr   (Expr (..), Literal, pattern Alternatives,
-                         pattern Blank, pattern BlankNullSequence,
-                         pattern BlankSequence, pattern Pattern, pattern Test)
-import MicroMath.PPrint (PPrint (..))
-import MicroMath.Symbol (Symbol)
+import Data.Foldable      qualified as Foldable
+import Data.List          (intercalate)
+import Data.Sequence      (Seq, pattern (:<|), pattern Empty)
+import Data.String        (IsString (..))
+import MicroMath.Expr     (Expr (..), Literal, pattern Alternatives,
+                           pattern Blank, pattern BlankNullSequence,
+                           pattern BlankSequence, pattern Pattern, pattern Test)
+import MicroMath.Expr.PPrint ()
+import MicroMath.PPrint   (PPrint (..))
+import MicroMath.Symbol   (Symbol)
 
 {- | TODO:
 
