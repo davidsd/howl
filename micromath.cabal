@@ -132,7 +132,7 @@ executable laplace
     , text-short
   default-language: GHC2021
 
-executable micromath
+executable mmath
   main-is: Main.hs
   other-modules:
       Paths_micromath

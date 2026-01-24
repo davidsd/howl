@@ -46,7 +46,7 @@ library:
   source-dirs: src
 
 executables:
-  micromath:
+  mmath:
     main:                Main.hs
     source-dirs:         app
     ghc-options:

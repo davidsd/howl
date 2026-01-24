@@ -461,11 +461,18 @@ mapDef = \cases
 ---------- ReplaceAll ----------
 
 $(declareBuiltin ''Expr 'fromString "RuleDelayed" "RuleDelayed")
+$(declareBuiltin ''Expr 'fromString "Rule" "Rule")
 
-newtype ARuleDelayed = MkRuleDelayed Rule
-instance FromExpr ARuleDelayed where
+-- | Either a Rule or RuleDelayed. These are treated in exactly the
+-- same way -- the only difference being that RuleDelayed has
+-- attribute HoldAll, while Rule has attribute HoldFirst. (In
+-- Mathematica, Rule and RuleDelayed do not hold their first
+-- arguments, but we differ here to avoid evaluating patterns.)
+newtype ARule = MkRule Rule
+instance FromExpr ARule where
   fromExpr = \case
-    RuleDelayed :@ Pair lhs rhs -> Just $ MkRuleDelayed $ PatRule (patFromExpr lhs) rhs
+    Rule        :@ Pair lhs rhs -> Just $ MkRule $ PatRule (patFromExpr lhs) rhs
+    RuleDelayed :@ Pair lhs rhs -> Just $ MkRule $ PatRule (patFromExpr lhs) rhs
     _ -> Nothing
 
 -- | NB: replaceAll can currently be used to subvert shadowing
@@ -485,13 +492,13 @@ instance FromExpr ARuleDelayed where
 -- > bar /. x:>10
 -- >>> Function[Slot[1]+2]
 --
-replaceAll :: Expr -> ListOrSolo ARuleDelayed -> Eval Expr
+replaceAll :: Expr -> ListOrSolo ARule -> Eval Expr
 replaceAll e (MkListOrSolo rules) = go e
   where
     -- Repeatedly try rules in the given Sequence until one of them
     -- works
     tryRules _ Empty = pure Nothing
-    tryRules expr (MkRuleDelayed r :<| rs) = tryApplyRule r expr >>= \case
+    tryRules expr (MkRule r :<| rs) = tryApplyRule r expr >>= \case
       result@(Just _) -> pure result
       Nothing         -> tryRules expr rs
 
@@ -507,7 +514,7 @@ replaceAll e (MkListOrSolo rules) = go e
 
 ---------- ReplaceRepeated ----------
 
-replaceRepeated :: Expr -> ListOrSolo ARuleDelayed -> Eval Expr
+replaceRepeated :: Expr -> ListOrSolo ARule -> Eval Expr
 replaceRepeated expr rules = go expr
   where
     go currentExpr = do
@@ -659,6 +666,7 @@ defStdLib = do
 
   def "ReplaceAll" replaceAll
   def "ReplaceRepeated" replaceRepeated
+  modifyAttributes "Rule"        (setHoldType HoldFirst)
   modifyAttributes "RuleDelayed" (setHoldType HoldAll)
 
   def "Map" mapDef
