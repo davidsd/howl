@@ -64,8 +64,8 @@ data Pat
 data PatAppType
   = PatAppFree
   | PatAppC
-  | PatAppA
-  | PatAppAC
+  | PatAppA  !Symbol
+  | PatAppAC !Symbol
   deriving (Eq, Ord, Show)
 
 data SeqType = ZeroOrMore | OneOrMore

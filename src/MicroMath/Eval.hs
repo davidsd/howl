@@ -65,12 +65,12 @@ data AppType
   | AppAC Symbol (Maybe Marking)
     deriving (Eq, Ord, Show)
 
-patAppTypeToAppType :: Pat -> PatAppType -> AppType
-patAppTypeToAppType f patTy = case (f, patTy) of
-  (_,               PatAppC)  -> AppC
-  (PatSymbol _ sym, PatAppA)  -> AppA sym Nothing
-  (PatSymbol _ sym, PatAppAC) -> AppAC sym Nothing
-  _                           -> AppFree
+patAppTypeToAppType :: PatAppType -> AppType
+patAppTypeToAppType = \case
+  PatAppC      -> AppC
+  PatAppA sym  -> AppA sym Nothing
+  PatAppAC sym -> AppAC sym Nothing
+  _            -> AppFree
 
 data Substitution = MkSubstitution Symbol Expr
   deriving (Eq, Ord, Show)
@@ -223,7 +223,7 @@ transformMatchK eq k z = case eq of
       -- eliminate a function variable, then the head becomes Free,
       -- regardless of the symbol it is bound to. This is a little
       -- weird, but it is how Mathematica works.
-      appTy = patAppTypeToAppType f fAppTy
+      appTy = patAppTypeToAppType fAppTy
     in
       k (MatchBranch (bindVars xs expr) (two (SingleEq f g) (SeqEq appTy fArgs gArgs))) z
 
@@ -400,27 +400,40 @@ transformMatchK eq k z = case eq of
         case s of
           PatVar x xHead ->
             let
-              goSubs :: [(Seq Expr, Seq Expr)] -> r
-              goSubs [] = rest
-              goSubs ((subSeq, restSeq) : more) =
-                case subSeq of
-                  Empty -> goSubs more
-                  _ ->
-                    if
-                      ((marking == Just Mark0) && zeroOrOneElts subSeq)
-                      || not (matchesHeadSymbol xHead f)
-                    then goSubs more
-                    else
-                      let
-                        xExpr = ExprApp (ExprSymbol f) subSeq
-                        newMarking = case marking of
-                          Nothing | zeroOrOneElts subSeq -> Just Mark1
-                          _                              -> marking
-                        newTy = AppAC f newMarking
-                      in
-                        k (MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss restSeq)) (goSubs more)
+              headOk = matchesHeadSymbol xHead f
+              shouldSkip subSeq =
+                ((marking == Just Mark0) && zeroOrOneElts subSeq) || not headOk
+              emitBind subSeq restSeq cont =
+                let
+                  xExpr = ExprApp (ExprSymbol f) subSeq
+                  newMarking = case marking of
+                    Nothing | zeroOrOneElts subSeq -> Just Mark1
+                    _                              -> marking
+                  newTy = AppAC f newMarking
+                in
+                  k (MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss restSeq)) cont
             in
-              goSubs (subSequences ts)
+              case ss of
+                Empty ->
+                  -- Special case where s:<|ss consists of only a single
+                  -- PatVar. In this case, the only solution is to bind
+                  -- the PatVar to the remaining terms ts.
+                  case ts of
+                    Empty -> rest
+                    _ | shouldSkip ts -> rest
+                    _ -> emitBind ts Empty rest
+                _ ->
+                  let
+                    -- General case: we have to search subsequences
+                    goSubs :: [(Seq Expr, Seq Expr)] -> r
+                    goSubs [] = rest
+                    goSubs ((subSeq, restSeq) : more) =
+                      case subSeq of
+                        Empty -> goSubs more
+                        _ | shouldSkip subSeq -> goSubs more
+                        _ -> emitBind subSeq restSeq (goSubs more)
+                  in
+                    goSubs (subSequences ts)
           _ -> rest
     in
       emitDecAC (emitIVEAC z)

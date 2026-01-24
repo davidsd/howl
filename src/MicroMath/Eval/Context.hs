@@ -36,6 +36,7 @@ module MicroMath.Eval.Context
   , clearAll
   , newModuleSymbol
   , getDefinedSymbols
+  , compilePat
   ) where
 
 import Control.Monad.Catch      (MonadCatch, MonadMask, MonadThrow)
@@ -49,7 +50,7 @@ import Data.Text.Short          qualified as ShortText
 import MicroMath.Expr           (Expr (..))
 import MicroMath.Eval.EvalCache (EvalCache, insertEvalCache, lookupEvalCache,
                                  newEvalCache)
-import MicroMath.Pat            (Pat (..))
+import MicroMath.Pat            (Pat (..), PatAppType(..), patFromExpr)
 import MicroMath.PPrint         (PPrint (..))
 import MicroMath.Symbol         (Symbol, symbolFromShortText, symbolToShortText)
 
@@ -74,8 +75,10 @@ newContext = do
   pure $ MkContext
     { symbolRecordTable      = symbolRecordTable
     , moduleNumberRef        = moduleNumberRef
-    , addToEvalCacheHandler  = defaultAddToEvalCache evalCache
-    , returnIfInCacheHandler = defaultReturnIfInCache evalCache
+    -- , addToEvalCacheHandler  = defaultAddToEvalCache evalCache
+    -- , returnIfInCacheHandler = defaultReturnIfInCache evalCache
+    , addToEvalCacheHandler  = dummyAddToEvalCache evalCache
+    , returnIfInCacheHandler = dummyReturnIfInCache evalCache
     }
 
 runEvalWithContext :: Context -> Eval a -> IO a
@@ -89,7 +92,6 @@ runEval go = do
 getContext :: Eval Context
 getContext = ask
 
-{-
 -- To Turn off the eval cache, replace defaultAddToEvalCache with
 -- dummyAddToEvalCache and defaultReturnIfInCache with
 -- dummyReturnIfInCache. TODO: Make this user-configurable.
@@ -99,7 +101,6 @@ dummyAddToEvalCache _ _ = pure ()
 
 dummyReturnIfInCache :: EvalCache -> Expr -> Eval Expr -> Eval Expr
 dummyReturnIfInCache _ _ go = go
--}
 
 defaultAddToEvalCache :: EvalCache -> Expr -> Eval ()
 defaultAddToEvalCache evalCache expr = liftIO $ insertEvalCache evalCache expr
@@ -285,3 +286,16 @@ getDefinedSymbols = do
   ctx <- ask
   liftIO $ 
     fmap (map fst) $ HT.toList ctx.symbolRecordTable
+
+patAppTypeFromAttributes :: Symbol -> Attributes -> PatAppType
+patAppTypeFromAttributes sym attr = case (attr.flat, attr.orderless) of
+  (False, False) -> PatAppFree
+  (True,  False) -> PatAppA sym
+  (False, True ) -> PatAppC
+  (True,  True ) -> PatAppAC sym
+
+lookupPatAppType :: Symbol -> Eval PatAppType
+lookupPatAppType sym = patAppTypeFromAttributes sym <$> lookupAttributes sym
+
+compilePat :: Expr -> Eval Pat
+compilePat = patFromExpr lookupPatAppType

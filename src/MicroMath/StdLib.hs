@@ -27,10 +27,10 @@ import MicroMath.Eval         (Substitution (..), SubstitutionSet,
                                removeBindings, tryApplyRule)
 import MicroMath.Eval.Context (Attributes (..), Decl (..), Eval (..),
                                HoldType (..), Rule (..), addDecl, clear,
-                               clearAll, getDefinedSymbols, lookupAttributes,
-                               lookupSymbolRecord, modifyAttributes,
-                               newModuleSymbol, setFlat, setHoldType,
-                               setNumericFunction, setOrderless)
+                               clearAll, compilePat, getDefinedSymbols,
+                               lookupAttributes, lookupSymbolRecord,
+                               modifyAttributes, newModuleSymbol, setFlat,
+                               setHoldType, setNumericFunction, setOrderless)
 import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                ToExpr (..), builtinNumericFunctions,
                                pattern (:@), pattern And, pattern ExprInteger,
@@ -42,7 +42,7 @@ import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Expr.TH      (declareBuiltin)
 import MicroMath.Parser       (parseCompoundExpressionText, readExprFile)
-import MicroMath.Pat          (PatAppType (..), patFromExpr, patRootSymbol)
+import MicroMath.Pat          (patRootSymbol)
 import MicroMath.Symbol       (Symbol)
 import MicroMath.ToBuiltin    (ToBuiltin (..), builtinDecl)
 import MicroMath.Util         (pattern Pair, pattern Solo)
@@ -476,16 +476,6 @@ instance FromExpr ARule where
     RuleDelayed :@ Pair lhs rhs -> Just $ MkRule lhs rhs
     _ -> Nothing
 
-patAppTypeFromAttributes :: Attributes -> PatAppType
-patAppTypeFromAttributes attr = case (attr.flat, attr.orderless) of
-  (False, False) -> PatAppFree
-  (True,  False) -> PatAppA
-  (False, True ) -> PatAppC
-  (True,  True ) -> PatAppAC
-
-lookupPatAppType :: Symbol -> Eval PatAppType
-lookupPatAppType = fmap patAppTypeFromAttributes . lookupAttributes
-
 -- | NB: replaceAll can currently be used to subvert shadowing
 -- variables by replacing them with arbitrary expressions. For
 -- example:
@@ -510,7 +500,7 @@ replaceAll e (MkListOrSolo rules) = do
   where
     aruleToRule :: ARule -> Eval Rule
     aruleToRule (MkRule lhs rhs) = do
-      pat <- patFromExpr lookupPatAppType lhs
+      pat <- compilePat lhs
       pure $ PatRule pat rhs
 
     -- Repeatedly try rules in the given Sequence until one of them
@@ -566,12 +556,12 @@ setPairToDecl :: LHS -> Expr -> Eval Decl
 setPairToDecl lhs rhs = case lhs of
   LHSSymbol sym -> pure $ OwnValue sym rhs
   LHSPat patExpr -> do
-    pat <- patFromExpr lookupPatAppType patExpr
+    pat <- compilePat patExpr
     case patRootSymbol pat of
       Just sym -> pure $ DownValue sym (PatRule pat rhs)
       Nothing  -> error "Pattern on the left-hand side has no root symbol"
   LHSTaggedPat sym patExpr -> do
-    pat <- patFromExpr lookupPatAppType patExpr
+    pat <- compilePat patExpr
     pure $ UpValue sym (PatRule pat rhs)
 
 -- | There are two differences between SetDelayed and Set. Firstly,

@@ -289,6 +289,10 @@ main = hspec $ do
         result <- eval' "f[3] /. f[n_] -> n^2"
         pPrint result `shouldBe` "9"
 
+      it "matches single-arg Flat+Orderless head as whole expression" $ do
+        result <- eval' "a + b + c /. Plus[x_] -> f[x]"
+        pPrint result `shouldBe` "f[a + b + c]"
+
     describe "Lists" $ do
       it "creates lists" $ do
         result <- eval' "{1, 2, 3}"
