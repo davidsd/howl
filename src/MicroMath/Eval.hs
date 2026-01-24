@@ -180,9 +180,9 @@ matchesHeadSymbol (Just s) s' = s == s'
 transformMatchK
   :: forall r .
      MatchingEq
-  -> (MatchStep -> Eval r -> Eval r)  -- ^ step consumer
-  -> Eval r                           -- ^ no-more-steps continuation
-  -> Eval r
+  -> (MatchStep -> r -> r)  -- ^ step consumer
+  -> r                      -- ^ no-more-steps continuation
+  -> r
 transformMatchK eq k z = case eq of
 
   -- | T: Trivial literal
@@ -251,7 +251,7 @@ transformMatchK eq k z = case eq of
   SeqEq appTy (PatSeqVar x seqTy :<| ss) ts ->
     -- enumerate splits ts = (ts1,ts2)
     let
-      goSplits :: [(Seq Expr, Seq Expr)] -> Eval r
+      goSplits :: [(Seq Expr, Seq Expr)] -> r
       goSplits [] = z
       goSplits ((ts1, ts2) : rest) =
         case seqTy of
@@ -274,7 +274,7 @@ transformMatchK eq k z = case eq of
   -- | Dec-C: Decomposition under commutative head
   SeqEq AppC (s :<| ss) ts ->
     let
-      goSplits1 :: [(Seq Expr, Expr, Seq Expr)] -> Eval r
+      goSplits1 :: [(Seq Expr, Expr, Seq Expr)] -> r
       goSplits1 [] = z
       goSplits1 ((ts1, t, ts2) : rest) =
         k (MatchBranch [] (two (SingleEq s t) (SeqEq AppFree ss (ts1 <> ts2))))
@@ -306,7 +306,7 @@ transformMatchK eq k z = case eq of
       -- - If marked by 1, then Dec-A-strict does not apply
       -- - If marked by 0, then retain marking 0
       --
-      emitDecA :: Eval r -> Eval r
+      emitDecA :: r -> r
       emitDecA rest =
         case ts of
           t :<| ts'
@@ -327,12 +327,12 @@ transformMatchK eq k z = case eq of
       -- - IVE-A-strict does not apply if mark=0 and length ts1<=1.
       -- - If unmarked and ts1 has length 1, mark by 1
       -- - otherwise retain the marking
-      emitIVEA :: Eval r -> Eval r
+      emitIVEA :: r -> r
       emitIVEA rest =
         case s of
           PatVar x xHead ->
             let
-              goSplitsA :: [(Seq Expr, Seq Expr)] -> Eval r
+              goSplitsA :: [(Seq Expr, Seq Expr)] -> r
               goSplitsA [] = rest
               goSplitsA ((ts1, ts2) : more) =
                 case ts1 of
@@ -374,13 +374,13 @@ transformMatchK eq k z = case eq of
     let
       -- | Dec-AC: Decomposition under AC head. Marking rules the same as AppA.
       -- TODO: Is this already strict?
-      emitDecAC :: Eval r -> Eval r
+      emitDecAC :: r -> r
       emitDecAC rest =
         case marking of
           Just Mark1 -> rest
           _ ->
             let
-              goSplits1AC :: [(Seq Expr, Expr, Seq Expr)] -> Eval r
+              goSplits1AC :: [(Seq Expr, Expr, Seq Expr)] -> r
               goSplits1AC [] = rest
               goSplits1AC ((ts1, t, ts2) : more) =
                 let newMarking = case marking of
@@ -395,12 +395,12 @@ transformMatchK eq k z = case eq of
 
       -- | IVE-AC-strict: Individual variable elimination under AC
       -- head. The strict variant imposes that subSeq not be null.
-      emitIVEAC :: Eval r -> Eval r
+      emitIVEAC :: r -> r
       emitIVEAC rest =
         case s of
           PatVar x xHead ->
             let
-              goSubs :: [(Seq Expr, Seq Expr)] -> Eval r
+              goSubs :: [(Seq Expr, Seq Expr)] -> r
               goSubs [] = rest
               goSubs ((subSeq, restSeq) : more) =
                 case subSeq of

@@ -108,6 +108,7 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   11
   ```
 - MicroMath implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` and `Unevaluated`.
+- Attributes must be set before rules are defined. The reason is that the left-hand-side is compiled into a pattern, and the way compilation works depends on the attributes of the symbols in the pattern. If these attributes are changed later, the compiled pattern that is already in the Context will not be updated.
 - MicroMath does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
   ```
   > a b c /. {a c :> Foobar}
