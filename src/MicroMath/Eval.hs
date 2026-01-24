@@ -27,6 +27,7 @@ import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence          qualified as Seq
 import Data.Set               (Set)
 import Data.Set               qualified as Set
+import GHC.StableName         (makeStableName)
 import MicroMath.Eval.Context (Attributes (..), Eval (..), HoldType (..),
                                Rule (..), SymbolRecord (..), addToEvalCache,
                                emptyAttributes, lookupSymbolRecord,
@@ -37,6 +38,7 @@ import MicroMath.Expr         (Expr (..), flattenWithHead, mapSymbols,
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Pat          (Pat (..), PatAppType (..), SeqType (..),
                                addNames)
+import System.IO.Unsafe       (unsafePerformIO)
 import MicroMath.Symbol       (Symbol)
 import MicroMath.Util         (splits1K, splitsK, subSequencesK)
 
@@ -601,6 +603,45 @@ level0Symbol = \case
   ExprApp (ExprSymbol s) _ -> Just s
   _                        -> Nothing
 
+-- | Fast equality check for evaluator rewrite detection.
+--   Uses StableName pointer equality at the root and shallowly on
+--   immediate children, falling back to structural equality per-node
+--   when pointers differ.
+{-# INLINE exprEqualFast #-}
+exprEqualFast :: Expr -> Expr -> Bool
+exprEqualFast a b = unsafePerformIO $ go a b
+  where
+    go :: Expr -> Expr -> IO Bool
+    go (ExprLit x) (ExprLit y) = pure (x == y)
+    go (ExprSymbol x) (ExprSymbol y) = pure (x == y)
+    go e1@(ExprApp h1 cs1) e2@(ExprApp h2 cs2) = do
+      sn1 <- makeStableName e1
+      sn2 <- makeStableName e2
+      if sn1 == sn2
+        then pure True
+        else do
+          if Seq.length cs1 /= Seq.length cs2
+            then pure False
+            else do
+              headEq <- eqNode h1 h2
+              if headEq then goSeq cs1 cs2 else pure False
+    go _ _ = pure False
+
+    eqNode :: Expr -> Expr -> IO Bool
+    eqNode (ExprLit x) (ExprLit y) = pure (x == y)
+    eqNode (ExprSymbol x) (ExprSymbol y) = pure (x == y)
+    eqNode x y = do
+      sx <- makeStableName x
+      sy <- makeStableName y
+      if sx == sy then pure True else pure (x == y)
+
+    goSeq :: Seq Expr -> Seq Expr -> IO Bool
+    goSeq Empty Empty = pure True
+    goSeq (x :<| xs) (y :<| ys) = do
+      xyEq <- eqNode x y
+      if xyEq then goSeq xs ys else pure False
+    goSeq _ _ = pure False
+
 eval :: Expr -> Eval Expr
 eval expr = do
   case expr of
@@ -650,7 +691,7 @@ eval expr = do
             result <- tryApplyRule rule expr'
             case result of
               Just transformedExpr
-                | transformedExpr /= expr' -> pure result
+                | not (exprEqualFast transformedExpr expr') -> pure result
               _ -> tryRulesSeq rules
 
         tryUpValuesFromArgs :: Set Symbol -> Seq Expr -> Eval (Maybe Expr)
