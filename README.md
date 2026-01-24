@@ -4,7 +4,7 @@ MicroMath is an implementation of a microscopic subset of the [Wolfram Language]
 
 ## Intro: trees and replacement rules
 
-At its core, Mathematica is an engine for repeatedly applying replacement rules to trees of data. A mathematical expression is represented as a tree. For example, the expression `3+a*(b+c)` can be written `Plus[3,Times[a,Plus[b,c]]]`, which as a tree looks like this:
+At its core, Mathematica is an engine for repeatedly applying replacement rules to trees of data. A mathematical expression is represented as a tree. For example, the expression `3+a(b+c)` can be written `Plus[3,Times[a,Plus[b,c]]]`, which as a tree looks like this:
 
 <img width="339" height="398" alt="Screenshot 2026-01-22 at 11 59 16 PM" src="https://github.com/user-attachments/assets/941c3f90-6b87-4fc0-88f5-1d22714c681e" />
 
@@ -21,10 +21,10 @@ Alternatively, we can write it using some syntactic sugar as
 
 ```mathematica
 (* Distributive property again *)
-x_*(y_+z_) := x*y+x*z;
+x_(y_+z_) := x y+x z;
 ```
 
-If we add this to the global rules, then Mathematica will recognize that part of the tree above matches the left-hand side of this rule with the substitutions `{x -> a, y -> b, z -> c}`. It will then replace that part of the tree with the right-hand side of the rule, with the given substitutions, giving in this case `3+(a*b+a*c)`. Mathematica also knows that `Plus` is "Flat", i.e. associative, so it will further simplify this expression to `3+a*b+a*c`, which as a tree looks like this
+If we add this to the global rules, then Mathematica will recognize that part of the tree above matches the left-hand side of this rule with the substitutions `{x -> a, y -> b, z -> c}`. It will then replace that part of the tree with the right-hand side of the rule, with the given substitutions, giving in this case `3+(a b+a c)`. Mathematica also knows that `Plus` is "Flat", i.e. associative, so it will further simplify this expression to `3+a b+a c`, which as a tree looks like this
 
 <img width="338" height="266" alt="Screenshot 2026-01-23 at 12 04 15 AM" src="https://github.com/user-attachments/assets/db9453b4-fed1-4c36-a658-dc3a329d0596" />
 
@@ -32,8 +32,8 @@ In actuality, this example doesn't work in Mathematica because the symbol `Times
 
 ```
 MicroMath, version 0.1 :? for help
-> x_*(y_+z_) := x*y+x*z;
-> 3+a*(b+c)
+> x_(y_+z_) := x y+x z;
+> 3+a(b+c)
 Plus[3, Times[a, b], Times[a, c]]
 ```
 
@@ -89,7 +89,6 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   fib[35]
   ```
   If you know how to make it faster, please tell me!
-- The MicroMath parser (currently) does not recognize whitespace as multiplication. You have to use `*`.
 - MicroMath does not evaluate patterns as if they were expressions. In other words, you can imagine that every pattern in MicroMath is wrapped in `HoldPattern`.
 - MicroMath does not currently attempt to sort user-defined rules in reverse order of specificity. It stores rules in the order that they are defined. For example:
   ```mathematica
@@ -111,15 +110,15 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
 - MicroMath implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` and `Unevaluated`.
 - MicroMath does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
   ```
-  > a*b*c /. {a*c :> Foobar}
-  b*Foobar
+  > a b c /. {a c :> Foobar}
+  b Foobar
   ```
   MicroMath does not recognize that `Times[a,b,c]` can be rewritten as `Times[Times[a,c],b]` which has `Times[a,c]` as a sub-expression that matches the pattern. However, you can do this:
   ```
-  > a*b*c /. {a*c*x___ :> Foobar*x}
-  b*Foobar
+  > a b c /. {a c x___ :> Foobar x}
+  b Foobar
   ```
-  This works because the left-hand side matches the whole expression `a*b*c`, taking into account commutativity of `Times` (which the MicroMath pattern matcher does).
+  This works because the left-hand side matches the whole expression `a b c`, taking into account commutativity of `Times` (which the MicroMath pattern matcher does).
   
 
 

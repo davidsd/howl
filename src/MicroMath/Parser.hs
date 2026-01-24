@@ -260,8 +260,47 @@ insertApply ts = do
     TLBrack -> [TOp OpPrefixApply, TLBrack]
     _       -> pure t
 
+-- | Insert OpTimes between tokens where whitespace should be interpreted as multiplication.
+-- In Wolfram Language, adjacent terms like "2 x" or "f g" are multiplied.
+insertTimes :: [Tok] -> [Tok]
+insertTimes [] = []
+insertTimes [t] = [t]
+insertTimes (t1:t2:ts)
+  | canEndMult t1 && canStartMult t2 = t1 : TOp OpTimes : insertTimes (t2:ts)
+  | otherwise = t1 : insertTimes (t2:ts)
+
+-- | Tokens that can appear on the left side of implicit multiplication
+canEndMult :: Tok -> Bool
+canEndMult = \case
+  TIdent {}  -> True
+  TInt _     -> True
+  TReal _    -> True
+  TPatVar {} -> True
+  TSlot {}   -> True
+  TString _  -> True
+  TRParen    -> True
+  TRBrack    -> True
+  TRBrace    -> True
+  TRAssoc    -> True
+  _          -> False
+
+-- | Tokens that can appear on the right side of implicit multiplication
+-- Note: TLBrack is NOT included because brackets denote function application
+canStartMult :: Tok -> Bool
+canStartMult = \case
+  TIdent {}  -> True
+  TInt _     -> True
+  TReal _    -> True
+  TPatVar {} -> True
+  TSlot {}   -> True
+  TString _  -> True
+  TLParen    -> True
+  TLBrace    -> True
+  TLAssoc    -> True
+  _          -> False
+
 lexAll :: TextParser [Tok]
-lexAll = fmap insertApply (sc *> many parseTok <* eof)
+lexAll = fmap (insertApply . insertTimes) (sc *> many parseTok <* eof)
 
 -- | Now we're ready to define parsers that consume Tok's. We will
 -- build an expression parser, which means we only need to define

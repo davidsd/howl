@@ -18,7 +18,7 @@ CenterDot[0, v_] := 0;
 CenterDot[x_Plus,y_] := (CenterDot[#,y]&) /@ x;
 
 (* The dot product is linear (really bilinear, since it is Orderless) *)
-CenterDot[a_*u_, v_] /; ScalarQ[a] := a*CenterDot[u,v];
+CenterDot[a_ u_, v_] /; ScalarQ[a] := a CenterDot[u,v];
 
 (* These two rules implement Einstein summation notation. basis[i]
 represents a basis vector in the i-th direction. The dot product
@@ -41,13 +41,13 @@ u. *)
 deriv[u_,x_][expr_Plus] := deriv[u,x] /@ expr;
 
 (* The derivative satisfies the Leibniz rule *)
-deriv[u_,x_][a_*b_] := deriv[u,x][a]*b + a*deriv[u,x][b];
+deriv[u_,x_][a_ b_] := deriv[u,x][a] b + a deriv[u,x][b];
 
 (* The derivative of a power. NB: For simplicity, we assume the exponent is x-independent. *)
-deriv[u_,x_][a_^b_] := b*deriv[u,x][a]*a^(b-1);
+deriv[u_,x_][a_^b_] := b deriv[u,x][a] a^(b-1);
 
 (* The derivative of a dot product *)
-deriv[u_,x_][CenterDot[x_,x_]] := 2*CenterDot[u,x];
+deriv[u_,x_][CenterDot[x_,x_]] := 2 CenterDot[u,x];
 
 (* The derivative of a dot product *)
 deriv[u_,x_][CenterDot[x_,y_]] := CenterDot[u,y];
