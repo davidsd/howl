@@ -4,6 +4,7 @@
 
 module MicroMath.Pat
   ( Pat(..)
+  , PatAppType(..)
   , SeqType(..)
   , mapNames
   , addNames
@@ -11,16 +12,17 @@ module MicroMath.Pat
   , patFromExpr
   ) where
 
-import Data.Foldable      qualified as Foldable
-import Data.List          (intercalate)
-import Data.Sequence      (Seq, pattern (:<|), pattern Empty)
-import Data.String        (IsString (..))
-import MicroMath.Expr     (Expr (..), Literal, pattern Alternatives,
-                           pattern Blank, pattern BlankNullSequence,
-                           pattern BlankSequence, pattern Pattern, pattern Test)
+import Data.Foldable         qualified as Foldable
+import Data.List             (intercalate)
+import Data.Sequence         (Seq, pattern (:<|), pattern Empty)
+import Data.String           (IsString (..))
+import MicroMath.Expr        (Expr (..), Literal, pattern Alternatives,
+                              pattern Blank, pattern BlankNullSequence,
+                              pattern BlankSequence, pattern Pattern,
+                              pattern Test)
 import MicroMath.Expr.PPrint ()
-import MicroMath.PPrint   (PPrint (..))
-import MicroMath.Symbol   (Symbol)
+import MicroMath.PPrint      (PPrint (..))
+import MicroMath.Symbol      (Symbol)
 
 {- | TODO:
 
@@ -54,9 +56,16 @@ data Pat
     -- | The second argument is an optional head constraint.
   | PatVar       ![Symbol] !(Maybe Symbol)
   | PatSeqVar    ![Symbol] !SeqType
-  | PatApp       ![Symbol] !Pat !(Seq Pat)
+  | PatApp       ![Symbol] !Pat !PatAppType !(Seq Pat)
   | PatAlt       ![Symbol] !Pat !Pat
   | PatCondition ![Symbol] !Pat !Expr
+  deriving (Eq, Ord, Show)
+
+data PatAppType
+  = PatAppFree
+  | PatAppC
+  | PatAppA
+  | PatAppAC
   deriving (Eq, Ord, Show)
 
 data SeqType = ZeroOrMore | OneOrMore
@@ -71,7 +80,7 @@ mapNames f = \case
   PatLit       names l      -> PatLit       (f names) l
   PatVar       names h      -> PatVar       (f names) h
   PatSeqVar    names ty     -> PatSeqVar    (f names) ty
-  PatApp       names h cs   -> PatApp       (f names) h cs
+  PatApp       names h ty cs -> PatApp      (f names) h ty cs
   PatAlt       names p1 p2  -> PatAlt       (f names) p1 p2
   PatCondition names p expr -> PatCondition (f names) p expr
 
@@ -107,9 +116,10 @@ instance PPrint Pat where
       []  -> blankStr
       [x] -> pPrint x <> blankStr
       _   -> pPrintNamed names blankStr
-  pPrint (PatApp names f args) = pPrintNamed names $
+  pPrint (PatApp names f ty args) = pPrintNamed names $
     concat
     [ pPrint f
+    , "(" ++ show ty ++ ")"
     , "["
     , intercalate ", " (map pPrint (Foldable.toList args))
     , "]"
@@ -125,21 +135,28 @@ instance PPrint Pat where
 patRootSymbol :: Pat -> Maybe Symbol
 patRootSymbol = \case
   PatSymbol _ s      -> Just s
-  PatApp _ h _       -> patRootSymbol h
+  PatApp _ h _ _     -> patRootSymbol h
   PatCondition _ p _ -> patRootSymbol p
   _                  -> Nothing
 
-patFromExpr :: Expr -> Pat
-patFromExpr expr = case expr of
+patFromExpr :: Monad m => (Symbol -> m PatAppType) -> Expr -> m Pat
+patFromExpr lookupAppType expr = case expr of
   ExprApp Pattern (ExprSymbol x :<| expr' :<| Empty) ->
-    addName x $ patFromExpr expr'
-  ExprApp Blank Empty                    -> PatVar [] Nothing
-  ExprApp Blank (ExprSymbol h :<| Empty) -> PatVar [] (Just h)
-  ExprApp BlankSequence Empty            -> PatSeqVar [] OneOrMore
-  ExprApp BlankNullSequence Empty        -> PatSeqVar [] ZeroOrMore
+    addName x <$> patFromExpr lookupAppType expr'
+  ExprApp Blank Empty                    -> pure $ PatVar [] Nothing
+  ExprApp Blank (ExprSymbol h :<| Empty) -> pure $ PatVar [] (Just h)
+  ExprApp BlankSequence Empty            -> pure $ PatSeqVar [] OneOrMore
+  ExprApp BlankNullSequence Empty        -> pure $ PatSeqVar [] ZeroOrMore
   ExprApp Alternatives pExprs@(_ :<| _) ->
-    foldr1 (PatAlt []) $ fmap patFromExpr pExprs
-  ExprApp Test (pExpr :<| cond :<| Empty) -> PatCondition [] (patFromExpr pExpr) cond
-  ExprLit lit    -> PatLit [] lit
-  ExprSymbol sym -> PatSymbol [] sym
-  ExprApp h cs   -> PatApp [] (patFromExpr h) (fmap patFromExpr cs)
+    foldr1 (PatAlt []) <$> traverse (patFromExpr lookupAppType) pExprs
+  ExprApp Test (pExpr :<| cond :<| Empty) ->
+    PatCondition [] <$> patFromExpr lookupAppType pExpr <*> pure cond
+  ExprLit lit    -> pure $ PatLit [] lit
+  ExprSymbol sym -> pure $ PatSymbol [] sym
+  ExprApp h cs   -> do
+    appType <- case h of
+      ExprSymbol sym -> lookupAppType sym
+      _              -> pure PatAppFree
+    hPat <- patFromExpr lookupAppType h
+    csPat <- traverse (patFromExpr lookupAppType) cs
+    pure $ PatApp [] hPat appType csPat

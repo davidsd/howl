@@ -42,7 +42,7 @@ import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Expr.TH      (declareBuiltin)
 import MicroMath.Parser       (parseCompoundExpressionText, readExprFile)
-import MicroMath.Pat          (Pat, patFromExpr, patRootSymbol)
+import MicroMath.Pat          (PatAppType (..), patFromExpr, patRootSymbol)
 import MicroMath.Symbol       (Symbol)
 import MicroMath.ToBuiltin    (ToBuiltin (..), builtinDecl)
 import MicroMath.Util         (pattern Pair, pattern Solo)
@@ -469,12 +469,22 @@ $(declareBuiltin ''Expr 'fromString "Rule" "Rule")
 -- attribute HoldAll, while Rule has attribute HoldFirst. (In
 -- Mathematica, Rule and RuleDelayed do not hold their first
 -- arguments, but we differ here to avoid evaluating patterns.)
-newtype ARule = MkRule Rule
+data ARule = MkRule Expr Expr
 instance FromExpr ARule where
   fromExpr = \case
-    Rule        :@ Pair lhs rhs -> Just $ MkRule $ PatRule (patFromExpr lhs) rhs
-    RuleDelayed :@ Pair lhs rhs -> Just $ MkRule $ PatRule (patFromExpr lhs) rhs
+    Rule        :@ Pair lhs rhs -> Just $ MkRule lhs rhs
+    RuleDelayed :@ Pair lhs rhs -> Just $ MkRule lhs rhs
     _ -> Nothing
+
+patAppTypeFromAttributes :: Attributes -> PatAppType
+patAppTypeFromAttributes attr = case (attr.flat, attr.orderless) of
+  (False, False) -> PatAppFree
+  (True,  False) -> PatAppA
+  (False, True ) -> PatAppC
+  (True,  True ) -> PatAppAC
+
+lookupPatAppType :: Symbol -> Eval PatAppType
+lookupPatAppType = fmap patAppTypeFromAttributes . lookupAttributes
 
 -- | NB: replaceAll can currently be used to subvert shadowing
 -- variables by replacing them with arbitrary expressions. For
@@ -494,22 +504,30 @@ instance FromExpr ARule where
 -- >>> Function[Slot[1]+2]
 --
 replaceAll :: Expr -> ListOrSolo ARule -> Eval Expr
-replaceAll e (MkListOrSolo rules) = go e
+replaceAll e (MkListOrSolo rules) = do
+  rules' <- traverse aruleToRule rules
+  go rules' e
   where
+    aruleToRule :: ARule -> Eval Rule
+    aruleToRule (MkRule lhs rhs) = do
+      pat <- patFromExpr lookupPatAppType lhs
+      pure $ PatRule pat rhs
+
     -- Repeatedly try rules in the given Sequence until one of them
     -- works
     tryRules _ Empty = pure Nothing
-    tryRules expr (MkRule r :<| rs) = tryApplyRule r expr >>= \case
+    tryRules expr (r :<| rs) = tryApplyRule r expr >>= \case
       result@(Just _) -> pure result
       Nothing         -> tryRules expr rs
 
-    go expr = tryRules expr rules >>= \case
+    go :: Seq Rule -> Expr -> Eval Expr
+    go rules' expr = tryRules expr rules' >>= \case
       Just result -> pure result
       -- If none of the rules work, go for the head and children
       Nothing -> case expr of
         h :@ cs -> do
-          h' <- go h
-          cs' <- traverse go cs
+          h' <- go rules' h
+          cs' <- traverse (go rules') cs
           pure $ h' :@ cs'
         _       -> pure expr
 
@@ -533,26 +551,28 @@ numericFunctionQ = fmap (.numericFunction) . lookupAttributes
 
 data LHS
   = LHSSymbol Symbol
-  | LHSPat Symbol Pat
-  | LHSTaggedPat Symbol Pat
+  | LHSPat Expr
+  | LHSTaggedPat Symbol Expr
   deriving (Show)
 
 -- | TODO: Add UpSet
 instance FromExpr LHS where
   fromExpr = \case
     ExprSymbol sym                                   -> Just $ LHSSymbol sym
-    TagSetDelayed :@ (Pair (ExprSymbol sym) patExpr) -> Just $ LHSTaggedPat sym (patFromExpr patExpr)
-    patExpr ->
-      let pat = patFromExpr patExpr
-      in case patRootSymbol pat of
-        Just rootSym -> Just (LHSPat rootSym pat)
-        Nothing      -> Nothing
+    TagSetDelayed :@ (Pair (ExprSymbol sym) patExpr) -> Just $ LHSTaggedPat sym patExpr
+    patExpr                                          -> Just $ LHSPat patExpr
 
-setPairToDecl :: LHS -> Expr -> Decl
+setPairToDecl :: LHS -> Expr -> Eval Decl
 setPairToDecl lhs rhs = case lhs of
-  LHSSymbol sym        -> OwnValue sym rhs
-  LHSPat sym pat       -> DownValue sym (PatRule pat rhs)
-  LHSTaggedPat sym pat -> UpValue sym (PatRule pat rhs)
+  LHSSymbol sym -> pure $ OwnValue sym rhs
+  LHSPat patExpr -> do
+    pat <- patFromExpr lookupPatAppType patExpr
+    case patRootSymbol pat of
+      Just sym -> pure $ DownValue sym (PatRule pat rhs)
+      Nothing  -> error "Pattern on the left-hand side has no root symbol"
+  LHSTaggedPat sym patExpr -> do
+    pat <- patFromExpr lookupPatAppType patExpr
+    pure $ UpValue sym (PatRule pat rhs)
 
 -- | There are two differences between SetDelayed and Set. Firstly,
 -- SetDelayed has attribute HoldAll, so that the rhs is unevaluated
@@ -563,11 +583,11 @@ setPairToDecl lhs rhs = case lhs of
 --
 setDef :: LHS -> Expr -> Eval Expr
 setDef lhs rhs = do
-  addDecl $ setPairToDecl lhs rhs
+  setPairToDecl lhs rhs >>= addDecl
   pure rhs
 
 setDelayedDef :: LHS -> Expr -> Eval ()
-setDelayedDef lhs rhs = addDecl $ setPairToDecl lhs rhs
+setDelayedDef lhs rhs = setPairToDecl lhs rhs >>= addDecl
 
 ---------- CompoundExpression ----------
 
@@ -638,14 +658,14 @@ defStdLib = do
   def "Help" help
   def "DefinedSymbols" getDefinedSymbols
 
-  addDecl functionDecl
   modifyAttributes "Function" (setHoldType HoldAll)
+  addDecl functionDecl
 
-  def "Let" letDef
   modifyAttributes "Let" (setHoldType HoldAll)
+  def "Let" letDef
 
-  def "Module" moduleDef
   modifyAttributes "Module" (setHoldType HoldAll)
+  def "Module" moduleDef
 
   modifyAttributes "If" (setHoldType HoldRest)
   mapM_ run
@@ -653,11 +673,11 @@ defStdLib = do
     , "If[False, _,  y_] := y"
     ]
 
-  def "And" normalizeAnd
   modifyAttributes "And" setFlat
+  def "And" normalizeAnd
 
-  def "Or" normalizeOr
   modifyAttributes "Or" setFlat
+  def "Or" normalizeOr
 
   def "Equal" equalDef
   def "Greater" greaterDef
@@ -665,18 +685,18 @@ defStdLib = do
   def "GreaterEqual" greaterEqualDef
   def "LessEqual" lessEqualDef
 
-  def "ReplaceAll" replaceAll
-  def "ReplaceRepeated" replaceRepeated
   modifyAttributes "Rule"        (setHoldType HoldFirst)
   modifyAttributes "RuleDelayed" (setHoldType HoldAll)
+  def "ReplaceAll" replaceAll
+  def "ReplaceRepeated" replaceRepeated
 
   def "Map" mapDef
 
-  def "Plus" normalizePlus
   modifyAttributes "Plus" (setFlat . setOrderless)
+  def "Plus" normalizePlus
 
-  def "Times" normalizeTimes
   modifyAttributes "Times" (setFlat . setOrderless)
+  def "Times" normalizeTimes
 
   def "Power" normalizePower
   def "Sqrt" $ \e -> normalizePower e (ExprRational (1/2))
@@ -684,10 +704,10 @@ defStdLib = do
   def "SameQ" sameQ
   def "OrderedQ" orderedQ
 
-  def "NumericFunctionQ" numericFunctionQ
   sequence_ $ do
     numFn <- builtinNumericFunctions
     pure $ modifyAttributes numFn setNumericFunction
+  def "NumericFunctionQ" numericFunctionQ
 
   def "NumericQ" $ \(_ :: Numeric) -> True
   mapM_ run

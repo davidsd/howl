@@ -29,13 +29,14 @@ import Data.Set               (Set)
 import Data.Set               qualified as Set
 import MicroMath.Eval.Context (Attributes (..), Eval (..), HoldType (..),
                                Rule (..), SymbolRecord (..), addToEvalCache,
-                               lookupAttributes, lookupSymbolRecord,
+                               emptyAttributes, lookupSymbolRecord,
                                returnIfInCache)
 import MicroMath.Expr         (Expr (..), flattenWithHead, mapSymbols,
                                pattern ExprInteger, pattern ExprRational,
                                pattern ExprReal, pattern ExprString)
 import MicroMath.Expr         qualified as Expr
-import MicroMath.Pat          (Pat (..), SeqType (..), addNames)
+import MicroMath.Pat          (Pat (..), PatAppType (..), SeqType (..),
+                               addNames)
 import MicroMath.Symbol       (Symbol)
 import MicroMath.Util         (splits, splits1, subSequences)
 
@@ -64,18 +65,12 @@ data AppType
   | AppAC Symbol (Maybe Marking)
     deriving (Eq, Ord, Show)
 
-symbolAppType :: Symbol -> Eval AppType
-symbolAppType s = do
-  attr <- lookupAttributes s
-  pure $ case (attr.flat, attr.orderless) of
-    (False, False) -> AppFree
-    (True,  False) -> AppA s Nothing
-    (False, True ) -> AppC
-    (True,  True ) -> AppAC s Nothing
-
-exprAppType :: Expr -> Eval AppType
-exprAppType (ExprSymbol s) = symbolAppType s
-exprAppType _              = pure AppFree
+patAppTypeToAppType :: Pat -> PatAppType -> AppType
+patAppTypeToAppType f patTy = case (f, patTy) of
+  (_,               PatAppC)  -> AppC
+  (PatSymbol _ sym, PatAppA)  -> AppA sym Nothing
+  (PatSymbol _ sym, PatAppAC) -> AppAC sym Nothing
+  _                           -> AppFree
 
 data Substitution = MkSubstitution Symbol Expr
   deriving (Eq, Ord, Show)
@@ -222,15 +217,15 @@ transformMatchK eq k z = case eq of
     k (MatchCondition (one $ SingleEq (addNames xs p) t) test) z
 
   -- | A PatApp matches an ExprApp if the heads match and the sequences match
-  SingleEq (PatApp xs f fArgs) expr@(ExprApp g gArgs) -> do
-    -- | FVE-M: Function variable elimination (Mathematica). If we
-    -- eliminate a function variable, then the head becomes Free,
-    -- regardless of the symbol it is bound to. This is a little
-    -- weird, but it is how Mathematica works.
-    appTy <- case f of
-      PatVar _ _ -> pure AppFree
-      _          -> exprAppType g
-    k (MatchBranch (bindVars xs expr) (two (SingleEq f g) (SeqEq appTy fArgs gArgs))) z
+  SingleEq (PatApp xs f fAppTy fArgs) expr@(ExprApp g gArgs) ->
+    let
+      -- | FVE-M: Function variable elimination (Mathematica). If we
+      -- eliminate a function variable, then the head becomes Free,
+      -- regardless of the symbol it is bound to. This is a little
+      -- weird, but it is how Mathematica works.
+      appTy = patAppTypeToAppType f fAppTy
+    in
+      k (MatchBranch (bindVars xs expr) (two (SingleEq f g) (SeqEq appTy fArgs gArgs))) z
 
   ----------------------------------------------------------------------
   -- SeqEq rules
@@ -624,15 +619,19 @@ eval expr = do
       -- If h' is a symbol with attribute Flat, then flatten h' in
       -- children. If h' is a symbol with attribute Orderless, then
       -- subsequently sort the children.
-      cs' <- case h' of
+      (cs', maybeHeadRecord) <- case h' of
         ExprSymbol s -> do
-          attr <- lookupAttributes s
+          maybeRecord <- lookupSymbolRecord s
           let
+            attr          = maybe emptyAttributes (.attributes) maybeRecord
             flatten       = if attr.flat      then flattenWithHeadAndSequence h' else flattenSequences
             maybeSort     = if attr.orderless then Seq.unstableSort   else id
             maybeEvalArgs = traverseWithHoldType attr.holdType eval
-          fmap (maybeSort . flatten) . maybeEvalArgs $ cs
-        _ -> fmap flattenSequences . traverse eval $ cs
+          cs' <- fmap (maybeSort . flatten) . maybeEvalArgs $ cs
+          pure (cs', maybeRecord)
+        _ -> do
+          cs' <- fmap flattenSequences . traverse eval $ cs
+          pure (cs', Nothing)
 
       let
         expr' = ExprApp h' cs'
@@ -669,10 +668,13 @@ eval expr = do
         tryDownValues = case Expr.rootSymbol h' of
           Nothing -> pure Nothing
           Just rootSym -> do
-            maybeRecord <- lookupSymbolRecord rootSym
-            case maybeRecord of
-              Nothing     -> pure Nothing
+            case maybeHeadRecord of
               Just record -> tryRulesSeq record.downValues
+              Nothing -> do
+                maybeRecord <- lookupSymbolRecord rootSym
+                case maybeRecord of
+                  Nothing     -> pure Nothing
+                  Just record -> tryRulesSeq record.downValues
 
       tryUpValuesFromArgs Set.empty cs' >>= \case
         Just transformedExpr -> eval transformedExpr
