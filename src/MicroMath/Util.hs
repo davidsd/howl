@@ -2,56 +2,52 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 module MicroMath.Util
-  ( splits
-  , splits1
-  , subSequences
+  ( splitsK
+  , splits1K
+  , subSequencesK
   , pattern Solo
   , pattern Pair
   , mapMaybeSeq
   ) where
 
-import Data.Foldable qualified as Foldable
-import Data.Sequence (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence (Seq, ViewL (..), (|>), pattern (:<|), pattern Empty)
 import Data.Sequence qualified as Seq
 
--- | All splits of xs into (t1,t2) where xs == t1++t2
---
--- Examples (writing sequences as lists):
--- > splits [2,3] = ([],[2,3]), ([2],[3]), ([2,3],[])
--- > splits [1,2,3] = ([],[1,2,3]), ([1],[2,3]), ([1,2],[3]), ([1,2,3],[])
-{-# INLINE splits #-}
-splits :: Seq a -> [(Seq a, Seq a)]
-splits xs = zip (Foldable.toList (Seq.inits xs)) (Foldable.toList (Seq.tails xs))
+-- | Stream splits of xs into (t1,t2) where xs == t1++t2.
+--   Calls the step function once per split; allows early exit.
+{-# INLINE splitsK #-}
+splitsK :: Seq a -> ((Seq a, Seq a) -> r -> r) -> r -> r
+splitsK xs step z = go Seq.empty xs
+  where
+    go left right =
+      let rest = case Seq.viewl right of
+            EmptyL   -> z
+            x :< xs' -> go (left |> x) xs'
+      in step (left, right) rest
 
--- | All splits of xs into (t1, t, t2) where xs == t1++[t]++t2.
---
--- Examples:
--- > splits1 [1,2] = ([],1,[2]), ([1],2,[])
-{-# INLINE splits1 #-}
-splits1 :: Seq a -> [(Seq a, a, Seq a)]
-splits1 xs = do
-  (l, x :<| r) <- splits xs
-  pure (l, x, r)
+-- | Stream splits of xs into (t1, t, t2) where xs == t1++[t]++t2.
+--   Calls the step function once per split; allows early exit.
+{-# INLINE splits1K #-}
+splits1K :: Seq a -> ((Seq a, a, Seq a) -> r -> r) -> r -> r
+splits1K xs step z = go Seq.empty xs
+  where
+    go left right =
+      case Seq.viewl right of
+        EmptyL   -> z
+        x :< xs' ->
+          let rest = go (left |> x) xs'
+          in step (left, x, xs') rest
 
--- | Split xs into all pairs (subSeq,rest) where subSeq is a
--- subsequence of xs and rest are the remaining elements not in
--- subSeq, with order preserved.
---
--- Examples:
--- > subSequences [1,2] = [([], [1,2]), ([1],[2]), ([2],[1]), ([1,2],[])]
---
--- Note that the number of return values is 2^(length xs). This could
--- introduce performance issues, so should be used with care.
-{-# INLINE subSequences #-}
-subSequences :: Seq a -> [(Seq a, Seq a)]
-subSequences = \case
-  Empty -> [(Empty, Empty)]
-  x :<| xs' ->
-    let
-      rec = subSequences xs'
-    in
-      [ (x :<| s, rest) | (s, rest) <- rec ] ++
-      [ (s, x :<| rest) | (s, rest) <- rec ]
+-- | Stream all (subSeq,rest) pairs where subSeq is a subsequence of xs.
+--   Calls the step function once per pair; allows early exit.
+{-# INLINE subSequencesK #-}
+subSequencesK :: Seq a -> ((Seq a, Seq a) -> r -> r) -> r -> r
+subSequencesK xs step z = case Seq.viewl xs of
+  EmptyL   -> step (Seq.empty, Seq.empty) z
+  x :< xs' ->
+    subSequencesK xs' (\(s, rest) r ->
+      step (x :<| s, rest) (step (s, x :<| rest) r)
+    ) z
 
 {-# INLINE Solo #-}
 pattern Solo :: a -> Seq a

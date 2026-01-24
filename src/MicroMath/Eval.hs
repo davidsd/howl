@@ -38,7 +38,7 @@ import MicroMath.Expr         qualified as Expr
 import MicroMath.Pat          (Pat (..), PatAppType (..), SeqType (..),
                                addNames)
 import MicroMath.Symbol       (Symbol)
-import MicroMath.Util         (splits, splits1, subSequences)
+import MicroMath.Util         (splits1K, splitsK, subSequencesK)
 
 {- ============== Pattern Matching ================
 
@@ -239,7 +239,7 @@ transformMatchK eq k z = case eq of
 
   -- | SVE-last: Special case: last sequence variable. If we are
   -- matching a single sequence variable to a sequence of expressions,
-  -- we don't need to compute splits or pursue further branches. There
+  -- we don't need to compute further branches. There
   -- is only one possibility: the sequence variable is bound to the
   -- given sequence of expressions.
   SeqEq _ (PatSeqVar x seqTy :<| Empty) ts ->
@@ -251,16 +251,14 @@ transformMatchK eq k z = case eq of
   SeqEq appTy (PatSeqVar x seqTy :<| ss) ts ->
     -- enumerate splits ts = (ts1,ts2)
     let
-      goSplits :: [(Seq Expr, Seq Expr)] -> r
-      goSplits [] = z
-      goSplits ((ts1, ts2) : rest) =
+      step (ts1, ts2) rest =
         case seqTy of
-          OneOrMore | ts1 == Empty -> goSplits rest
+          OneOrMore | ts1 == Empty -> rest
           _ ->
             k (MatchBranch (bindSeqVars x ts1) (one $ SeqEq appTy ss ts2))
-              (goSplits rest)
+              rest
     in
-      goSplits (splits ts)
+      splitsK ts step z
 
   -- | Dec-F: Decomposition under Free head
   SeqEq AppFree (s :<| ss) (t :<| ts) ->
@@ -274,13 +272,12 @@ transformMatchK eq k z = case eq of
   -- | Dec-C: Decomposition under commutative head
   SeqEq AppC (s :<| ss) ts ->
     let
-      goSplits1 :: [(Seq Expr, Expr, Seq Expr)] -> r
-      goSplits1 [] = z
-      goSplits1 ((ts1, t, ts2) : rest) =
+      goSplits1 :: (Seq Expr, Expr, Seq Expr) -> r -> r
+      goSplits1 (ts1, t, ts2) rest =
         k (MatchBranch [] (two (SingleEq s t) (SeqEq AppFree ss (ts1 <> ts2))))
-          (goSplits1 rest)
+          rest
     in
-      goSplits1 (splits1 ts)
+      splits1K ts goSplits1 z
 
   SeqEq AppC _ _ -> z
 
@@ -332,16 +329,15 @@ transformMatchK eq k z = case eq of
         case s of
           PatVar x xHead ->
             let
-              goSplitsA :: [(Seq Expr, Seq Expr)] -> r
-              goSplitsA [] = rest
-              goSplitsA ((ts1, ts2) : more) =
+              goSplitsA :: (Seq Expr, Seq Expr) -> r -> r
+              goSplitsA (ts1, ts2) more =
                 case ts1 of
-                  Empty -> goSplitsA more
+                  Empty -> more
                   _ ->
                     if
                       ((marking == Just Mark0) && zeroOrOneElts ts1)
                       || not (matchesHeadSymbol xHead f)
-                    then goSplitsA more
+                    then more
                     else
                       let
                         xExpr = ExprApp (ExprSymbol f) ts1
@@ -350,9 +346,9 @@ transformMatchK eq k z = case eq of
                           _                           -> marking
                         newTy = AppA f newMarking
                       in
-                        k (MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss ts2)) (goSplitsA more)
+                        k (MatchBranch (bindVars x xExpr) (one $ SeqEq newTy ss ts2)) more
             in
-              goSplitsA (splits ts)
+              splitsK ts goSplitsA rest
           _ -> rest
     in
       emitDecA (emitIVEA z)
@@ -380,18 +376,17 @@ transformMatchK eq k z = case eq of
           Just Mark1 -> rest
           _ ->
             let
-              goSplits1AC :: [(Seq Expr, Expr, Seq Expr)] -> r
-              goSplits1AC [] = rest
-              goSplits1AC ((ts1, t, ts2) : more) =
+              goSplits1AC :: (Seq Expr, Expr, Seq Expr) -> r -> r
+              goSplits1AC (ts1, t, ts2) more =
                 let newMarking = case marking of
                       Nothing -> Just Mark0
                       _       -> marking
                     newTy = AppAC f newMarking
                 in
                   k (MatchBranch [] (two (SingleEq s t) (SeqEq newTy ss (ts1 <> ts2))))
-                    (goSplits1AC more)
+                    more
             in
-              goSplits1AC (splits1 ts)
+              splits1K ts goSplits1AC rest
 
       -- | IVE-AC-strict: Individual variable elimination under AC
       -- head. The strict variant imposes that subSeq not be null.
@@ -425,15 +420,14 @@ transformMatchK eq k z = case eq of
                 _ ->
                   let
                     -- General case: we have to search subsequences
-                    goSubs :: [(Seq Expr, Seq Expr)] -> r
-                    goSubs [] = rest
-                    goSubs ((subSeq, restSeq) : more) =
+                    goSubs :: (Seq Expr, Seq Expr) -> r -> r
+                    goSubs (subSeq, restSeq) more =
                       case subSeq of
-                        Empty -> goSubs more
-                        _ | shouldSkip subSeq -> goSubs more
-                        _ -> emitBind subSeq restSeq (goSubs more)
+                        Empty -> more
+                        _ | shouldSkip subSeq -> more
+                        _ -> emitBind subSeq restSeq more
                   in
-                    goSubs (subSequences ts)
+                    subSequencesK ts goSubs rest
           _ -> rest
     in
       emitDecAC (emitIVEAC z)
