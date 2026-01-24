@@ -107,7 +107,7 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   > Let[{x=1,y=x+2,z=x+y+3}, z+4]
   11
   ```
-- MicroMath implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` and `Unevaluated`.
+- MicroMath implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` and `Unevaluated`. It also doesn't implement `Listable` and it never will.
 - MicroMath does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
   ```
   > a b c /. {a c :> Foobar}
