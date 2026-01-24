@@ -21,10 +21,10 @@ Alternatively, we can write it using some syntactic sugar as
 
 ```mathematica
 (* Distributive property again *)
-x_(y_+z_) := x y+x z;
+x_(y_+z_) := x y + x z;
 ```
 
-If we add this to the global rules, then Mathematica will recognize that part of the tree above matches the left-hand side of this rule with the substitutions `{x -> a, y -> b, z -> c}`. It will then replace that part of the tree with the right-hand side of the rule, with the given substitutions, giving in this case `3+(a b+a c)`. Mathematica also knows that `Plus` is "Flat", i.e. associative, so it will further simplify this expression to `3+a b+a c`, which as a tree looks like this
+If we add this to the global rules, then Mathematica will recognize that part of the tree above matches the left-hand side of this rule with the substitutions `{x -> a, y -> b, z -> c}`. It will then replace that part of the tree with the right-hand side of the rule, with the given substitutions, giving in this case `3+(a b+a c)`. Mathematica also knows that `Plus` is "Flat", i.e. associative, so it will further simplify this expression to `3 + a b + a c`, which as a tree looks like this
 
 <img width="338" height="266" alt="Screenshot 2026-01-23 at 12 04 15 AM" src="https://github.com/user-attachments/assets/db9453b4-fed1-4c36-a658-dc3a329d0596" />
 
@@ -32,9 +32,9 @@ In actuality, this example doesn't work in Mathematica because the symbol `Times
 
 ```
 MicroMath, version 0.1 :? for help
-> x_(y_+z_) := x y+x z;
-> 3+a(b+c)
-Plus[3, Times[a, b], Times[a, c]]
+> x_(y_+z_) := x y + x z;
+> 3 + a (b + c)
+3 + a b + a c
 ```
 
 ## Matching algorithm and Loris
@@ -81,6 +81,7 @@ Often in theoretical physics, we encounter a need to define custom symbolic mani
 Here is a woefully incomplete list of differences between MicroMath and Mathematica
 
 - MicroMath has a few dozen functions in the standard library. Mathematica version 14.0 has 6,600 builtin functions.
+
 - MicroMath is slower than Mathematica. How much slower depends on the program. For example, the following program takes 40 seconds to run in MicroMath and 7 seconds in Mathematica, on my M4 Max laptop:
   ```mathematica
   fib[0] := 0;
@@ -89,7 +90,9 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   fib[35]
   ```
   If you know how to make it faster, please tell me!
+
 - MicroMath does not evaluate patterns as if they were expressions. In other words, you can imagine that every pattern in MicroMath is wrapped in `HoldPattern`.
+
 - MicroMath does not currently attempt to sort user-defined rules in reverse order of specificity. It stores rules in the order that they are defined. For example:
   ```mathematica
   Foo[_] := True;
@@ -97,6 +100,7 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   (* Evaluates to False in Mathematica, but True in MicroMath *)
   Foo[3]
   ```
+
 - MicroMath does not have `Block` or `With`. Instead, it defines `Let`, which implements shadowing, as is standard in most functional languages. For example:
   ```
   > Let[x=12,Let[x=9,x+3]+x]
@@ -107,8 +111,11 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   > Let[{x=1,y=x+2,z=x+y+3}, z+4]
   11
   ```
-- MicroMath implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` and `Unevaluated`.
+
+- MicroMath implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` or `Unevaluated`. It also does not implement `Listable`, and hopefully it never will. Please use `Map` instead.
+
 - Attributes must be set before rules are defined. The reason is that the left-hand-side is compiled into a pattern, and the way compilation works depends on the attributes of the symbols in the pattern. If these attributes are changed later, the compiled pattern that is already in the Context will not be updated.
+
 - MicroMath does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
   ```
   > a b c /. {a c :> Foobar}
