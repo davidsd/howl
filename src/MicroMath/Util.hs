@@ -1,5 +1,6 @@
-{-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE PatternSynonyms    #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module MicroMath.Util
   ( splitsK
@@ -39,15 +40,29 @@ splits1K xs step z = go Seq.empty xs
           in step left x xs' rest
 
 -- | Stream all (subSeq,rest) pairs where subSeq is a subsequence of xs.
---   Calls the step function once per pair; allows early exit.
+--   Enumerates in increasing order of subsequence length. For long
+--   sequences, only subsequences up to a small size are generated.
 {-# INLINE subSequencesK #-}
-subSequencesK :: Seq a -> (Seq a -> Seq a -> r -> r) -> r -> r
-subSequencesK xs step z = case Seq.viewl xs of
-  EmptyL   -> step Seq.empty Seq.empty z
-  x :< xs' ->
-    subSequencesK xs' (\s rest r ->
-      step (x :<| s) rest (step s (x :<| rest) r)
-    ) z
+subSequencesK :: forall a r. Seq a -> (Seq a -> Seq a -> r -> r) -> r -> r
+subSequencesK xs step z =
+  let
+    n = Seq.length xs
+    maxLen = if n <= 10 then n else 3
+    go :: Seq a -> Int -> Seq a -> Seq a -> r -> r
+    go ys len chosen rest z0 =
+      case Seq.viewl ys of
+        EmptyL ->
+          if len == 0
+            then step chosen rest z0
+            else z0
+        x :< xs' ->
+          let z1 = go xs' len chosen (rest |> x) z0
+          in if len > 0
+            then go xs' (len - 1) (chosen |> x) rest z1
+            else z1
+    loop len z0 = go xs len Seq.empty Seq.empty z0
+  in
+    foldr loop z [0..maxLen]
 
 {-# INLINE Solo #-}
 pattern Solo :: a -> Seq a
