@@ -253,7 +253,7 @@ transformMatchK eq k z = case eq of
   SeqEq appTy (PatSeqVar x seqTy :<| ss) ts ->
     -- enumerate splits ts = (ts1,ts2)
     let
-      step (ts1, ts2) rest =
+      step ts1 ts2 rest =
         case seqTy of
           OneOrMore | ts1 == Empty -> rest
           _ ->
@@ -274,8 +274,8 @@ transformMatchK eq k z = case eq of
   -- | Dec-C: Decomposition under commutative head
   SeqEq AppC (s :<| ss) ts ->
     let
-      goSplits1 :: (Seq Expr, Expr, Seq Expr) -> r -> r
-      goSplits1 (ts1, t, ts2) rest =
+      goSplits1 :: Seq Expr -> Expr -> Seq Expr -> r -> r
+      goSplits1 ts1 t ts2 rest =
         k (MatchBranch [] (two (SingleEq s t) (SeqEq AppFree ss (ts1 <> ts2))))
           rest
     in
@@ -331,8 +331,8 @@ transformMatchK eq k z = case eq of
         case s of
           PatVar x xHead ->
             let
-              goSplitsA :: (Seq Expr, Seq Expr) -> r -> r
-              goSplitsA (ts1, ts2) more =
+              goSplitsA :: Seq Expr -> Seq Expr -> r -> r
+              goSplitsA ts1 ts2 more =
                 case ts1 of
                   Empty -> more
                   _ ->
@@ -378,8 +378,8 @@ transformMatchK eq k z = case eq of
           Just Mark1 -> rest
           _ ->
             let
-              goSplits1AC :: (Seq Expr, Expr, Seq Expr) -> r -> r
-              goSplits1AC (ts1, t, ts2) more =
+              goSplits1AC :: Seq Expr -> Expr -> Seq Expr -> r -> r
+              goSplits1AC ts1 t ts2 more =
                 let newMarking = case marking of
                       Nothing -> Just Mark0
                       _       -> marking
@@ -422,8 +422,8 @@ transformMatchK eq k z = case eq of
                 _ ->
                   let
                     -- General case: we have to search subsequences
-                    goSubs :: (Seq Expr, Seq Expr) -> r -> r
-                    goSubs (subSeq, restSeq) more =
+                    goSubs :: Seq Expr -> Seq Expr -> r -> r
+                    goSubs subSeq restSeq more =
                       case subSeq of
                         Empty -> more
                         _ | shouldSkip subSeq -> more
