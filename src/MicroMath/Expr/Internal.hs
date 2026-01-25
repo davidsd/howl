@@ -13,9 +13,11 @@ module MicroMath.Expr.Internal
   , pattern ExprInteger
   , pattern ExprRational
   , pattern ExprReal
+  , pattern ExprBigFloat
   , pattern ExprString
   , FromExpr(..)
   , ToExpr(..)
+  , fullForm
   , unary
   , binary
   , mapSymbols
@@ -31,7 +33,7 @@ import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence          qualified as Seq
 import Data.String            (IsString (..))
 import Data.Text              (Text)
-import MicroMath.Expr.Numeric (Numeric (..))
+import MicroMath.Expr.Numeric (Numeric (..), BigFloat)
 import MicroMath.PPrint       (PPrint (..))
 import MicroMath.Symbol       (Symbol)
 
@@ -50,13 +52,24 @@ instance PPrint Literal where
 -- Ord instance gives the correct ordering of expressions.
 data Expr
   = ExprLit !Literal
-  -- | ExprSymbol {-# UNPACK #-} !Symbol
   | ExprSymbol !Symbol
   | ExprApp !Expr !(Seq Expr)
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 instance IsString Expr where
   fromString = ExprSymbol . fromString
+
+fullForm :: Expr -> String
+fullForm = \case
+  ExprSymbol s   -> pPrint s
+  ExprLit l      -> pPrint l
+  ExprApp f args ->
+    mconcat
+    [ fullForm f
+    , "["
+    , intercalate ", " (map fullForm (Foldable.toList args))
+    , "]"
+    ]
 
 pattern (:@) :: Expr -> Seq Expr -> Expr
 pattern h :@ cs = ExprApp h cs
@@ -126,6 +139,14 @@ instance FromExpr Double where
 instance ToExpr Double where
   toExpr = ExprReal
 
+pattern ExprBigFloat :: BigFloat -> Expr
+pattern ExprBigFloat x = ExprNumeric (NBigFloat x)
+
+instance FromExpr BigFloat where
+  fromExpr = \case { ExprBigFloat x -> Just x; _ -> Nothing }
+instance ToExpr BigFloat where
+  toExpr = ExprBigFloat
+
 pattern ExprString :: Text -> Expr
 pattern ExprString s = ExprLit (LitString s)
 
@@ -145,17 +166,6 @@ unary e x = ExprApp e (Seq.singleton x)
 
 binary :: Expr -> Expr -> Expr -> Expr
 binary e x y = ExprApp e (Seq.fromList [x,y])
-
-instance Show Expr where
-  show (ExprSymbol s) = pPrint s
-  show (ExprLit l) = pPrint l
-  show (ExprApp f args) =
-    mconcat
-    [ show f
-    , "["
-    , intercalate ", " (map show (Foldable.toList args))
-    , "]"
-    ]
 
 -- | Map a function over the symbols present in an expression
 mapSymbols :: (Symbol -> Expr) -> Expr -> Expr

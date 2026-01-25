@@ -30,6 +30,7 @@ dependencies:
 - combinat
 - exceptions
 - optparse-applicative
+- rounded
 
 ghc-options:
 - -Wall

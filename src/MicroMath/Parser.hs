@@ -12,9 +12,10 @@ module MicroMath.Parser
 import Control.Monad                  (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Control.Monad.IO.Class         (MonadIO, liftIO)
-import Data.Char                      (isAlphaNum)
+import Data.Char                      (isAlphaNum, isDigit)
 import Data.List                      (sortOn)
 import Data.Ord                       (Down (..))
+import Data.Scientific                (Scientific, base10Exponent, coefficient)
 import Data.Sequence                  (Seq, pattern (:<|), pattern Empty, (|>))
 import Data.Sequence                  qualified as Seq
 import Data.Set                       qualified as Set
@@ -23,8 +24,10 @@ import Data.Text                      (Text)
 import Data.Text                      qualified as Text
 import Data.Text.IO                   qualified as Text
 import Data.Void                      (Void)
-import MicroMath.Expr                 (Expr (..), pattern (:@), pattern And,
-                                       pattern Divide, pattern ExprInteger,
+import MicroMath.Expr                 (BigFloat, Expr (..), pattern (:@),
+                                       pattern And, pattern Divide,
+                                       pattern ExprBigFloat,
+                                       pattern ExprInteger, pattern ExprNumeric,
                                        pattern ExprReal, pattern ExprString,
                                        pattern ExprSymbol, pattern Or,
                                        pattern Plus, pattern Sequence,
@@ -32,11 +35,12 @@ import MicroMath.Expr                 (Expr (..), pattern (:@), pattern And,
 import MicroMath.Expr                 qualified as Expr
 import MicroMath.Symbol               (Symbol)
 import MicroMath.Util                 (pattern Solo)
+import Numeric.Rounded.Simple         qualified as Rounded
 import Text.Megaparsec                (Parsec, Stream, Token, anySingle, choice,
                                        empty, eof, errorBundlePretty, many,
-                                       manyTill, notFollowedBy, optional, parse,
-                                       parseMaybe, satisfy, sepBy, single,
-                                       token, try, (<|>))
+                                       manyTill, match, notFollowedBy, optional,
+                                       parse, parseMaybe, satisfy, sepBy,
+                                       single, token, try, (<|>))
 import Text.Megaparsec.Char           (char, letterChar, space1, string)
 import Text.Megaparsec.Char.Lexer     qualified as Lex
 
@@ -46,6 +50,7 @@ data Tok
   = TIdent  Symbol
   | TInt    Integer
   | TReal   Double -- TODO: Multiprecision
+  | TBigFloat BigFloatTok
   | TPatVar (Maybe Symbol) BlankType (Maybe Symbol)
   | TSlot   (Maybe Integer) SlotType
   | TString Text
@@ -57,6 +62,12 @@ data Tok
   | TSemi
   | TOp Op
   deriving (Eq, Ord, Show)
+
+newtype BigFloatTok = BigFloatTok BigFloat
+  deriving (Eq, Ord)
+
+instance Show BigFloatTok where
+  show (BigFloatTok x) = Rounded.show' x
 
 data BlankType = BlankTy | BlankSequenceTy | BlankNullSequenceTy
   deriving (Eq, Ord, Show)
@@ -179,15 +190,57 @@ parseString = lexeme $ do
   pure (TString (Text.pack s))
 
 parseNumber :: TextParser Tok
-parseNumber = lexeme $ try parseIntTok <|> try parseRealTok
+parseNumber =
+  lexeme $
+    try parseBigFloatTok <|>
+    try parseSciIntTok <|>
+    try parseIntTok <|>
+    try parseRealTok
   where
+    decimalDigitsToBits :: Int -> Int
+    decimalDigitsToBits digits =
+      ceiling (fromIntegral digits * logBase 2 (10 :: Double))
     parseIntTok = do
       n <- Lex.decimal
       notFollowedBy (char '.' <|> char '`' <|> char 'e')
       pure (TInt n)
+    parseBigFloatTok = do
+      try parseBigFloatTick <|> parseBigFloatLong
+    parseBigFloatTick = do
+      n <- Lex.scientific
+      _ <- char '`'
+      prec <- (Lex.decimal :: TextParser Int)
+      let r = toRational n
+      pure (TBigFloat (BigFloatTok (Rounded.fromRational' Rounded.TowardNearest (decimalDigitsToBits prec) r)))
+    parseBigFloatLong = do
+      (txt, n) <- match Lex.scientific
+      let
+        (mantissa, _) = Text.break (\c -> c == 'e' || c == 'E') txt
+        (_, fracWithDot) = Text.breakOn "." mantissa
+        fracDigits = Text.takeWhile isDigit (Text.drop 1 fracWithDot)
+        prec = Text.length fracDigits
+      if Text.null fracWithDot || prec <= 16
+        then fail "short decimal"
+        else
+          pure (TBigFloat (BigFloatTok (Rounded.fromRational' Rounded.TowardNearest (decimalDigitsToBits prec) (toRational n))))
+    parseSciIntTok = do
+      (txt, n) <- match Lex.scientific
+      let
+        hasDot = Text.any (== '.') txt
+        exp10 = base10Exponent n
+      if hasDot || exp10 < 0
+        then fail "not an integer scientific"
+        else
+          pure (TInt (sciToInteger n))
     parseRealTok = do
       x <- Lex.float
       pure (TReal x)
+
+    sciToInteger :: Scientific -> Integer
+    sciToInteger s =
+      let c = coefficient s
+          e = base10Exponent s
+      in c * (10 ^ e)
 
 -- This is only a starter ident lexer.
 -- WL symbols allow contexts with backticks, $, and more.
@@ -280,6 +333,7 @@ canEndMult = \case
   TIdent {}  -> True
   TInt _     -> True
   TReal _    -> True
+  TBigFloat _ -> True
   TPatVar {} -> True
   TSlot {}   -> True
   TString _  -> True
@@ -296,6 +350,7 @@ canStartMult = \case
   TIdent {}  -> True
   TInt _     -> True
   TReal _    -> True
+  TBigFloat _ -> True
   TPatVar {} -> True
   TSlot {}   -> True
   TString _  -> True
@@ -333,6 +388,7 @@ parseTerm :: TokParser Expr
 parseTerm = choice
   [ tok (\case TInt n    -> Just (ExprInteger n); _ -> Nothing)
   , tok (\case TReal x   -> Just (ExprReal x);    _ -> Nothing)
+  , tok (\case TBigFloat (BigFloatTok x) -> Just (ExprBigFloat x); _ -> Nothing)
   , tok (\case TString s -> Just (ExprString s);  _ -> Nothing)
   , surround (TLParen, TRParen) parseExpr
   , ExprApp Expr.List        <$> surroundExprs (TLBrace, TRBrace)
@@ -454,6 +510,7 @@ normalizeParsedExpr expr = case expr of
   ExprSymbol _ -> expr
   h :@ (Sequence :@ args :<| Empty) ->
     normalizeParsedExpr $ h :@ args
+  Times :@ (ExprInteger (-1) :<| ExprNumeric n :<| Empty) -> ExprNumeric (negate n)
   Subtract :@ (e1 :<| e2 :<| Empty) ->
     normalizeParsedExpr $ Expr.binary Plus e1  $ Expr.binary Times (ExprInteger (-1)) e2
   Divide :@ (e1 :<| e2 :<| Empty) ->

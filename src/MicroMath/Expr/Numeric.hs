@@ -1,47 +1,66 @@
+{-# LANGUAGE LambdaCase #-}
+
 module MicroMath.Expr.Numeric
   ( Numeric(..)
+  , BigFloat
+  , BigFloatPrecision
+  , fromBigFloat
+  , toDouble
+  , toBigFloat
+  , bigFloatPrecision
   ) where
 
 -- | A Numeric datatype that is essentially a dynamically-typed
 -- number. The Num and Fractional instances automatically convert
--- to/from Integer, Rational, Double as needed for the computation.
+-- to/from Integer, Rational, BigFloat, and Double as needed for
+-- the computation.
 
-import Data.Ratio (numerator, denominator)
+import Data.Ratio                  (numerator, denominator)
+import Numeric.Rounded.Simple      (Rounded)
+import Numeric.Rounded.Simple qualified as Rounded
+import MicroMath.PPrint (PPrint(..))
+
+type BigFloat = Rounded
+type BigFloatPrecision = Rounded.Precision
 
 data Numeric
   = NInteger  !Integer
   | NRational !Rational
   | NReal     !Double
+  | NBigFloat !BigFloat
   deriving (Eq)
 
 binaryApply
   :: (Integer -> Integer -> a)
   -> (Rational -> Rational -> a)
   -> (Double -> Double -> a)
+  -> (BigFloat -> BigFloat -> a)
   -> Numeric -> Numeric -> a
-binaryApply fi fr fd n1 n2 = case (n1, n2) of
+binaryApply fi fr fd fbf n1 n2 = case (n1, n2) of
+  (NReal x, _)              -> fd x (toDouble n2)
+  (_, NReal y)              -> fd (toDouble n1) y
+  (NBigFloat x, NBigFloat y) -> fbf x y
+  (NBigFloat x, _)          -> fbf x (toBigFloat (bigFloatPrecision x) n2)
+  (_, NBigFloat y)          -> fbf (toBigFloat (bigFloatPrecision y) n1) y
   (NInteger x,  NInteger y ) -> fi x y
   (NRational x, NInteger y ) -> fr x (fromIntegral y)
-  (NReal x,     NInteger y ) -> fd x (realToFrac y)
   (NInteger x,  NRational y) -> fr (fromIntegral x) y
   (NRational x, NRational y) -> fr x y
-  (NReal x,     NRational y) -> fd x (realToFrac y)
-  (NInteger x,  NReal y    ) -> fd (realToFrac x) y
-  (NRational x, NReal y    ) -> fd (realToFrac x) y
-  (NReal x,     NReal y    ) -> fd x y
 
 unaryApply
   :: (Integer -> a)
   -> (Rational -> a)
   -> (Double -> a)
+  -> (BigFloat -> a)
   -> Numeric -> a
-unaryApply fi fr fd n = case n of
+unaryApply fi fr fd fbf n = case n of
   NInteger x  -> fi x
   NRational x -> fr x
   NReal x     -> fd x
+  NBigFloat x -> fbf x
 
 instance Ord Numeric where
-  compare = binaryApply compare compare compare
+  compare = binaryApply compare compare compare compare
 
 showRational :: Rational -> String
 showRational r =
@@ -50,28 +69,110 @@ showRational r =
   then ""
   else "/" ++ show (denominator r)
 
+instance PPrint Numeric where
+  pPrint (NInteger i)  = show i
+  pPrint (NRational r) = showRational r
+  pPrint (NReal r)     = show r
+  pPrint (NBigFloat r) = Rounded.show' r
+
 instance Show Numeric where
-  show (NInteger i)  = show i
-  show (NRational r) = showRational r
-  show (NReal r)     = show r
+  showsPrec p = \case
+    NInteger i ->
+      showParen (p > 10) $
+        showString "NInteger " . showsPrec 11 i
+    NRational r ->
+      showParen (p > 10) $
+        showString "NRational " . showsPrec 11 r
+    NReal d ->
+      showParen (p > 10) $
+        showString "NReal " . showsPrec 11 d
+    NBigFloat b ->
+      showParen (p > 10) $
+        showString "NBigFloat " . showString (Rounded.show' b)
 
 -- | A version of compose where the first function takes two arguments
 (.#) :: (c -> d) -> (a -> b -> c) -> (a -> b -> d)
 f .# g = \x y -> f (g x y)
 
 instance Num Numeric where
-  (+) = binaryApply (fromInteger .# (+)) (fromRational .# (+)) (fromReal .# (+))
-  (*) = binaryApply (fromInteger .# (*)) (fromRational .# (*)) (fromReal .# (*))
-  negate = unaryApply (fromInteger . negate) (fromRational . negate) (fromReal . negate)
-  abs    = unaryApply (fromInteger . abs)    (fromRational . abs)    (fromReal . abs)
-  signum = unaryApply (fromInteger . signum) (fromRational . signum) (fromReal . signum)
+  (+) = binaryApply (fromInteger .# (+)) (fromRational .# (+)) (fromReal .# (+)) (fromBigFloat .# bigFloatAdd)
+  (*) = binaryApply (fromInteger .# (*)) (fromRational .# (*)) (fromReal .# (*)) (fromBigFloat .# bigFloatMul)
+  negate = unaryApply (fromInteger . negate) (fromRational . negate) (fromReal . negate) (fromBigFloat . bigFloatNegate)
+  abs    = unaryApply (fromInteger . abs)    (fromRational . abs)    (fromReal . abs)    (fromBigFloat . bigFloatAbs)
+  signum = unaryApply (fromInteger . signum) (fromRational . signum) (fromReal . signum) (fromBigFloat . bigFloatSignum)
   fromInteger = NInteger
 
 instance Fractional Numeric where
-  recip = unaryApply (fromRational . recip . toRational) (fromRational . recip) (fromReal . recip)
+  recip = unaryApply (fromRational . recip . toRational) (fromRational . recip) (fromReal . recip) (fromBigFloat . bigFloatRecip)
   fromRational r
     | denominator r == 1 = NInteger (numerator r)
     | otherwise          = NRational r
 
 fromReal :: Double -> Numeric
 fromReal = NReal
+
+fromBigFloat :: BigFloat -> Numeric
+fromBigFloat = NBigFloat
+
+defaultRounding :: Rounded.RoundingMode
+defaultRounding = Rounded.TowardNearest
+
+bigFloatPrecision :: BigFloat -> BigFloatPrecision
+bigFloatPrecision = Rounded.precision
+
+{-# INLINE toDouble #-}
+toDouble :: Numeric -> Double
+toDouble = \case
+  NInteger x  -> fromIntegral x
+  NRational x -> realToFrac x
+  NReal x     -> x
+  NBigFloat x -> Rounded.toDouble defaultRounding x
+
+{-# INLINE toBigFloat #-}
+toBigFloat :: BigFloatPrecision -> Numeric -> BigFloat
+toBigFloat p = \case
+  NInteger x  -> Rounded.fromInteger' defaultRounding p x
+  NRational x -> Rounded.fromRational' defaultRounding p x
+  NReal x     -> Rounded.fromDouble defaultRounding p x
+  NBigFloat x -> x
+
+bigFloatBinary
+  :: (Rounded.RoundingMode -> BigFloatPrecision -> BigFloat -> BigFloat -> BigFloat)
+  -> BigFloat
+  -> BigFloat
+  -> BigFloat
+bigFloatBinary f x y =
+  let p = min (bigFloatPrecision x) (bigFloatPrecision y)
+  in f defaultRounding p x y
+
+bigFloatUnary
+  :: (Rounded.RoundingMode -> BigFloatPrecision -> BigFloat -> BigFloat)
+  -> BigFloat
+  -> BigFloat
+bigFloatUnary f x = f defaultRounding (bigFloatPrecision x) x
+
+bigFloatAdd :: BigFloat -> BigFloat -> BigFloat
+bigFloatAdd = bigFloatBinary Rounded.add_
+
+bigFloatMul :: BigFloat -> BigFloat -> BigFloat
+bigFloatMul = bigFloatBinary Rounded.mul_
+
+bigFloatNegate :: BigFloat -> BigFloat
+bigFloatNegate = bigFloatUnary Rounded.negate_
+
+bigFloatAbs :: BigFloat -> BigFloat
+bigFloatAbs = bigFloatUnary Rounded.abs_
+
+bigFloatRecip :: BigFloat -> BigFloat
+bigFloatRecip x =
+  let p = bigFloatPrecision x
+      one = Rounded.fromInteger' defaultRounding p 1
+  in bigFloatBinary Rounded.div_ one x
+
+bigFloatSignum :: BigFloat -> BigFloat
+bigFloatSignum x =
+  let p = bigFloatPrecision x
+      zero = Rounded.fromInteger' defaultRounding p 0
+      one = Rounded.fromInteger' defaultRounding p 1
+      negOne = Rounded.fromInteger' defaultRounding p (-1)
+  in if x == zero then zero else if x > zero then one else negOne

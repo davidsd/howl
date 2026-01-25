@@ -32,13 +32,13 @@ import MicroMath.Eval.Context (Attributes (..), Decl (..), Eval (..),
                                modifyAttributes, newModuleSymbol, setFlat,
                                setHoldType, setNumericFunction, setOrderless)
 import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
-                               ToExpr (..), builtinNumericFunctions,
+                               ToExpr (..), bigFloatPrecision, builtinNumericFunctions,
                                pattern (:@), pattern And, pattern ExprInteger,
                                pattern ExprNumeric, pattern ExprRational,
                                pattern ExprView, pattern List, pattern Null,
                                pattern Or, pattern Plus, pattern Power,
                                pattern Set, pattern Slot, pattern TagSetDelayed,
-                               pattern Times)
+                               pattern Times, toBigFloat, toDouble)
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Expr.TH      (declareBuiltin)
 import MicroMath.Parser       (parseCompoundExpressionText, readExprFile)
@@ -46,6 +46,7 @@ import MicroMath.Pat          (patRootSymbol)
 import MicroMath.Symbol       (Symbol)
 import MicroMath.ToBuiltin    (ToBuiltin (..), builtinDecl)
 import MicroMath.Util         (pattern Pair, pattern Solo)
+import Numeric.Rounded.Simple qualified as Rounded
 
 ---------- Plus ----------
 
@@ -175,17 +176,21 @@ normalizePower a b = case (a, b) of
 -- TODO: Detect exact rational powers, e.g. Sqrt[12] -> 2*Sqrt[3]
 numericPower :: Numeric -> Numeric -> Expr
 numericPower nx ny = case (nx, ny) of
+  (NReal     x, _) -> toExpr $ x ** toDouble ny
+  (_, NReal     y) -> toExpr $ toDouble nx ** y
+  (NBigFloat x, NBigFloat y) -> toExpr $ bigFloatPow x y
+  (NBigFloat x, _) -> toExpr $ bigFloatPow x (toBigFloat (bigFloatPrecision x) ny)
+  (_, NBigFloat y) -> toExpr $ bigFloatPow (toBigFloat (bigFloatPrecision y) nx) y
   (NInteger  x, NInteger  y)
     | y >= 0    -> ExprInteger $ x^y
     | otherwise -> ExprRational $ toRational x^^y
   (NInteger  x, NRational y) -> Expr.binary Power (ExprInteger x) (ExprRational y)
-  (NInteger  x, NReal     y) -> toExpr $ realToFrac x ** y
   (NRational x, NInteger  y) -> ExprRational $ x^^y
   (NRational x, NRational y) -> Expr.binary Power (ExprRational x) (ExprRational y)
-  (NRational x, NReal     y) -> toExpr $ realToFrac x ** y
-  (NReal     x, NInteger  y) -> toExpr $ x ** realToFrac y
-  (NReal     x, NRational y) -> toExpr $ x ** realToFrac y
-  (NReal     x, NReal     y) -> toExpr $ x ** y
+  where
+    bigFloatPow x y =
+      let p = min (bigFloatPrecision x) (bigFloatPrecision y)
+      in Rounded.pow_ Rounded.TowardNearest p x y
 
 multinomialPowerExpand :: Expr -> Integer -> Maybe Expr
 multinomialPowerExpand (Plus :@ terms) b =

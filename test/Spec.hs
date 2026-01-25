@@ -8,10 +8,12 @@ import Data.String             (fromString)
 import Data.Text               (Text)
 import Data.Text               qualified as Text
 import MicroMath                (defStdLib, eval, run, runEval)
-import MicroMath.Expr.Internal (Expr (..), pattern ExprInteger)
+import MicroMath.Expr.Internal (Expr (..), pattern ExprBigFloat,
+                                pattern ExprInteger, pattern ExprReal)
 import MicroMath.Expr.PPrint   ()
 import MicroMath.Parser        (normalizeParsedExpr, parseExprText)
 import MicroMath.PPrint        (PPrint (..))
+import Numeric.Rounded.Simple qualified as Rounded
 import Test.Hspec
 import Test.Hspec.QuickCheck   (prop)
 import Test.QuickCheck
@@ -26,66 +28,68 @@ knownSymbols = map fromString
 genSymbol :: Gen Expr
 genSymbol = elements knownSymbols
 
--- | Arbitrary instance for Expr with controlled depth
-instance Arbitrary Expr where
-  arbitrary = sized genExpr
-    where
-      genExpr :: Int -> Gen Expr
-      genExpr 0 = oneof [genSymbol, genInteger]
-      genExpr n = frequency
-        [ (3, genSymbol)
-        , (3, genInteger)
-        , (2, genPlus n)
-        , (2, genTimes n)
-        , (2, genPower n)
-        , (1, genRule n)
-        , (1, genList n)
-        ]
+newtype ArbExpr = ArbExpr { unArbExpr :: Expr }
+  deriving (Show)
 
-      genInteger :: Gen Expr
-      genInteger = ExprInteger <$> choose (0, 1000)
+instance Arbitrary ArbExpr where
+  arbitrary = ArbExpr <$> sized genExpr
+  shrink (ArbExpr expr) = ArbExpr <$> shrinkExpr expr
 
-      genPlus :: Int -> Gen Expr
-      genPlus n = do
-        len <- choose (2, 4)
-        args <- vectorOf len (genExpr (n `div` 2))
-        pure $ ExprApp "Plus" (Seq.fromList args)
+genExpr :: Int -> Gen Expr
+genExpr 0 = oneof [genSymbol, genInteger]
+genExpr n = frequency
+  [ (3, genSymbol)
+  , (3, genInteger)
+  , (2, genPlus n)
+  , (2, genTimes n)
+  , (2, genPower n)
+  , (1, genRule n)
+  , (1, genList n)
+  ]
 
-      genTimes :: Int -> Gen Expr
-      genTimes n = do
-        len <- choose (2, 4)
-        args <- vectorOf len (genExpr (n `div` 2))
-        pure $ ExprApp "Times" (Seq.fromList args)
+genInteger :: Gen Expr
+genInteger = ExprInteger <$> choose (0, 1000)
 
-      genPower :: Int -> Gen Expr
-      genPower n = do
-        base <- genExpr (n `div` 2)
-        expo <- genExpr (n `div` 2)
-        pure $ ExprApp "Power" (Seq.fromList [base, expo])
+genPlus :: Int -> Gen Expr
+genPlus n = do
+  len <- choose (2, 4)
+  args <- vectorOf len (genExpr (n `div` 2))
+  pure $ ExprApp "Plus" (Seq.fromList args)
 
-      genRule :: Int -> Gen Expr
-      genRule n = do
-        lhs <- genExpr (n `div` 2)
-        rhs <- genExpr (n `div` 2)
-        pure $ ExprApp "Rule" (Seq.fromList [lhs, rhs])
+genTimes :: Int -> Gen Expr
+genTimes n = do
+  len <- choose (2, 4)
+  args <- vectorOf len (genExpr (n `div` 2))
+  pure $ ExprApp "Times" (Seq.fromList args)
 
-      genList :: Int -> Gen Expr
-      genList n = do
-        len <- choose (0, 3)
-        args <- vectorOf len (genExpr (n `div` 2))
-        pure $ ExprApp "List" (Seq.fromList args)
+genPower :: Int -> Gen Expr
+genPower n = do
+  base <- genExpr (n `div` 2)
+  expo <- genExpr (n `div` 2)
+  pure $ ExprApp "Power" (Seq.fromList [base, expo])
 
-  shrink (ExprApp h args) =
-    -- Shrink to subexpressions (but only if they're valid standalone)
-    filter isValidExpr (toList args) ++
-    -- Shrink arguments (but maintain minimum arity for n-ary operators)
-    [ExprApp h (Seq.fromList args')
-      | args' <- shrink (toList args)
-      , isValidNaryApp h args'
-    ]
-    where
-      toList = foldr (:) []
-  shrink _ = []
+genRule :: Int -> Gen Expr
+genRule n = do
+  lhs <- genExpr (n `div` 2)
+  rhs <- genExpr (n `div` 2)
+  pure $ ExprApp "Rule" (Seq.fromList [lhs, rhs])
+
+genList :: Int -> Gen Expr
+genList n = do
+  len <- choose (0, 3)
+  args <- vectorOf len (genExpr (n `div` 2))
+  pure $ ExprApp "List" (Seq.fromList args)
+
+shrinkExpr :: Expr -> [Expr]
+shrinkExpr (ExprApp h args) =
+  filter isValidExpr (toList args) ++
+  [ExprApp h (Seq.fromList args')
+    | args' <- shrinkList shrinkExpr (toList args)
+    , isValidNaryApp h args'
+  ]
+  where
+    toList = foldr (:) []
+shrinkExpr _ = []
 
 -- | Check if an expression is valid (not a bare n-ary operator head)
 isValidExpr :: Expr -> Bool
@@ -105,8 +109,8 @@ parseRoundTrip :: Expr -> Maybe Expr
 parseRoundTrip e = parseExprText (Text.pack (pPrint e))
 
 -- | Property: pretty printing then parsing should give back the normalized form
-prop_roundTrip :: Expr -> Property
-prop_roundTrip expr =
+prop_roundTrip :: ArbExpr -> Property
+prop_roundTrip (ArbExpr expr) =
   let printed = pPrint expr
       parsed = parseRoundTrip expr
       normalized = normalizeParsedExpr expr
@@ -174,6 +178,10 @@ prop_symbolicNumericConsistency = forAll ((,) <$> sized genSymbolicExpr <*> genS
 
 main :: IO ()
 main = hspec $ do
+  let decimalDigitsToBits :: Int -> Int
+      decimalDigitsToBits digits =
+        ceiling (fromIntegral digits * logBase 2 (10 :: Double))
+
   describe "PPrint/Parse round-trip" $ do
     prop "parse . pPrint == id" prop_roundTrip
 
@@ -227,6 +235,22 @@ main = hspec $ do
     it "function application" $
       parseRoundTrip (ExprApp "f" (Seq.fromList ["x", "y"]))
         `shouldBe` Just (ExprApp "f" (Seq.fromList ["x", "y"]))
+
+  describe "BigFloat parsing" $ do
+    it "parses explicit precision with backtick" $ do
+      let parsed = parseExprText "1.25`40"
+      case parsed of
+        Just (ExprBigFloat bf) -> Rounded.precision bf `shouldBe` decimalDigitsToBits 40
+        _ -> expectationFailure "expected BigFloat"
+
+    it "parses long decimal as BigFloat with precision from digits" $ do
+      let parsed = parseExprText "3.1415926535897932384626"
+      case parsed of
+        Just (ExprBigFloat bf) -> Rounded.precision bf `shouldBe` decimalDigitsToBits 22
+        _ -> expectationFailure "expected BigFloat"
+
+    it "keeps short decimal as Real" $
+      parseExprText "2.718281828459045" `shouldBe` Just (ExprReal 2.718281828459045)
 
   describe "Evaluator" $ do
     let eval' :: Text -> IO Expr

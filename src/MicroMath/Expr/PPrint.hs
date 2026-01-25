@@ -23,6 +23,7 @@ import MicroMath.Expr.Syntax     (pattern Plus, pattern Times, pattern Power,
                                   pattern And, pattern Or,
                                   pattern Alternatives)
 import MicroMath.PPrint          (PPrint (..))
+import Numeric.Rounded.Simple qualified as Rounded
 
 -- | Precedence levels for pretty printing (higher = binds tighter)
 data Prec
@@ -152,6 +153,7 @@ pPrintPrec ctx (ExprApp f args) = case (f, Foldable.toList args) of
     negateNumeric (NInteger n)  = NInteger (-n)
     negateNumeric (NRational r) = NRational (-r)
     negateNumeric (NReal d)     = NReal (-d)
+    negateNumeric (NBigFloat d) = NBigFloat (Rounded.negate_ Rounded.TowardNearest (Rounded.precision d) d)
 
     -- Pretty print a product, using juxtaposition with spaces where needed
     pPrintTimes [] = "1"
@@ -165,7 +167,7 @@ pPrintPrec ctx (ExprApp f args) = case (f, Foldable.toList args) of
 
 -- | Pretty print a literal (defined here to avoid import cycle)
 pPrintLit :: Literal -> String
-pPrintLit (LitNumeric x) = show x
+pPrintLit (LitNumeric x) = pPrint x
 pPrintLit (LitString s)  = show s
 
 instance PPrint Expr where
