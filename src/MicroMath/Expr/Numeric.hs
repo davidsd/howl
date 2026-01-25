@@ -26,7 +26,7 @@ type BigFloatPrecision = Rounded.Precision
 data Numeric
   = NInteger  !Integer
   | NRational !Rational
-  | NReal     !Double
+  | NDouble   !Double
   | NBigFloat !BigFloat
   deriving (Eq)
 
@@ -37,8 +37,8 @@ binaryApply
   -> (BigFloat -> BigFloat -> a)
   -> Numeric -> Numeric -> a
 binaryApply fi fr fd fbf n1 n2 = case (n1, n2) of
-  (NReal x, _)              -> fd x (toDouble n2)
-  (_, NReal y)              -> fd (toDouble n1) y
+  (NDouble x, _)            -> fd x (toDouble n2)
+  (_, NDouble y)            -> fd (toDouble n1) y
   (NBigFloat x, NBigFloat y) -> fbf x y
   (NBigFloat x, _)          -> fbf x (toBigFloat (bigFloatPrecision x) n2)
   (_, NBigFloat y)          -> fbf (toBigFloat (bigFloatPrecision y) n1) y
@@ -56,7 +56,7 @@ unaryApply
 unaryApply fi fr fd fbf n = case n of
   NInteger x  -> fi x
   NRational x -> fr x
-  NReal x     -> fd x
+  NDouble x   -> fd x
   NBigFloat x -> fbf x
 
 instance Ord Numeric where
@@ -72,7 +72,7 @@ showRational r =
 instance PPrint Numeric where
   pPrint (NInteger i)  = show i
   pPrint (NRational r) = showRational r
-  pPrint (NReal r)     = show r
+  pPrint (NDouble r)   = show r
   pPrint (NBigFloat r) = Rounded.show' r
 
 instance Show Numeric where
@@ -83,9 +83,9 @@ instance Show Numeric where
     NRational r ->
       showParen (p > 10) $
         showString "NRational " . showsPrec 11 r
-    NReal d ->
+    NDouble d ->
       showParen (p > 10) $
-        showString "NReal " . showsPrec 11 d
+        showString "NDouble " . showsPrec 11 d
     NBigFloat b ->
       showParen (p > 10) $
         showString "NBigFloat " . showString (Rounded.show' b)
@@ -109,7 +109,7 @@ instance Fractional Numeric where
     | otherwise          = NRational r
 
 fromReal :: Double -> Numeric
-fromReal = NReal
+fromReal = NDouble
 
 fromBigFloat :: BigFloat -> Numeric
 fromBigFloat = NBigFloat
@@ -125,7 +125,7 @@ toDouble :: Numeric -> Double
 toDouble = \case
   NInteger x  -> fromIntegral x
   NRational x -> realToFrac x
-  NReal x     -> x
+  NDouble x   -> x
   NBigFloat x -> Rounded.toDouble defaultRounding x
 
 {-# INLINE toBigFloat #-}
@@ -133,7 +133,7 @@ toBigFloat :: BigFloatPrecision -> Numeric -> BigFloat
 toBigFloat p = \case
   NInteger x  -> Rounded.fromInteger' defaultRounding p x
   NRational x -> Rounded.fromRational' defaultRounding p x
-  NReal x     -> Rounded.fromDouble defaultRounding p x
+  NDouble x   -> Rounded.fromDouble defaultRounding p x
   NBigFloat x -> x
 
 bigFloatBinary

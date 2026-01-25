@@ -176,8 +176,8 @@ normalizePower a b = case (a, b) of
 -- TODO: Detect exact rational powers, e.g. Sqrt[12] -> 2*Sqrt[3]
 numericPower :: Numeric -> Numeric -> Expr
 numericPower nx ny = case (nx, ny) of
-  (NReal     x, _) -> toExpr $ x ** toDouble ny
-  (_, NReal     y) -> toExpr $ toDouble nx ** y
+  (NDouble   x, _) -> toExpr $ x ** toDouble ny
+  (_, NDouble   y) -> toExpr $ toDouble nx ** y
   (NBigFloat x, NBigFloat y) -> toExpr $ bigFloatPow x y
   (NBigFloat x, _) -> toExpr $ bigFloatPow x (toBigFloat (bigFloatPrecision x) ny)
   (_, NBigFloat y) -> toExpr $ bigFloatPow (toBigFloat (bigFloatPrecision y) nx) y

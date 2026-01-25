@@ -12,7 +12,7 @@ module MicroMath.Expr.Internal
   , pattern ExprNumeric
   , pattern ExprInteger
   , pattern ExprRational
-  , pattern ExprReal
+  , pattern ExprDouble
   , pattern ExprBigFloat
   , pattern ExprString
   , FromExpr(..)
@@ -131,13 +131,13 @@ instance ToExpr Rational where
     | denominator r == 1 = ExprInteger (numerator r)
     | otherwise          = ExprRational r
 
-pattern ExprReal :: Double -> Expr
-pattern ExprReal x = ExprNumeric (NReal x)
+pattern ExprDouble :: Double -> Expr
+pattern ExprDouble x = ExprNumeric (NDouble x)
 
 instance FromExpr Double where
-  fromExpr = \case { ExprReal x -> Just x; _ -> Nothing }
+  fromExpr = \case { ExprDouble x -> Just x; _ -> Nothing }
 instance ToExpr Double where
-  toExpr = ExprReal
+  toExpr = ExprDouble
 
 pattern ExprBigFloat :: BigFloat -> Expr
 pattern ExprBigFloat x = ExprNumeric (NBigFloat x)

@@ -9,7 +9,7 @@ import Data.Text               (Text)
 import Data.Text               qualified as Text
 import MicroMath                (defStdLib, eval, run, runEval)
 import MicroMath.Expr.Internal (Expr (..), pattern ExprBigFloat,
-                                pattern ExprInteger, pattern ExprReal)
+                                pattern ExprDouble, pattern ExprInteger)
 import MicroMath.Expr.PPrint   ()
 import MicroMath.Parser        (normalizeParsedExpr, parseExprText)
 import MicroMath.PPrint        (PPrint (..))
@@ -249,8 +249,8 @@ main = hspec $ do
         Just (ExprBigFloat bf) -> Rounded.precision bf `shouldBe` decimalDigitsToBits 22
         _ -> expectationFailure "expected BigFloat"
 
-    it "keeps short decimal as Real" $
-      parseExprText "2.718281828459045" `shouldBe` Just (ExprReal 2.718281828459045)
+    it "keeps short decimal as Double" $
+      parseExprText "2.718281828459045" `shouldBe` Just (ExprDouble 2.718281828459045)
 
   describe "Evaluator" $ do
     let eval' :: Text -> IO Expr

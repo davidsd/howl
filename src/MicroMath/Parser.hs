@@ -26,12 +26,12 @@ import Data.Text.IO                   qualified as Text
 import Data.Void                      (Void)
 import MicroMath.Expr                 (BigFloat, Expr (..), pattern (:@),
                                        pattern And, pattern Divide,
-                                       pattern ExprBigFloat,
-                                       pattern ExprInteger, pattern ExprNumeric,
-                                       pattern ExprReal, pattern ExprString,
-                                       pattern ExprSymbol, pattern Or,
-                                       pattern Plus, pattern Sequence,
-                                       pattern Subtract, pattern Times)
+                                       pattern ExprBigFloat, pattern ExprNumeric,
+                                       pattern ExprDouble, pattern ExprInteger,
+                                       pattern ExprString, pattern ExprSymbol,
+                                       pattern Or, pattern Plus,
+                                       pattern Sequence, pattern Subtract,
+                                       pattern Times)
 import MicroMath.Expr                 qualified as Expr
 import MicroMath.Symbol               (Symbol)
 import MicroMath.Util                 (pattern Solo)
@@ -387,7 +387,7 @@ surroundExprs (l,r) = Seq.fromList <$> surround (l,r) (commaSep parseExpr)
 parseTerm :: TokParser Expr
 parseTerm = choice
   [ tok (\case TInt n    -> Just (ExprInteger n); _ -> Nothing)
-  , tok (\case TReal x   -> Just (ExprReal x);    _ -> Nothing)
+  , tok (\case TReal x   -> Just (ExprDouble x);  _ -> Nothing)
   , tok (\case TBigFloat (BigFloatTok x) -> Just (ExprBigFloat x); _ -> Nothing)
   , tok (\case TString s -> Just (ExprString s);  _ -> Nothing)
   , surround (TLParen, TRParen) parseExpr

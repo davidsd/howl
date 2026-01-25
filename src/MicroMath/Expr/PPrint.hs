@@ -152,7 +152,7 @@ pPrintPrec ctx (ExprApp f args) = case (f, Foldable.toList args) of
 
     negateNumeric (NInteger n)  = NInteger (-n)
     negateNumeric (NRational r) = NRational (-r)
-    negateNumeric (NReal d)     = NReal (-d)
+    negateNumeric (NDouble d)   = NDouble (-d)
     negateNumeric (NBigFloat d) = NBigFloat (Rounded.negate_ Rounded.TowardNearest (Rounded.precision d) d)
 
     -- Pretty print a product, using juxtaposition with spaces where needed

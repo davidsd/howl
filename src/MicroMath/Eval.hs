@@ -33,8 +33,9 @@ import MicroMath.Eval.Context (Attributes (..), Eval (..), HoldType (..),
                                returnIfInCache)
 import MicroMath.Eval.Equality (exprEqualFast)
 import MicroMath.Expr         (Expr (..), flattenWithHead, mapSymbols,
+                               pattern ExprBigFloat, pattern ExprDouble,
                                pattern ExprInteger, pattern ExprRational,
-                               pattern ExprReal, pattern ExprString)
+                               pattern ExprString)
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Pat          (Pat (..), PatAppType (..), SeqType (..),
                                addNames)
@@ -167,7 +168,8 @@ matchesHead h (ExprApp (ExprSymbol s) _)       = matchesHeadSymbol h s
 matchesHead (Just "Symbol")   (ExprSymbol _)   = True
 matchesHead (Just "Integer")  (ExprInteger _)  = True
 matchesHead (Just "Rational") (ExprRational _) = True
-matchesHead (Just "Real")     (ExprReal _)     = True
+matchesHead (Just "Double")   (ExprDouble _)   = True
+matchesHead (Just "BigFloat") (ExprBigFloat _) = True
 matchesHead (Just "String")   (ExprString _)   = True
 matchesHead _ _                                = False
 
