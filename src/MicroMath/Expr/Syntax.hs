@@ -5,7 +5,48 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
-module MicroMath.Expr.Syntax where
+module MicroMath.Expr.Syntax
+  ( pattern Sequence
+  , pattern List
+  , pattern Apply
+  , pattern Map
+  , pattern Plus
+  , pattern Subtract
+  , pattern Times
+  , pattern Divide
+  , pattern Power
+  , pattern Blank
+  , pattern BlankSequence
+  , pattern BlankNullSequence
+  , pattern Slot
+  , pattern SlotSequence
+  , pattern Pattern
+  , pattern Alternatives
+  , pattern Optional
+  , pattern Test
+  , pattern Association
+  , pattern And
+  , pattern Or
+  , pattern True
+  , pattern False
+  , pattern Less
+  , pattern Greater
+  , pattern LessEqual
+  , pattern GreaterEqual
+  , pattern Equal
+  , pattern Unequal
+  , pattern SameQ
+  , pattern UnsameQ
+  , pattern Rule
+  , pattern RuleDelayed
+  , pattern Set
+  , pattern SetDelayed
+  , pattern UpSet
+  , pattern UpSetDelayed
+  , pattern TagSetDelayed
+  , pattern CompoundExpression
+  , pattern Null
+  ) where
 
 import Data.Foldable           qualified as Foldable
 import Data.Sequence           qualified as Seq
@@ -66,25 +107,15 @@ $(declareBuiltins ''Expr 'fromString
    , "Null"
    ])
 
-fromBool :: Bool -> Expr
-fromBool Prelude.True  = True
-fromBool Prelude.False = False
-
-boolView :: Expr -> Maybe Bool
-boolView True  = Just Prelude.True
-boolView False = Just Prelude.False
-boolView _     = Nothing
-
-pattern ExprBool :: Bool -> Expr
-pattern ExprBool b <- (boolView -> Just b)
-  where
-    ExprBool b = fromBool b
-
 instance FromExpr Bool where
-  fromExpr = boolView
+  fromExpr = \case
+    True  -> Just Prelude.True
+    False -> Just Prelude.False
+    _     -> Nothing
 
 instance ToExpr Bool where
-  toExpr = fromBool
+  toExpr Prelude.True  = True
+  toExpr Prelude.False = False
 
 instance FromExpr () where
   fromExpr = \case

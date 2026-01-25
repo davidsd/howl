@@ -10,7 +10,7 @@ import Data.Text               qualified as Text
 import MicroMath                (defStdLib, eval, run, runEval)
 import MicroMath.Expr.Internal (Expr (..), pattern ExprInteger)
 import MicroMath.Expr.PPrint   ()
-import MicroMath.Parser        (normalize, parseExprText)
+import MicroMath.Parser        (normalizeParsedExpr, parseExprText)
 import MicroMath.PPrint        (PPrint (..))
 import Test.Hspec
 import Test.Hspec.QuickCheck   (prop)
@@ -109,7 +109,7 @@ prop_roundTrip :: Expr -> Property
 prop_roundTrip expr =
   let printed = pPrint expr
       parsed = parseRoundTrip expr
-      normalized = normalize expr
+      normalized = normalizeParsedExpr expr
   in counterexample ("Pretty printed: " ++ printed) $
      counterexample ("Parsed back: " ++ show parsed) $
      counterexample ("Normalized: " ++ show normalized) $

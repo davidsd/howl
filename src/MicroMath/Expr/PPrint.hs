@@ -2,7 +2,11 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns    #-}
 
-module MicroMath.Expr.PPrint where
+module MicroMath.Expr.PPrint
+  ( Prec(..)
+  , pPrintPrec
+  , pPrintLit
+  ) where
 
 import Data.Foldable             qualified as Foldable
 import Data.List                 (intercalate)

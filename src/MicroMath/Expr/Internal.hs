@@ -4,7 +4,25 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
-module MicroMath.Expr.Internal where
+module MicroMath.Expr.Internal
+  ( Literal(..)
+  , Expr(..)
+  , pattern (:@)
+  , pattern ExprView
+  , pattern ExprNumeric
+  , pattern ExprInteger
+  , pattern ExprRational
+  , pattern ExprReal
+  , pattern ExprString
+  , FromExpr(..)
+  , ToExpr(..)
+  , unary
+  , binary
+  , mapSymbols
+  , flattenWithHead
+  , applyOneId
+  , rootSymbol
+  ) where
 
 import Data.Foldable          qualified as Foldable
 import Data.List              (intercalate)
@@ -170,4 +188,3 @@ rootSymbol = \case
   ExprSymbol s -> Just s
   ExprApp h _  -> rootSymbol h
   _            -> Nothing
-

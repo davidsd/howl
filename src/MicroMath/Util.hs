@@ -39,6 +39,15 @@ splits1K xs step z = go Seq.empty xs
           let rest = go (left |> x) xs'
           in step left x xs' rest
 
+-- | Enumerate complete subsequences for sets up to this size
+maxCompleteSubsequences :: Int
+maxCompleteSubsequences = 10
+
+-- | For sets of size bigger than maxCompleteSubsequences, enumerate
+-- subsequences up to this size.
+maxSubseqSize :: Int
+maxSubseqSize = 3
+
 -- | Stream all (subSeq,rest) pairs where subSeq is a subsequence of xs.
 --   Enumerates in increasing order of subsequence length. For long
 --   sequences, only subsequences up to a small size are generated.
@@ -47,7 +56,7 @@ subSequencesK :: forall a r. Seq a -> (Seq a -> Seq a -> r -> r) -> r -> r
 subSequencesK xs step z =
   let
     n = Seq.length xs
-    maxLen = if n <= 10 then n else 3
+    maxLen = if n <= maxCompleteSubsequences then n else maxSubseqSize
     go :: Seq a -> Int -> Seq a -> Seq a -> r -> r
     go ys len chosen rest z0 =
       case Seq.viewl ys of
@@ -64,14 +73,17 @@ subSequencesK xs step z =
   in
     foldr loop z [0..maxLen]
 
+-- | A sequence of length 1 (bidirectional pattern synonym)
 {-# INLINE Solo #-}
 pattern Solo :: a -> Seq a
 pattern Solo x = x :<| Empty
 
+-- | A sequence of length 2 (bidirectional pattern synonym)
 {-# INLINE Pair #-}
 pattern Pair :: a -> a -> Seq a
 pattern Pair x y = x :<| y :<| Empty
 
+-- | Map a function over a 'Seq', collecting 'Just' results
 {-# INLINE mapMaybeSeq #-}
 mapMaybeSeq :: (a -> Maybe b) -> Seq a -> Seq b
 mapMaybeSeq _ Empty = Empty

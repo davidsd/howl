@@ -28,6 +28,7 @@ import Data.Char (toLower)
 --   isPlus :: Expr -> Bool
 --   isPlus s = s == plusExpr
 --
+--   {-# INLINE Plus #-}  
 --   pattern Plus :: Expr
 --   pattern Plus <- (isPlus -> True) where
 --     Plus = plusExpr
@@ -72,6 +73,8 @@ declareBuiltin symTy mkExpr patStr txt = do
   -- pattern Plus :: Expr
   patSig <- patSynSigD patN (conT symTy)
 
+  -- {-# INLINE Plus #-}
+  patInline <- pragInlD patN Inline FunLike AllPhases
 
   -- pattern Plus <- (isPlus -> True) where Plus = plusExpr
   let
@@ -89,6 +92,7 @@ declareBuiltin symTy mkExpr patStr txt = do
     , predSig
     , predVal
     , patSig
+    , patInline
     , patDec
     ]
 

@@ -1,43 +1,50 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-{-| This module implements a version of equality that uses StableNames
-  to try to short-circuit the equality check. It does not seem to
-  improve performance, so it is not currently used.
--}
+module MicroMath.Eval.Equality
+  ( exprEqualFast
+  ) where
 
-module MicroMath.Eval.Equality where
-
-import Debug.Trace qualified as Debug
-import Data.Sequence           (pattern (:<|), pattern Empty)
+import Data.Sequence           (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence qualified as Seq
 import GHC.StableName          (makeStableName)
 import MicroMath.Expr.Internal (Expr (..))
 import System.IO.Unsafe        (unsafePerformIO)
 
-{-# NOINLINE checkEquality #-}
-checkEquality :: Expr -> Expr -> Bool
-checkEquality e1 e2 = unsafePerformIO $ checkEqualityIO e1 e2
-
--- | A version of (==) that recursively uses 'StableName's to check
--- equality for ExprApp's. Essentially, it checks whether the two
--- expressions have the same location in memory to decide whether they
--- are equal without traversing deeper into the tree. If two
--- 'StableName's are not equal, then the expressions might still be
--- equal, and we must check their heads and children to find out.
-checkEqualityIO :: Expr -> Expr -> IO Bool
-checkEqualityIO (ExprLit x)    (ExprLit y)    = pure $ x == y
-checkEqualityIO (ExprSymbol x) (ExprSymbol y) = pure $ x == y
-checkEqualityIO e1@(ExprApp h1 cs1) e2@(ExprApp h2 cs2) = do
-  sn1 <- makeStableName e1
-  sn2 <- makeStableName e2
-  if sn1 == sn2
-    then Debug.traceShow ("short-circuited equality" :: String) $ pure True
-    else go (h1 :<| cs1) (h2 :<| cs2)
+-- | Fast equality check for evaluator rewrite detection.
+--   Uses StableName pointer equality at the root and shallowly on
+--   immediate children, falling back to structural equality per-node
+--   when pointers differ.
+{-# INLINE exprEqualFast #-}
+exprEqualFast :: Expr -> Expr -> Bool
+exprEqualFast a b = unsafePerformIO $ go a b
   where
-    go Empty Empty = pure True
-    go (x :<| xs) (y :<| ys) = do
-      xyEq <- checkEqualityIO x y
-      if xyEq
-        then go xs ys
-        else pure False
+    go :: Expr -> Expr -> IO Bool
+    go (ExprLit x) (ExprLit y) = pure (x == y)
+    go (ExprSymbol x) (ExprSymbol y) = pure (x == y)
+    go e1@(ExprApp h1 cs1) e2@(ExprApp h2 cs2) = do
+      sn1 <- makeStableName e1
+      sn2 <- makeStableName e2
+      if sn1 == sn2
+        then pure True
+        else
+          if Seq.length cs1 /= Seq.length cs2
+            then pure False
+            else do
+              headEq <- eqNode h1 h2
+              if headEq then goSeq cs1 cs2 else pure False
     go _ _ = pure False
-checkEqualityIO _ _ = pure False
+
+    eqNode :: Expr -> Expr -> IO Bool
+    eqNode (ExprLit x) (ExprLit y) = pure (x == y)
+    eqNode (ExprSymbol x) (ExprSymbol y) = pure (x == y)
+    eqNode x y = do
+      sx <- makeStableName x
+      sy <- makeStableName y
+      if sx == sy then pure True else pure (x == y)
+
+    goSeq :: Seq Expr -> Seq Expr -> IO Bool
+    goSeq Empty Empty = pure True
+    goSeq (x :<| xs) (y :<| ys) = do
+      xyEq <- eqNode x y
+      if xyEq then goSeq xs ys else pure False
+    goSeq _ _ = pure False

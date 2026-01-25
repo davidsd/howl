@@ -1,4 +1,6 @@
-module MicroMath.Expr.Numeric where
+module MicroMath.Expr.Numeric
+  ( Numeric(..)
+  ) where
 
 -- | A Numeric datatype that is essentially a dynamically-typed
 -- number. The Num and Fractional instances automatically convert

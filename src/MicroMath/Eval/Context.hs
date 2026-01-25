@@ -75,10 +75,10 @@ newContext = do
   pure $ MkContext
     { symbolRecordTable      = symbolRecordTable
     , moduleNumberRef        = moduleNumberRef
-    , addToEvalCacheHandler  = defaultAddToEvalCache evalCache
-    , returnIfInCacheHandler = defaultReturnIfInCache evalCache
-    -- , addToEvalCacheHandler  = dummyAddToEvalCache evalCache
-    -- , returnIfInCacheHandler = dummyReturnIfInCache evalCache
+    -- , addToEvalCacheHandler  = defaultAddToEvalCache evalCache
+    -- , returnIfInCacheHandler = defaultReturnIfInCache evalCache
+    , addToEvalCacheHandler  = dummyAddToEvalCache evalCache
+    , returnIfInCacheHandler = dummyReturnIfInCache evalCache
     }
 
 runEvalWithContext :: Context -> Eval a -> IO a

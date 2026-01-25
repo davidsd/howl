@@ -2,7 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 
-module MicroMath.Parser where
+module MicroMath.Parser
+  ( normalizeParsedExpr
+  , parseExprText
+  , parseCompoundExpressionText
+  , readExprFile
+  ) where
 
 import Control.Monad                  (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
@@ -111,7 +116,7 @@ opToText = \case
   OpSpan              -> ";;"  -- TODO
   OpPostfixApply      -> "//"
   OpReplaceAll        -> "/."
-  OpMap               -> "/@"  -- TODO
+  OpMap               -> "/@"
   OpApply             -> "@@"
   OpRule              -> "->"
   OpRuleDelayed       -> ":>"
@@ -127,7 +132,7 @@ opToText = \case
   OpCondition         -> "/;"
   OpTagSetDelayed     -> "/:"
   OpDot               -> "."   -- TODO
-  OpQuestion          -> "?"   -- TODO
+  OpQuestion          -> "?"
   OpBang              -> "!"   -- TODO
   OpPower             -> "^"
   OpTimes             -> "*"
@@ -138,7 +143,7 @@ opToText = \case
   OpLess              -> "<"
   OpGreater           -> ">"
   OpAlternative       -> "|"
-  OpAmpersand         -> "&"   -- TODO
+  OpAmpersand         -> "&"
   OpTilde             -> "~"   -- TODO
   OpPrefixApply       -> "@"
   OpColon             -> ":"
@@ -376,10 +381,6 @@ prefix  name f = Prefix  (f <$ tOp name)
 postfix :: Op -> (a -> a) -> Operator TokParser a
 postfix name f = Postfix (f <$ tOp name)
 
-replaceHead :: Expr -> Expr -> Expr
-replaceHead h (ExprApp _ cs) = ExprApp h cs
-replaceHead _ expr           = expr
-
 -- | A version of apply where we flatten an outer Sequence if it
 -- exists. This is useful for normalizing expressions that appear from
 -- the strategy in [Note: Application].
@@ -447,36 +448,36 @@ opTable =
 -- parser. Replace (-) and (/) with their definitions in terms of
 -- times and power. Flatten out Plus and Times and remove 0's and 1's,
 -- respectively. Remove redundant Sequence's.
-normalize :: Expr -> Expr
-normalize expr = case expr of
+normalizeParsedExpr :: Expr -> Expr
+normalizeParsedExpr expr = case expr of
   ExprLit _ -> expr
   ExprSymbol _ -> expr
   h :@ (Sequence :@ args :<| Empty) ->
-    normalize $ h :@ args
+    normalizeParsedExpr $ h :@ args
   Subtract :@ (e1 :<| e2 :<| Empty) ->
-    normalize $ Expr.binary Plus e1  $ Expr.binary Times (ExprInteger (-1)) e2
+    normalizeParsedExpr $ Expr.binary Plus e1  $ Expr.binary Times (ExprInteger (-1)) e2
   Divide :@ (e1 :<| e2 :<| Empty) ->
-    normalize $ Expr.binary Times e1 $ Expr.binary Expr.Power e2 (ExprInteger (-1))
+    normalizeParsedExpr $ Expr.binary Times e1 $ Expr.binary Expr.Power e2 (ExprInteger (-1))
   Plus  :@ args -> flattenOneIdentity Plus (ExprInteger 0) args
   Times :@ args -> flattenOneIdentity Times (ExprInteger 1) args
   And   :@ args -> flattenOneIdentity And Expr.True args
   Or    :@ args -> flattenOneIdentity Or Expr.False args
   h :@ args ->
-    normalize h :@ fmap normalize args
+    normalizeParsedExpr h :@ fmap normalizeParsedExpr args
   where
     flattenOneIdentity h def args =
       let
         newArgs =
           Seq.filter (/= def) $
           Expr.flattenWithHead h $
-          fmap normalize args
+          fmap normalizeParsedExpr args
       in case newArgs of
         Empty         -> def
         (x :<| Empty) -> x
         _             -> h :@ newArgs
 
 parseExpr :: TokParser Expr
-parseExpr = normalize <$> makeExprParser parseTerm opTable
+parseExpr = normalizeParsedExpr <$> makeExprParser parseTerm opTable
 
 parseExprText :: Text -> Maybe Expr
 parseExprText txt = do
