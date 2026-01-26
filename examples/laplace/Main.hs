@@ -21,4 +21,4 @@ checkLaplace = do
 
 -- | Should print True
 main :: IO ()
-main = runEval checkLaplace >>= print
+main = runEval checkLaplace >>= putStrLn . pPrint
