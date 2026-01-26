@@ -44,6 +44,7 @@ module MicroMath.Expr.Syntax
   , pattern UpSet
   , pattern UpSetDelayed
   , pattern TagSetDelayed
+  , pattern Part
   , pattern CompoundExpression
   , pattern Null
   ) where
@@ -103,6 +104,7 @@ $(declareBuiltins ''Expr 'fromString
    , "UpSet"
    , "UpSetDelayed"
    , "TagSetDelayed"
+   , "Part"
    , "CompoundExpression"
    , "Null"
    ])

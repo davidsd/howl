@@ -8,6 +8,7 @@ import Data.String             (fromString)
 import Data.Text               (Text)
 import Data.Text               qualified as Text
 import MicroMath                (defStdLib, eval, run, runEval)
+import MicroMath.Expr         (pattern Part)
 import MicroMath.Expr.Internal (Expr (..), pattern ExprBigFloat,
                                 pattern ExprDouble, pattern ExprInteger)
 import MicroMath.Expr.PPrint   ()
@@ -236,6 +237,15 @@ main = hspec $ do
       parseRoundTrip (ExprApp "f" (Seq.fromList ["x", "y"]))
         `shouldBe` Just (ExprApp "f" (Seq.fromList ["x", "y"]))
 
+  describe "Part parsing" $ do
+    it "parses double brackets into Part" $
+      parseExprText "a[[b,c]]"
+        `shouldBe` Just (ExprApp Part (Seq.fromList ["a", "b", "c"]))
+
+    it "parses chained part access" $
+      parseExprText "a[[b]][[c]]"
+        `shouldBe` Just (ExprApp Part (Seq.fromList [ExprApp Part (Seq.fromList ["a", "b"]), "c"]))
+
   describe "BigFloat parsing" $ do
     it "parses explicit precision with backtick" $ do
       let parsed = parseExprText "1.25`40"
@@ -316,6 +326,39 @@ main = hspec $ do
       it "matches single-arg Flat+Orderless head as whole expression" $ do
         result <- eval' "a + b + c /. Plus[x_] -> f[x]"
         pPrint result `shouldBe` "f[a + b + c]"
+
+    describe "Part" $ do
+      it "extracts a list element" $ do
+        result <- eval' "{1, 2, 3}[[2]]"
+        pPrint result `shouldBe` "2"
+
+      it "extracts nested parts from nested lists" $ do
+        result <- eval' "{{a, b}, {c, d}}[[2, 1]]"
+        pPrint result `shouldBe` "c"
+
+      it "supports negative indices from the end" $ do
+        result <- eval' "{1, 2, 3}[[ -1 ]]"
+        pPrint result `shouldBe` "3"
+
+      it "supports nested parts on symbols" $ do
+        result <- eval' "f[g[h]][[1]][[1]]"
+        pPrint result `shouldBe` "h"
+
+      it "handles index 0 with list of indices (Mathematica behavior)" $ do
+        result <- eval' "f[g][[{0, 0, 0}]]"
+        pPrint result `shouldBe` "f[f, f, f]"
+
+      it "handles index 0 on atoms (Mathematica behavior)" $ do
+        result <- eval' "1[[{0, 0, 0}]]"
+        pPrint result `shouldBe` "Integer[Integer, Integer, Integer]"
+
+      it "does not simplify when any index is non-integer" $ do
+        result <- eval' "f[g[h]][[1, foo]]"
+        pPrint result `shouldBe` "Part[f[g[h]], 1, foo]"
+
+      it "keeps nested part expression when out of range" $ do
+        result <- eval' "{1, 2}[[3, 1]]"
+        pPrint result `shouldBe` "Part[{1, 2}, 3, 1]"
 
     describe "Lists" $ do
       it "creates lists" $ do

@@ -29,7 +29,7 @@ import MicroMath.Expr                 (BigFloat, Expr (..), pattern (:@),
                                        pattern ExprBigFloat, pattern ExprNumeric,
                                        pattern ExprDouble, pattern ExprInteger,
                                        pattern ExprString, pattern ExprSymbol,
-                                       pattern Or, pattern Plus,
+                                       pattern Or, pattern Part, pattern Plus,
                                        pattern Sequence, pattern Subtract,
                                        pattern Times)
 import MicroMath.Expr                 qualified as Expr
@@ -56,6 +56,7 @@ data Tok
   | TString Text
   | TLParen | TRParen -- ( )
   | TLBrack | TRBrack -- [ ]
+  | TLDblBrack | TRDblBrack -- [[ ]]
   | TLBrace | TRBrace -- { }
   | TLAssoc | TRAssoc -- <| |>
   | TComma
@@ -114,6 +115,7 @@ data Op
   | OpAmpersand
   | OpTilde
   | OpPrefixApply
+  | OpPrefixPart
   | OpColon
   deriving (Eq, Ord, Show, Bounded, Enum)
 
@@ -157,13 +159,14 @@ opToText = \case
   OpAmpersand         -> "&"
   OpTilde             -> "~"   -- TODO
   OpPrefixApply       -> "@"
+  OpPrefixPart        -> "<Part>" -- internal only
   OpColon             -> ":"
 
 -- | Important: sorted in reverse order of length
 opTextTable :: [(Op, Text)]
 opTextTable =
   sortOn (Down . Text.length . snd)
-  [ (op, opToText op) | op <- [minBound .. maxBound]]
+  [ (op, opToText op) | op <- [minBound .. maxBound], op /= OpPrefixPart]
 
 blankTypeToExpr :: BlankType -> Expr
 blankTypeToExpr = \case
@@ -310,13 +313,27 @@ parseTok = choice
 -- The end result is that, e.g. f[x,y] gets parsed as f@Sequence[x,y],
 -- which is correct, though a bit verbose.
 
--- | Insert OpPrefixApply before each left bracket
+-- | Insert OpPrefixApply before each left bracket, and OpPrefixPart
+-- before each double left bracket.
 insertApply :: [Tok] -> [Tok]
 insertApply ts = do
   t <- ts
   case t of
-    TLBrack -> [TOp OpPrefixApply, TLBrack]
-    _       -> pure t
+    TLBrack    -> [TOp OpPrefixApply, TLBrack]
+    TLDblBrack -> [TOp OpPrefixPart, TLDblBrack]
+    _          -> pure t
+
+-- | Merge adjacent brackets into double brackets when they correspond
+-- to a matching double-bracket pair.
+mergeDoubleBrackets :: [Tok] -> [Tok]
+mergeDoubleBrackets = go (0 :: Int)
+  where
+    go _ [] = []
+    go depth (TLBrack:TLBrack:ts) = TLDblBrack : go (depth + 1) ts
+    go depth (TRBrack:TRBrack:ts)
+      | depth > 0 = TRDblBrack : go (depth - 1) ts
+      | otherwise = TRBrack : go depth (TRBrack:ts)
+    go depth (t:ts) = t : go depth ts
 
 -- | Insert OpTimes between tokens where whitespace should be interpreted as multiplication.
 -- In Wolfram Language, adjacent terms like "2 x" or "f g" are multiplied.
@@ -339,6 +356,7 @@ canEndMult = \case
   TString _  -> True
   TRParen    -> True
   TRBrack    -> True
+  TRDblBrack -> True
   TRBrace    -> True
   TRAssoc    -> True
   _          -> False
@@ -360,7 +378,7 @@ canStartMult = \case
   _          -> False
 
 lexAll :: TextParser [Tok]
-lexAll = fmap (insertApply . insertTimes) (sc *> many parseTok <* eof)
+lexAll = fmap (insertApply . insertTimes . mergeDoubleBrackets) (sc *> many parseTok <* eof)
 
 -- | Now we're ready to define parsers that consume Tok's. We will
 -- build an expression parser, which means we only need to define
@@ -393,6 +411,7 @@ parseTerm = choice
   , surround (TLParen, TRParen) parseExpr
   , ExprApp Expr.List        <$> surroundExprs (TLBrace, TRBrace)
   , ExprApp Expr.Sequence    <$> surroundExprs (TLBrack, TRBrack)
+  , ExprApp Expr.Sequence    <$> surroundExprs (TLDblBrack, TRDblBrack)
   , ExprApp Expr.Association <$> surroundExprs (TLAssoc, TRAssoc)
   , tok $ \case
       TSlot m SlotTy         -> Just (Expr.unary Expr.Slot         (ExprInteger (maybe 1 id m)))
@@ -442,11 +461,16 @@ postfix name f = Postfix (f <$ tOp name)
 -- the strategy in [Note: Application].
 applyExprFlattenSequence :: Expr -> Expr -> Expr
 applyExprFlattenSequence h (ExprApp Expr.Sequence args) = ExprApp h args
-applyExprFlattenSequence h arg                          = Expr.unary h arg
+applyExprFlattenSequence h arg = Expr.unary h arg
+
+applyExprPartSequence :: Expr -> Expr -> Expr
+applyExprPartSequence h (ExprApp Expr.Sequence args) = ExprApp Part (h :<| args)
+applyExprPartSequence h arg = ExprApp Part (Seq.fromList [h, arg])
 
 opTable :: [[Operator TokParser Expr]]
 opTable =
   [ [ binaryL OpPrefixApply     applyExprFlattenSequence
+    , binaryL OpPrefixPart      applyExprPartSequence
     ]
   , [ binaryL OpApply           (Expr.binary "Apply")
     ]

@@ -32,12 +32,15 @@ import MicroMath.Eval.Context (Attributes (..), Decl (..), Eval (..),
                                modifyAttributes, newModuleSymbol, setFlat,
                                setHoldType, setNumericFunction, setOrderless)
 import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
-                               ToExpr (..), bigFloatPrecision, builtinNumericFunctions,
-                               pattern (:@), pattern And, pattern ExprInteger,
+                               ToExpr (..), bigFloatPrecision,
+                               builtinNumericFunctions, pattern (:@),
+                               pattern And, pattern ExprBigFloat,
+                               pattern ExprDouble, pattern ExprInteger,
                                pattern ExprNumeric, pattern ExprRational,
-                               pattern ExprView, pattern List, pattern Null,
-                               pattern Or, pattern Plus, pattern Power,
-                               pattern Set, pattern Slot, pattern TagSetDelayed,
+                               pattern ExprString, pattern ExprView,
+                               pattern List, pattern Null, pattern Or,
+                               pattern Plus, pattern Power, pattern Set,
+                               pattern Slot, pattern TagSetDelayed,
                                pattern Times, toBigFloat, toDouble)
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Expr.TH      (declareBuiltin)
@@ -537,6 +540,49 @@ replaceRepeated expr rules = go expr
         then go newExpr
         else pure newExpr
 
+---------- Part ----------
+
+-- | This matches Mathematica's behavior where it only returns a Part
+-- if all the arguments are integers in the correct range. For example
+-- f[g[h]][[1,foo]] does not simplify to g[h][[foo]].
+part :: Seq Expr -> Maybe Expr
+part Empty = Nothing
+part (expr :<| indices) = go expr indices
+  where
+    go e Empty = Just e
+    -- This rule leads to some funny behavior that nonetheless matches
+    -- Mathematica's behavior::
+    -- 
+    -- f[g][[{0, 0, 0}]] ---> f[f,f,f]
+    -- 1[[{0, 0, 0}]]    ---> Integer[Integer, Integer, Integer]
+    -- 
+    go e (List :@ inds :<| inds') = do
+      eHead <- exprHead e
+      ExprApp eHead
+        <$> mapM (\i -> go e (i :<| inds')) inds
+    go (ExprApp h' cs) (ExprInteger i :<| inds')
+      | i == 0
+      = go h' inds'
+      | Just c <- Seq.lookup (fromInteger i-1) cs
+      = go c inds'
+      | i < 0
+      , let idx = Seq.length cs + fromInteger i
+      , Just c <- Seq.lookup idx cs
+      = go c inds'
+      | otherwise = Nothing
+    go _ (Solo (ExprInteger 0)) = exprHead expr
+    go _ _ = Nothing
+
+exprHead :: Expr -> Maybe Expr
+exprHead (ExprApp h _)    = Just h
+exprHead (ExprSymbol _)   = Just "Symbol"
+exprHead (ExprInteger _)  = Just "Integer"
+exprHead (ExprRational _) = Just "Rational"
+exprHead (ExprDouble _)   = Just "Double"
+exprHead (ExprBigFloat _) = Just "BigFloat"
+exprHead (ExprString _)   = Just "String"
+exprHead _                = Nothing
+
 ---------- NumericFunctionQ ----------
 
 numericFunctionQ :: Symbol -> Eval Bool
@@ -686,6 +732,7 @@ defStdLib = do
   def "ReplaceRepeated" replaceRepeated
 
   def "Map" mapDef
+  def "Part" part
 
   modifyAttributes "Plus" (setFlat . setOrderless)
   def "Plus" normalizePlus
