@@ -1,5 +1,6 @@
 {-# LANGUAGE NoFieldSelectors    #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
 module Main (main) where
@@ -8,8 +9,9 @@ import Control.Monad.IO.Class   (liftIO)
 import Control.Monad.Trans      (lift)
 import Data.Text                (Text)
 import Data.Text                qualified as Text
-import MicroMath                (Eval, Expr, PPrint (..), defStdLib, eval, get,
-                                 pattern Null, run, runEval)
+import MicroMath                (Eval, Expr (..), PPrint (..), defStdLib, eval,
+                                 fullForm, get, pattern Null, run, runEval)
+import MicroMath.Util            (pattern Solo)
 import Options.Applicative
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine,
                                  outputStrLn, runInputT)
@@ -57,13 +59,13 @@ runFile fp = do
   defStdLib
   inputExpr <- get fp
   result <- eval inputExpr
-  unlessNull result $ liftIO . putStrLn . pPrint
+  unlessNull result $ liftIO . putStrLn . formatOutput
 
 runExpr :: Text -> Eval ()
 runExpr input = do
   defStdLib
   result <- run input
-  unlessNull result $ liftIO . putStrLn . pPrint
+  unlessNull result $ liftIO . putStrLn . formatOutput
 
 runRepl :: Eval ()
 runRepl = runInputT defaultSettings evalRepl
@@ -85,7 +87,7 @@ evalRepl = do
         Just ":quit" -> pure ()
         Just input -> do
           result <- lift $ run (Text.pack input)
-          unlessNull result $ outputStrLn . pPrint
+          unlessNull result $ outputStrLn . formatOutput
           loop
 
 showHelp :: InputT Eval ()
@@ -93,8 +95,16 @@ showHelp = outputStrLn $ unlines
   [ ":quit            : Exit"
   , "?x (or Help[x])  : Print the SymbolRecord for the symbol x. Example: ?Expand."
   , "DefinedSymbols[] : A list of all symbols with a nontrivial SymbolRecord"
+  , "FullForm[expr]   : Print the evaluated expression in full form"
+  , "ShowForm[expr]   : Print the evaluated expression with Haskell's show"
   ]
 
 unlessNull :: Monad m => Expr -> (Expr -> m ()) -> m ()
 unlessNull Null _  = pure ()
 unlessNull expr go = go expr
+
+formatOutput :: Expr -> String
+formatOutput expr = case expr of
+  ExprApp "FullForm" (Solo e) -> fullForm e
+  ExprApp "ShowForm" (Solo e) -> show e
+  _                           -> pPrint expr

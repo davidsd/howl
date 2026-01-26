@@ -122,7 +122,7 @@ data Op
 opToText :: Op -> Text
 opToText = \case
   OpReplaceRepeated   -> "//."
-  OpMapApply          -> "@@@" -- TODO
+  OpMapApply          -> "@@@"
   OpSameQ             -> "==="
   OpUnsameQ           -> "=!="
   OpRepeatedNull      -> "..." -- TODO
@@ -146,7 +146,7 @@ opToText = \case
   OpTagSetDelayed     -> "/:"
   OpDot               -> "."   -- TODO
   OpQuestion          -> "?"
-  OpBang              -> "!"   -- TODO
+  OpBang              -> "!"
   OpPower             -> "^"
   OpTimes             -> "*"
   OpDivide            -> "/"
@@ -475,6 +475,9 @@ opTable =
   , [ binaryL OpApply           (Expr.binary "Apply")
     ]
   , [ binaryR OpMap             (Expr.binary "Map")
+    , binaryR OpMapApply        (Expr.binary "MapApply")
+    ]
+  , [ postfix OpBang            (Expr.unary "Factorial") 
     ]
   , [ prefix OpMinus (Expr.binary "Times" (ExprInteger (-1)))
     ]

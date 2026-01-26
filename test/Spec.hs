@@ -237,6 +237,19 @@ main = hspec $ do
       parseRoundTrip (ExprApp "f" (Seq.fromList ["x", "y"]))
         `shouldBe` Just (ExprApp "f" (Seq.fromList ["x", "y"]))
 
+  describe "Parser precedence" $ do
+    it "parses MapApply with factorial" $
+      parseExprText "a@@@b!" `shouldBe`
+        Just (ExprApp "Factorial" (Seq.fromList [ExprApp "MapApply" (Seq.fromList ["a", "b"])]))
+
+    it "parses factorial binding tighter than power" $
+      parseExprText "a^b!" `shouldBe`
+        Just (ExprApp "Power" (Seq.fromList ["a", ExprApp "Factorial" (Seq.fromList ["b"])]))
+
+    it "parses unary minus with factorial" $
+      parseExprText "-b!" `shouldBe`
+        Just (ExprApp "Times" (Seq.fromList [ExprInteger (-1), ExprApp "Factorial" (Seq.fromList ["b"])]))
+
   describe "Part parsing" $ do
     it "parses double brackets into Part" $
       parseExprText "a[[b,c]]"

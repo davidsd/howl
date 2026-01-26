@@ -31,7 +31,6 @@ library
       MicroMath.Eval.EvalCache
       MicroMath.Expr
       MicroMath.Expr.Internal
-      MicroMath.Expr.Num
       MicroMath.Expr.Numeric
       MicroMath.Expr.PPrint
       MicroMath.Expr.Syntax

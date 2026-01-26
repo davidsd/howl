@@ -45,7 +45,7 @@ data Literal
   deriving (Eq, Ord, Show)
 
 instance PPrint Literal where
-  pPrint (LitNumeric x) = show x
+  pPrint (LitNumeric x) = pPrint x
   pPrint (LitString s)  = show s
 
 -- | NB: The ordering of constructors is chosen so that the derived

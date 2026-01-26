@@ -33,7 +33,7 @@ import MicroMath.Eval.Context (Attributes (..), Decl (..), Eval (..),
                                setHoldType, setNumericFunction, setOrderless)
 import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                ToExpr (..), bigFloatPrecision,
-                               builtinNumericFunctions, pattern (:@),
+                               pattern (:@),
                                pattern And, pattern ExprBigFloat,
                                pattern ExprDouble, pattern ExprInteger,
                                pattern ExprNumeric, pattern ExprRational,
@@ -43,7 +43,7 @@ import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                pattern Slot, pattern TagSetDelayed,
                                pattern Times, toBigFloat, toDouble)
 import MicroMath.Expr         qualified as Expr
-import MicroMath.Expr.TH      (declareBuiltin)
+import MicroMath.Expr.TH      (declareBuiltin, declareBuiltins)
 import MicroMath.Parser       (parseCompoundExpressionText, readExprFile)
 import MicroMath.Pat          (patRootSymbol)
 import MicroMath.Symbol       (Symbol)
@@ -588,6 +588,36 @@ exprHead _                = Nothing
 numericFunctionQ :: Symbol -> Eval Bool
 numericFunctionQ = fmap (.numericFunction) . lookupAttributes
 
+-- | TODO: It is probably unnecessary to declare these all in this big
+-- block. Remove them from the block as we define them one-by-one.
+$(declareBuiltins ''Expr 'fromString
+   [ "Abs"
+   , "Sign"
+   , "Pi"
+   , "E"
+   , "Exp"
+   , "Log"
+   , "Sin"
+   , "Cos"
+   , "Tan"
+   , "ArcSin"
+   , "ArcCos"
+   , "ArcTan"
+   , "Sinh"
+   , "Cosh"
+   , "Tanh"
+   , "ArcSinh"
+   , "ArcCosh"
+   , "ArcTanh"
+   ])
+
+builtinNumericFunctions :: [Symbol]
+builtinNumericFunctions =
+ [ "Power", "Plus", "Times", "Exp", "Log", "Sin", "Cos"
+ , "Tan", "ArcSin", "ArcCos", "ArcTan", "Sinh", "Cosh"
+ , "Tanh", "ArcSinh", "ArcCosh", "ArcTanh"
+ ]
+
 ---------- SetDelayed and Set ----------
 
 data LHS
@@ -691,6 +721,7 @@ defStdLib = do
   modifyAttributes "SetDelayed" (setHoldType HoldAll)
   def "SetDelayed" setDelayedDef
 
+  modifyAttributes "Hold" (setHoldType HoldAll)
   def "CompoundExpression" compoundExpression
   def "Get" (readExprFile @Eval . Text.unpack)
   def "SetAttributes" setAttributes
