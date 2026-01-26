@@ -732,6 +732,7 @@ defStdLib = do
   def "ReplaceRepeated" replaceRepeated
 
   def "Map" mapDef
+  def "Head" exprHead
   def "Part" part
 
   modifyAttributes "Plus" (setFlat . setOrderless)

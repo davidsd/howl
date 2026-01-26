@@ -360,6 +360,19 @@ main = hspec $ do
         result <- eval' "{1, 2}[[3, 1]]"
         pPrint result `shouldBe` "Part[{1, 2}, 3, 1]"
 
+    describe "Head" $ do
+      it "returns the head of an expression" $ do
+        result <- eval' "Head[f[x]]"
+        pPrint result `shouldBe` "f"
+
+      it "returns the head of an integer" $ do
+        result <- eval' "Head[1]"
+        pPrint result `shouldBe` "Integer"
+
+      it "returns the head of a list" $ do
+        result <- eval' "Head[{1, 2}]"
+        pPrint result `shouldBe` "List"
+
     describe "Lists" $ do
       it "creates lists" $ do
         result <- eval' "{1, 2, 3}"
