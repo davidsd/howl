@@ -12,13 +12,15 @@ module MicroMath.Pat
   , patFromExpr
   ) where
 
+import Control.Monad.State   (StateT, evalStateT, lift, state)
 import Data.Foldable         qualified as Foldable
 import Data.List             (intercalate)
-import Data.Sequence         (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence         (Seq, pattern (:<|), pattern (:|>), pattern Empty)
 import Data.String           (IsString (..))
-import MicroMath.Expr        (Expr (..), Literal, pattern Alternatives,
+import MicroMath.Expr        (Expr (..), Literal, binary, pattern Alternatives,
                               pattern Blank, pattern BlankNullSequence,
-                              pattern BlankSequence, pattern Pattern,
+                              pattern BlankSequence, pattern ConfirmPatternTest,
+                              pattern Pattern, pattern PatternTest,
                               pattern Test)
 import MicroMath.Expr.PPrint ()
 import MicroMath.PPrint      (PPrint (..))
@@ -34,10 +36,6 @@ Composite Patterns
 - OptionsPattern, PatternSequence, Verbatim, HoldPattern
 - OrderlessPatternSequence
 - KeyValuePattern
-
-Restrictions on Patterns
-
-- PatternTest (?) -- Can be implemented in terms of Condition
 
 Pattern Defaults
 _:e (Optional) pattern that defaults to e if omitted
@@ -139,24 +137,55 @@ patRootSymbol = \case
   PatCondition _ p _ -> patRootSymbol p
   _                  -> Nothing
 
-patFromExpr :: Monad m => (Symbol -> m PatAppType) -> Expr -> m Pat
-patFromExpr lookupAppType expr = case expr of
-  ExprApp Pattern (ExprSymbol x :<| expr' :<| Empty) ->
-    addName x <$> patFromExpr lookupAppType expr'
-  ExprApp Blank Empty                    -> pure $ PatVar [] Nothing
-  ExprApp Blank (ExprSymbol h :<| Empty) -> pure $ PatVar [] (Just h)
-  ExprApp BlankSequence Empty            -> pure $ PatSeqVar [] OneOrMore
-  ExprApp BlankNullSequence Empty        -> pure $ PatSeqVar [] ZeroOrMore
-  ExprApp Alternatives pExprs@(_ :<| _) ->
-    foldr1 (PatAlt []) <$> traverse (patFromExpr lookupAppType) pExprs
-  ExprApp Test (pExpr :<| cond :<| Empty) ->
-    PatCondition [] <$> patFromExpr lookupAppType pExpr <*> pure cond
-  ExprLit lit    -> pure $ PatLit [] lit
-  ExprSymbol sym -> pure $ PatSymbol [] sym
-  ExprApp h cs   -> do
-    appType <- case h of
-      ExprSymbol sym -> lookupAppType sym
-      _              -> pure PatAppFree
-    hPat <- patFromExpr lookupAppType h
-    csPat <- traverse (patFromExpr lookupAppType) cs
-    pure $ PatApp [] hPat appType csPat
+-- | An infinite (lazy) list of symbols to be used as anonymous pattern variables
+anonVars :: [Symbol]
+anonVars = [ fromString ("$$PatVar" <> show i) | i <- [0 :: Int ..] ]
+
+patFromExpr :: forall m . Monad m => (Symbol -> m PatAppType) -> Expr -> m Pat
+patFromExpr lookupAppType = flip evalStateT 0 . go
+  where
+    go :: Expr -> StateT Int m Pat
+    go expr = case expr of
+      ExprApp Pattern (ExprSymbol x :<| expr' :<| Empty) ->
+        addName x <$> go expr'
+      ExprApp Blank Empty                    -> pure $ PatVar [] Nothing
+      ExprApp Blank (ExprSymbol h :<| Empty) -> pure $ PatVar [] (Just h)
+      ExprApp BlankSequence Empty            -> pure $ PatSeqVar [] OneOrMore
+      ExprApp BlankNullSequence Empty        -> pure $ PatSeqVar [] ZeroOrMore
+      ExprApp Alternatives pExprs@(_ :<| _) ->
+        foldr1 (PatAlt []) <$> traverse go pExprs
+      ExprApp Test (pExpr :<| cond :<| Empty) ->
+        PatCondition [] <$> go pExpr <*> pure cond
+      ExprApp PatternTest (pExpr :<| test :<| Empty) -> do
+        testVar <- newAnonVarSymbol
+        pat <- go pExpr
+        pure $
+          PatCondition [] (addName testVar pat) (binary ConfirmPatternTest test (ExprSymbol testVar))
+      ExprLit lit    -> pure $ PatLit [] lit
+      ExprSymbol sym -> pure $ PatSymbol [] sym
+      ExprApp h cs   -> do
+        appType <- case h of
+          ExprSymbol sym -> lift $ lookupAppType sym
+          _              -> pure PatAppFree
+        hPat <- go h
+        (csPat, mkConditions) <- floatOutConditions <$> traverse go cs
+        pure $ mkConditions $ PatApp [] hPat appType csPat
+
+    newAnonVarSymbol :: StateT Int m Symbol
+    newAnonVarSymbol = do
+      varNum <- state (\i -> (i, i+1))
+      pure $ anonVars !! varNum
+
+-- | Given a sequence of Pat's, float any PatCondition's on elements
+-- of the sequence out to the top level by collecting them in a
+-- mkConditions function. This is needed because the pattern matcher
+-- only recognizes PatCondition's on SingleEq's. This is probably best
+-- because 'SeqEq's need to be fast in order to search over many
+-- possibilities. TODO: Is this true?
+floatOutConditions :: Seq Pat -> (Seq Pat, Pat -> Pat)
+floatOutConditions = goFloat Empty id
+  where
+    goFloat pats mkConditions Empty = (pats, mkConditions)
+    goFloat pats mkConditions (PatCondition names pat test :<| rest) =
+      goFloat pats ((\p -> PatCondition names p test) . mkConditions) (pat :<| rest)
+    goFloat pats mkConditions (pat :<| rest) = goFloat (pats :|> pat) mkConditions rest

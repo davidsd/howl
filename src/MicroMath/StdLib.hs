@@ -10,6 +10,7 @@
 
 module MicroMath.StdLib where
 
+import Debug.Trace qualified as Debug
 import Control.Monad          (guard, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.Foldable          qualified as Foldable
@@ -583,6 +584,13 @@ exprHead (ExprBigFloat _) = Just "BigFloat"
 exprHead (ExprString _)   = Just "String"
 exprHead _                = Nothing
 
+---------- ConfirmPatternTest ----------
+
+confirmPatternTest :: Seq Expr -> Maybe Expr
+confirmPatternTest foo = Debug.traceShow foo $ case foo of
+  Empty         -> Nothing
+  test :<| rest -> Just $ And :@ (fmap (Expr.unary test) rest)
+
 ---------- NumericFunctionQ ----------
 
 numericFunctionQ :: Symbol -> Eval Bool
@@ -761,6 +769,7 @@ defStdLib = do
   modifyAttributes "RuleDelayed" (setHoldType HoldAll)
   def "ReplaceAll" replaceAll
   def "ReplaceRepeated" replaceRepeated
+  def "ConfirmPatternTest" confirmPatternTest
 
   def "Map" mapDef
   def "Head" exprHead

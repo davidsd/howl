@@ -7,11 +7,14 @@ module Main (main) where
 
 import Control.Monad.IO.Class   (liftIO)
 import Control.Monad.Trans      (lift)
+import Data.List                qualified as List
 import Data.Text                (Text)
 import Data.Text                qualified as Text
-import MicroMath                (Eval, Expr (..), PPrint (..), defStdLib, eval,
-                                 fullForm, get, pattern Null, run, runEval)
-import MicroMath.Util            (pattern Solo)
+import MicroMath                (Eval, Expr (..), PPrint (..), compilePat,
+                                 defStdLib, eval, fullForm, get, pattern Null,
+                                 run, runEval)
+import MicroMath.Parser         (parseExprText)
+import MicroMath.Util           (pattern Solo)
 import Options.Applicative
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine,
                                  outputStrLn, runInputT)
@@ -85,6 +88,14 @@ evalRepl = do
           showHelp
           loop
         Just ":quit" -> pure ()
+        Just input | ":pat " `List.isPrefixOf` input -> do
+          let patText = Text.pack (drop 5 input)
+          case parseExprText patText of
+            Nothing -> outputStrLn "Error parsing pattern"
+            Just expr -> do
+              pat <- lift $ compilePat expr
+              outputStrLn (show pat)
+          loop
         Just input -> do
           result <- lift $ run (Text.pack input)
           unlessNull result $ outputStrLn . formatOutput
@@ -95,6 +106,7 @@ showHelp = outputStrLn $ unlines
   [ ":quit            : Exit"
   , "?x (or Help[x])  : Print the SymbolRecord for the symbol x. Example: ?Expand."
   , "DefinedSymbols[] : A list of all symbols with a nontrivial SymbolRecord"
+  , ":pat expr        : Compile expr as a pattern and print it with show"
   , "FullForm[expr]   : Print the evaluated expression in full form"
   , "ShowForm[expr]   : Print the evaluated expression with Haskell's show"
   ]

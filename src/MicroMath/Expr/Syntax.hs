@@ -24,6 +24,8 @@ module MicroMath.Expr.Syntax
   , pattern Alternatives
   , pattern Optional
   , pattern Test
+  , pattern PatternTest
+  , pattern ConfirmPatternTest
   , pattern Association
   , pattern And
   , pattern Or
@@ -84,6 +86,8 @@ $(declareBuiltins ''Expr 'fromString
    , "Alternatives"
    , "Optional"
    , "Test"
+   , "PatternTest"
+   , "ConfirmPatternTest"
    , "Association"
    , "And"
    , "Or"

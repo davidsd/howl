@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module MicroMath.Parser
   ( normalizeParsedExpr
@@ -26,21 +27,22 @@ import Data.Text.IO                   qualified as Text
 import Data.Void                      (Void)
 import MicroMath.Expr                 (BigFloat, Expr (..), pattern (:@),
                                        pattern And, pattern Divide,
-                                       pattern ExprBigFloat, pattern ExprNumeric,
-                                       pattern ExprDouble, pattern ExprInteger,
+                                       pattern ExprBigFloat, pattern ExprDouble,
+                                       pattern ExprInteger, pattern ExprNumeric,
                                        pattern ExprString, pattern ExprSymbol,
-                                       pattern Or, pattern Part, pattern Plus,
-                                       pattern Sequence, pattern Subtract,
-                                       pattern Times)
+                                       pattern Optional, pattern Or,
+                                       pattern Part, pattern Pattern,
+                                       pattern Plus, pattern Sequence,
+                                       pattern Subtract, pattern Times)
 import MicroMath.Expr                 qualified as Expr
 import MicroMath.Symbol               (Symbol)
-import MicroMath.Util                 (pattern Solo)
+import MicroMath.Util                 (pattern Pair, pattern Solo)
 import Numeric.Rounded.Simple         qualified as Rounded
-import Text.Megaparsec                (Parsec, Stream, Token, anySingle, choice,
-                                       empty, eof, errorBundlePretty, many,
-                                       manyTill, match, notFollowedBy, optional,
-                                       parse, parseMaybe, satisfy, sepBy,
-                                       single, token, try, (<|>))
+import Text.Megaparsec                (Parsec, Stream, Token, choice, empty,
+                                       eof, errorBundlePretty, many, manyTill,
+                                       match, notFollowedBy, optional, parse,
+                                       parseMaybe, satisfy, sepBy, single,
+                                       token, try, (<|>))
 import Text.Megaparsec.Char           (char, letterChar, space1, string)
 import Text.Megaparsec.Char.Lexer     qualified as Lex
 
@@ -214,7 +216,8 @@ parseNumber =
       _ <- char '`'
       prec <- (Lex.decimal :: TextParser Int)
       let r = toRational n
-      pure (TBigFloat (BigFloatTok (Rounded.fromRational' Rounded.TowardNearest (decimalDigitsToBits prec) r)))
+      pure . TBigFloat . BigFloatTok $
+        Rounded.fromRational' Rounded.TowardNearest (decimalDigitsToBits prec) r
     parseBigFloatLong = do
       (txt, n) <- match Lex.scientific
       let
@@ -225,7 +228,8 @@ parseNumber =
       if Text.null fracWithDot || prec <= 16
         then fail "short decimal"
         else
-          pure (TBigFloat (BigFloatTok (Rounded.fromRational' Rounded.TowardNearest (decimalDigitsToBits prec) (toRational n))))
+          pure . TBigFloat . BigFloatTok $
+          Rounded.fromRational' Rounded.TowardNearest (decimalDigitsToBits prec) (toRational n)
     parseSciIntTok = do
       (txt, n) <- match Lex.scientific
       let
@@ -426,23 +430,19 @@ parseTerm = choice
   ]
 
 parsePatternVar :: TokParser Expr
-parsePatternVar = do
-  TPatVar maybeName patHeadType maybeHeadConstraint <- anySingle
-  maybeDefault <- optional (tOp OpColon *> parseExpr)
-  let
-    defFunction = case maybeDefault of
-      Just def -> \p -> Expr.binary Expr.Optional p def
-      Nothing  -> id
-    nameFunction = case maybeName of
-      Just name -> \p -> Expr.binary Expr.Pattern (ExprSymbol name) p
-      Nothing   -> id
-    args = case maybeHeadConstraint of
-      Just h  -> Seq.singleton (ExprSymbol h)
-      Nothing -> Empty
-  pure $
-    defFunction $
-    nameFunction $
-    ExprApp (blankTypeToExpr patHeadType) args
+parsePatternVar = tok $ \case
+  TPatVar maybeName patHeadType maybeHeadConstraint -> Just $
+    let
+      nameFunction = case maybeName of
+        Just name -> \p -> Expr.binary Expr.Pattern (ExprSymbol name) p
+        Nothing   -> id
+      args = case maybeHeadConstraint of
+        Just h  -> Seq.singleton (ExprSymbol h)
+        Nothing -> Empty
+    in
+      nameFunction $
+      ExprApp (blankTypeToExpr patHeadType) args
+  _ -> Nothing
 
 binaryL :: Op -> (a -> a -> a) -> Operator TokParser a
 binaryL  name f = InfixL  (f <$ tOp name)
@@ -461,7 +461,7 @@ postfix name f = Postfix (f <$ tOp name)
 -- the strategy in [Note: Application].
 applyExprFlattenSequence :: Expr -> Expr -> Expr
 applyExprFlattenSequence h (ExprApp Expr.Sequence args) = ExprApp h args
-applyExprFlattenSequence h arg = Expr.unary h arg
+applyExprFlattenSequence h arg                          = Expr.unary h arg
 
 applyExprPartSequence :: Expr -> Expr -> Expr
 applyExprPartSequence h (ExprApp Expr.Sequence args) = ExprApp Part (h :<| args)
@@ -469,7 +469,9 @@ applyExprPartSequence h arg = ExprApp Part (Seq.fromList [h, arg])
 
 opTable :: [[Operator TokParser Expr]]
 opTable =
-  [ [ binaryL OpPrefixApply     applyExprFlattenSequence
+  [ [ binaryL OpQuestion        (Expr.binary "PatternTest")
+    ]
+  , [ binaryL OpPrefixApply     applyExprFlattenSequence
     , binaryL OpPrefixPart      applyExprPartSequence
     ]
   , [ binaryL OpApply           (Expr.binary "Apply")
@@ -477,7 +479,7 @@ opTable =
   , [ binaryR OpMap             (Expr.binary "Map")
     , binaryR OpMapApply        (Expr.binary "MapApply")
     ]
-  , [ postfix OpBang            (Expr.unary "Factorial") 
+  , [ postfix OpBang            (Expr.unary "Factorial")
     ]
   , [ prefix OpMinus (Expr.binary "Times" (ExprInteger (-1)))
     ]
@@ -502,7 +504,8 @@ opTable =
     , binaryL OpUnsameQ         (Expr.binary "UnsameQ")
     ]
   , [ binaryL OpAlternative     (Expr.binary "Alternatives")
-    , binaryL OpColon           (Expr.binary "Pattern")
+    ]
+  , [ binaryL OpColon           (Expr.binary "Pattern")
     ]
   , [ binaryL OpCondition       (Expr.binary "Test")
     ]
@@ -526,6 +529,55 @@ opTable =
   , [ prefix OpQuestion         (Expr.unary "Help")
     ]
   ]
+
+-- | [Note: Pattern vs Optional] In WL, both Pattern and Optional are
+-- denoted by a colon. How are strings of colon-separated expressions
+-- parsed? Firstly, colons are parsed in a left-associative way as
+-- Pattern. Then a sequence of Patterns is transformed as follows:
+--
+-- Pattern[a,b] -> Pattern[a,b]
+-- Pattern[Pattern[a,b],c] -> Optional[Pattern[a,b],c]
+-- Pattern[Pattern[Pattern[a,b],c],d] -> Optional[Pattern[a,b],Pattern[c,d]]
+-- Pattern[Pattern[Pattern[Pattern[a,b],c],d],e] -> Optional[Pattern[a,b],Optional[Pattern[c,d],e]]
+--
+-- In other words, we build a linked list of Optional[_,_] cells,
+-- where the first element of the optional cell is always a
+-- Pattern[_,_], while the second element can be a single expression,
+-- a Pattern[_,_], or another Optional[_,_] cell.  We also have the
+-- condition that the first element of any Pattern[_,_] (after this
+-- transformation) must be a Symbol -- otherwise its a parse error.
+
+-- | Transforms chains of Patterns as described above.
+normalizePatternChains :: forall m. MonadFail m => Expr -> m Expr
+normalizePatternChains expr = case expr of
+  ExprLit _ -> pure expr
+  ExprSymbol _ -> pure expr
+  Pattern :@ Pair _ _ -> case collectPatternChain expr of
+    []  -> fail "Invalid pattern expression"
+    [_] -> fail "Invalid pattern expression"
+    (x:y:rest) -> do
+      p <- mkPattern x y
+      buildOptionalChain p rest
+  _ -> pure expr
+  where
+    mkPattern :: Expr -> Expr -> m Expr
+    mkPattern a b = case a of
+      ExprSymbol _ -> pure (Expr.binary Pattern a b)
+      _            -> fail "Pattern name must be a symbol"
+
+    collectPatternChain :: Expr -> [Expr]
+    collectPatternChain = \case
+      Pattern :@ Pair l r -> collectPatternChain l ++ [r]
+      other               -> [other]
+
+    buildOptionalChain :: Expr -> [Expr] -> m Expr
+    buildOptionalChain h = \case
+      []         -> pure h
+      [a]        -> pure (Expr.binary Optional h a)
+      (a:b:rest) -> do
+        p <- mkPattern a b
+        tailExpr <- buildOptionalChain p rest
+        pure (Expr.binary Optional h tailExpr)
 
 -- | Do some basic normalization to deal with quirks of the expression
 -- parser. Replace (-) and (/) with their definitions in terms of
@@ -561,7 +613,9 @@ normalizeParsedExpr expr = case expr of
         _             -> h :@ newArgs
 
 parseExpr :: TokParser Expr
-parseExpr = normalizeParsedExpr <$> makeExprParser parseTerm opTable
+parseExpr = do
+  expr <- makeExprParser parseTerm opTable
+  normalizePatternChains (normalizeParsedExpr expr)
 
 parseExprText :: Text -> Maybe Expr
 parseExprText txt = do
