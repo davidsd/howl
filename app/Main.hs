@@ -91,8 +91,8 @@ evalRepl = do
         Just input | ":pat " `List.isPrefixOf` input -> do
           let patText = Text.pack (drop 5 input)
           case parseExprText patText of
-            Nothing -> outputStrLn "Error parsing pattern"
-            Just expr -> do
+            Left err -> outputStrLn err
+            Right expr -> do
               pat <- lift $ compilePat expr
               outputStrLn (show pat)
           loop

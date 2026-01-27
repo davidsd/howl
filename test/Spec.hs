@@ -106,7 +106,7 @@ isValidNaryApp h args
   | otherwise = True
 
 -- | Parse an expression from its pretty-printed form
-parseRoundTrip :: Expr -> Maybe Expr
+parseRoundTrip :: Expr -> Either String Expr
 parseRoundTrip e = parseExprText (Text.pack (pPrint e))
 
 -- | Property: pretty printing then parsing should give back the normalized form
@@ -118,7 +118,7 @@ prop_roundTrip (ArbExpr expr) =
   in counterexample ("Pretty printed: " ++ printed) $
      counterexample ("Parsed back: " ++ show parsed) $
      counterexample ("Normalized: " ++ show normalized) $
-     parsed === Just normalized
+     parsed === Right normalized
 
 -- | Generate a symbolic expression using only x, y, z as variables
 genSymbolicExpr :: Int -> Gen Expr
@@ -188,30 +188,30 @@ main = hspec $ do
 
   describe "Specific round-trip cases" $ do
     it "simple symbol" $
-      parseRoundTrip "x" `shouldBe` Just "x"
+      parseRoundTrip "x" `shouldBe` Right "x"
 
     it "integer" $
-      parseRoundTrip (ExprInteger 42) `shouldBe` Just (ExprInteger 42)
+      parseRoundTrip (ExprInteger 42) `shouldBe` Right (ExprInteger 42)
 
     it "simple sum" $
       parseRoundTrip (ExprApp "Plus" (Seq.fromList ["x", "y"]))
-        `shouldBe` Just (ExprApp "Plus" (Seq.fromList ["x", "y"]))
+        `shouldBe` Right (ExprApp "Plus" (Seq.fromList ["x", "y"]))
 
     it "simple product" $
       parseRoundTrip (ExprApp "Times" (Seq.fromList ["x", "y"]))
-        `shouldBe` Just (ExprApp "Times" (Seq.fromList ["x", "y"]))
+        `shouldBe` Right (ExprApp "Times" (Seq.fromList ["x", "y"]))
 
     it "power" $
       parseRoundTrip (ExprApp "Power" (Seq.fromList ["x", ExprInteger 2]))
-        `shouldBe` Just (ExprApp "Power" (Seq.fromList ["x", ExprInteger 2]))
+        `shouldBe` Right (ExprApp "Power" (Seq.fromList ["x", ExprInteger 2]))
 
     it "nested power (right-associative)" $
       parseRoundTrip (ExprApp "Power" (Seq.fromList ["x", ExprApp "Power" (Seq.fromList ["y", "z"])]))
-        `shouldBe` Just (ExprApp "Power" (Seq.fromList ["x", ExprApp "Power" (Seq.fromList ["y", "z"])]))
+        `shouldBe` Right (ExprApp "Power" (Seq.fromList ["x", ExprApp "Power" (Seq.fromList ["y", "z"])]))
 
     it "left-nested power (needs parens)" $
       parseRoundTrip (ExprApp "Power" (Seq.fromList [ExprApp "Power" (Seq.fromList ["x", "y"]), "z"]))
-        `shouldBe` Just (ExprApp "Power" (Seq.fromList [ExprApp "Power" (Seq.fromList ["x", "y"]), "z"]))
+        `shouldBe` Right (ExprApp "Power" (Seq.fromList [ExprApp "Power" (Seq.fromList ["x", "y"]), "z"]))
 
     it "polynomial" $
       let poly = ExprApp "Plus" (Seq.fromList
@@ -219,61 +219,61 @@ main = hspec $ do
             , ExprApp "Times" (Seq.fromList [ExprInteger 2, "x"])
             , ExprApp "Times" (Seq.fromList [ExprInteger 3, ExprApp "Power" (Seq.fromList ["x", ExprInteger 2])])
             ])
-      in parseRoundTrip poly `shouldBe` Just poly
+      in parseRoundTrip poly `shouldBe` Right poly
 
     it "rule" $
       parseRoundTrip (ExprApp "Rule" (Seq.fromList ["x", "y"]))
-        `shouldBe` Just (ExprApp "Rule" (Seq.fromList ["x", "y"]))
+        `shouldBe` Right (ExprApp "Rule" (Seq.fromList ["x", "y"]))
 
     it "nested rule (right-associative)" $
       parseRoundTrip (ExprApp "Rule" (Seq.fromList ["a", ExprApp "Rule" (Seq.fromList ["b", "c"])]))
-        `shouldBe` Just (ExprApp "Rule" (Seq.fromList ["a", ExprApp "Rule" (Seq.fromList ["b", "c"])]))
+        `shouldBe` Right (ExprApp "Rule" (Seq.fromList ["a", ExprApp "Rule" (Seq.fromList ["b", "c"])]))
 
     it "list" $
       parseRoundTrip (ExprApp "List" (Seq.fromList ["x", "y", "z"]))
-        `shouldBe` Just (ExprApp "List" (Seq.fromList ["x", "y", "z"]))
+        `shouldBe` Right (ExprApp "List" (Seq.fromList ["x", "y", "z"]))
 
     it "function application" $
       parseRoundTrip (ExprApp "f" (Seq.fromList ["x", "y"]))
-        `shouldBe` Just (ExprApp "f" (Seq.fromList ["x", "y"]))
+        `shouldBe` Right (ExprApp "f" (Seq.fromList ["x", "y"]))
 
   describe "Parser precedence" $ do
     it "parses MapApply with factorial" $
       parseExprText "a@@@b!" `shouldBe`
-        Just (ExprApp "Factorial" (Seq.fromList [ExprApp "MapApply" (Seq.fromList ["a", "b"])]))
+        Right (ExprApp "Factorial" (Seq.fromList [ExprApp "MapApply" (Seq.fromList ["a", "b"])]))
 
     it "parses factorial binding tighter than power" $
       parseExprText "a^b!" `shouldBe`
-        Just (ExprApp "Power" (Seq.fromList ["a", ExprApp "Factorial" (Seq.fromList ["b"])]))
+        Right (ExprApp "Power" (Seq.fromList ["a", ExprApp "Factorial" (Seq.fromList ["b"])]))
 
     it "parses unary minus with factorial" $
       parseExprText "-b!" `shouldBe`
-        Just (ExprApp "Times" (Seq.fromList [ExprInteger (-1), ExprApp "Factorial" (Seq.fromList ["b"])]))
+        Right (ExprApp "Times" (Seq.fromList [ExprInteger (-1), ExprApp "Factorial" (Seq.fromList ["b"])]))
 
   describe "Part parsing" $ do
     it "parses double brackets into Part" $
       parseExprText "a[[b,c]]"
-        `shouldBe` Just (ExprApp Part (Seq.fromList ["a", "b", "c"]))
+        `shouldBe` Right (ExprApp Part (Seq.fromList ["a", "b", "c"]))
 
     it "parses chained part access" $
       parseExprText "a[[b]][[c]]"
-        `shouldBe` Just (ExprApp Part (Seq.fromList [ExprApp Part (Seq.fromList ["a", "b"]), "c"]))
+        `shouldBe` Right (ExprApp Part (Seq.fromList [ExprApp Part (Seq.fromList ["a", "b"]), "c"]))
 
   describe "BigFloat parsing" $ do
     it "parses explicit precision with backtick" $ do
       let parsed = parseExprText "1.25`40"
       case parsed of
-        Just (ExprBigFloat bf) -> Rounded.precision bf `shouldBe` decimalDigitsToBits 40
+        Right (ExprBigFloat bf) -> Rounded.precision bf `shouldBe` decimalDigitsToBits 40
         _ -> expectationFailure "expected BigFloat"
 
     it "parses long decimal as BigFloat with precision from digits" $ do
       let parsed = parseExprText "3.1415926535897932384626"
       case parsed of
-        Just (ExprBigFloat bf) -> Rounded.precision bf `shouldBe` decimalDigitsToBits 22
+        Right (ExprBigFloat bf) -> Rounded.precision bf `shouldBe` decimalDigitsToBits 22
         _ -> expectationFailure "expected BigFloat"
 
     it "keeps short decimal as Double" $
-      parseExprText "2.718281828459045" `shouldBe` Just (ExprDouble 2.718281828459045)
+      parseExprText "2.718281828459045" `shouldBe` Right (ExprDouble 2.718281828459045)
 
   describe "Evaluator" $ do
     let eval' :: Text -> IO Expr

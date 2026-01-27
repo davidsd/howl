@@ -38,13 +38,18 @@ import MicroMath.Expr                 qualified as Expr
 import MicroMath.Symbol               (Symbol)
 import MicroMath.Util                 (pattern Pair, pattern Solo)
 import Numeric.Rounded.Simple         qualified as Rounded
-import Text.Megaparsec                (Parsec, Stream, Token, choice, empty,
-                                       eof, errorBundlePretty, many, manyTill,
-                                       match, notFollowedBy, optional, parse,
-                                       parseMaybe, satisfy, sepBy, single,
+import Data.List                    (intercalate)
+import Data.List.NonEmpty           (toList)
+import Text.Megaparsec                (Parsec, Stream, Token, bundleErrors,
+                                       bundlePosState, choice, empty, eof,
+                                       errorBundlePretty, many, manyTill, match,
+                                       notFollowedBy, optional, parse,
+                                       pstateInput, satisfy, sepBy, single,
                                        token, try, (<|>))
 import Text.Megaparsec.Char           (char, letterChar, space1, string)
 import Text.Megaparsec.Char.Lexer     qualified as Lex
+import Text.Megaparsec.Error         (ParseError, ParseErrorBundle,
+                                      errorOffset)
 
 -- | Parse in two steps. First we parse Text into a stream of
 -- Tok's. Then later parse a stream of Tok's into an Expr.
@@ -617,10 +622,14 @@ parseExpr = do
   expr <- makeExprParser parseTerm opTable
   normalizePatternChains (normalizeParsedExpr expr)
 
-parseExprText :: Text -> Maybe Expr
-parseExprText txt = do
-  toks <- parseMaybe lexAll txt
-  parseMaybe parseExpr toks
+parseExprText :: Text -> Either String Expr
+parseExprText txt =
+  case parse lexAll "<expr>" txt of
+    Left bundle -> Left (errorBundlePretty bundle)
+    Right toks ->
+      case parse parseExpr "<tokens>" toks of
+        Left bundle -> Left (tokErrorBundlePretty bundle)
+        Right expr  -> Right expr
 
 parseCompoundExpression :: TokParser Expr
 parseCompoundExpression = do
@@ -646,8 +655,8 @@ parseCompoundExpressionText path ce =
     Left bundle -> Left $ errorBundlePretty bundle
     Right toks ->
       case parse parseCompoundExpression path toks of
-        Left _     -> Left $ "Error parsing: " <> show ce
-        Right expr -> Right expr
+        Left bundle -> Left $ tokErrorBundlePretty bundle
+        Right expr  -> Right expr
 
 readExprFile :: MonadIO m => FilePath -> m Expr
 readExprFile path = liftIO $ do
@@ -655,3 +664,29 @@ readExprFile path = liftIO $ do
   case parseCompoundExpressionText path contents of
     Left err   -> putStrLn err >> pure Expr.Null
     Right expr -> pure expr
+
+tokErrorBundlePretty :: ParseErrorBundle [Tok] Void -> String
+tokErrorBundlePretty bundle =
+  let toks = pstateInput (bundlePosState bundle)
+  in unlines (map (renderTokError toks) (toList (bundleErrors bundle)))
+
+renderTokError :: [Tok] -> ParseError [Tok] Void -> String
+renderTokError toks err =
+  let
+    off = errorOffset err
+    before = 3
+    after = 3
+    start = max 0 (off - before)
+    window = take (before + 1 + after) (drop start toks)
+    markerIndex = off - start
+    renderTok idx t
+      | idx == markerIndex = ">>" <> show t <> "<<"
+      | otherwise = show t
+    rendered = case window of
+      [] -> "<end of input>"
+      _  -> intercalate " " (zipWith renderTok [0..] window)
+  in unlines
+    [ "Parse error at token offset " <> show off <> ":"
+    , "  " <> show err
+    , "  near: " <> rendered
+    ]
