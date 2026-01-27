@@ -599,23 +599,14 @@ normalizeParsedExpr expr = case expr of
     normalizeParsedExpr $ Expr.binary Plus e1  $ Expr.binary Times (ExprInteger (-1)) e2
   Divide :@ (e1 :<| e2 :<| Empty) ->
     normalizeParsedExpr $ Expr.binary Times e1 $ Expr.binary Expr.Power e2 (ExprInteger (-1))
-  Plus  :@ args -> flattenOneIdentity Plus (ExprInteger 0) args
-  Times :@ args -> flattenOneIdentity Times (ExprInteger 1) args
-  And   :@ args -> flattenOneIdentity And Expr.True args
-  Or    :@ args -> flattenOneIdentity Or Expr.False args
+  Plus  :@ args -> flattenHead Plus  args
+  Times :@ args -> flattenHead Times args
+  And   :@ args -> flattenHead And   args
+  Or    :@ args -> flattenHead Or    args
   h :@ args ->
     normalizeParsedExpr h :@ fmap normalizeParsedExpr args
   where
-    flattenOneIdentity h def args =
-      let
-        newArgs =
-          Seq.filter (/= def) $
-          Expr.flattenWithHead h $
-          fmap normalizeParsedExpr args
-      in case newArgs of
-        Empty         -> def
-        (x :<| Empty) -> x
-        _             -> h :@ newArgs
+    flattenHead h args = h :@ Expr.flattenWithHead h (fmap normalizeParsedExpr args)
 
 parseExpr :: TokParser Expr
 parseExpr = do

@@ -800,6 +800,10 @@ defStdLib = do
 
   mapM_ run
     [ "Apply[h_,hp_[xs___]] := h[xs]"
+    , "Default[Times] := 1"
+    , "Default[Plus] := 0"
+    , "Default[And] := True"
+    , "Default[Or] := False"
     , "UnsameQ[xs___] := Not[SameQ[xs]]"
     , "Not[True]    := False"
     , "Not[False]   := True"

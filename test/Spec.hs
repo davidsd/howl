@@ -360,6 +360,42 @@ main = hspec $ do
         result <- eval' "Foo[1] /. {Foo[Optional[x_Integer, dx]] :> x}"
         pPrint result `shouldBe` "1"
 
+      it "uses Default[head] for Optional[a_] when present" $ do
+        result <- eval' "Foo[1] /. {Foo[Optional[a_]] :> a}"
+        pPrint result `shouldBe` "1"
+
+      it "uses Default[head] for Optional[a_] when omitted" $ do
+        result <- eval' "Foo[] /. {Foo[Optional[a_]] :> a}"
+        pPrint result `shouldBe` "Default[Foo]"
+
+      it "uses Default[Times] when Optional is omitted under Times" $ do
+        result <- eval' "Hold[Times[]] /. {Hold[Times[Optional[a_]]] :> a}"
+        pPrint result `shouldBe` "1"
+
+      it "uses Default[Plus] when Optional is omitted under Plus" $ do
+        result <- eval' "Hold[Plus[]] /. {Hold[Plus[Optional[a_]]] :> a}"
+        pPrint result `shouldBe` "0"
+
+      it "prefers provided args under Times and Plus" $ do
+        resultTimes <- eval' "Hold[Times[2]] /. {Hold[Times[Optional[a_]]] :> a}"
+        pPrint resultTimes `shouldBe` "2"
+        resultPlus <- eval' "Hold[Plus[3]] /. {Hold[Plus[Optional[a_]]] :> a}"
+        pPrint resultPlus `shouldBe` "3"
+
+      it "uses defaults for And/Or when Optional is omitted" $ do
+        resultAnd <- eval' "Hold[And[]] /. {Hold[And[Optional[a_]]] :> a}"
+        pPrint resultAnd `shouldBe` "True"
+        resultOr <- eval' "Hold[Or[]] /. {Hold[Or[Optional[a_]]] :> a}"
+        pPrint resultOr `shouldBe` "False"
+
+      it "handles multiple arguments with Optional defaults" $ do
+        result <- eval' "Foo[a,b] /. {Foo[Optional[x_,dx], Optional[y_,dy], Optional[z_,dz]] :> {x,y,z}}"
+        pPrint result `shouldBe` "{a, b, dz}"
+
+      it "handles multiple arguments under Plus with Optional defaults" $ do
+        result <- eval' "Hold[Plus[1, 2]] /. {Hold[Plus[Optional[x_], Optional[y_], Optional[z_]]] :> {x,y,z}}"
+        pPrint result `shouldBe` "{1, 2, 0}"
+
     describe "Part" $ do
       it "extracts a list element" $ do
         result <- eval' "{1, 2, 3}[[2]]"

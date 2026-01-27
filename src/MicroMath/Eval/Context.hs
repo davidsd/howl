@@ -65,7 +65,7 @@ data Context = MkContext
   }
 
 newtype Eval a = Eval (ReaderT Context IO a)
-  deriving newtype (Functor, Applicative, Monad, MonadReader Context, MonadIO, MonadMask, MonadCatch, MonadThrow)
+  deriving newtype (Functor, Applicative, Monad, MonadFail, MonadReader Context, MonadIO, MonadMask, MonadCatch, MonadThrow)
 
 newContext :: IO Context
 newContext = do

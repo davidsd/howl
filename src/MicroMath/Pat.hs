@@ -18,14 +18,16 @@ import Data.Foldable         qualified as Foldable
 import Data.List             (intercalate)
 import Data.Sequence         (Seq, pattern (:<|), pattern Empty)
 import Data.String           (IsString (..))
-import MicroMath.Expr        (Expr (..), Literal, binary, pattern Alternatives,
-                              pattern Blank, pattern BlankNullSequence,
-                              pattern BlankSequence, pattern ConfirmPatternTest,
+import MicroMath.Expr        (Expr (..), Literal, binary, pattern (:@),
+                              pattern Alternatives, pattern Blank,
+                              pattern BlankNullSequence, pattern BlankSequence,
+                              pattern ConfirmPatternTest, pattern Default,
                               pattern Optional, pattern Pattern,
                               pattern PatternTest, pattern Test)
 import MicroMath.Expr.PPrint ()
 import MicroMath.PPrint      (PPrint (..))
 import MicroMath.Symbol      (Symbol)
+import MicroMath.Util        (pattern Pair, pattern Solo)
 
 {- | TODO:
 
@@ -160,29 +162,32 @@ patRootSymbol = \case
 anonVars :: [Symbol]
 anonVars = [ fromString ("$$PatVar" <> show i) | i <- [0 :: Int ..] ]
 
--- TODO: Keep track of current wrapping symbol f and if defExpr is
--- missing in Optional, set it to Defalt[f].
-patFromExpr :: forall m . Monad m => (Symbol -> m PatAppType) -> Expr -> m Pat
-patFromExpr lookupAppType = flip evalStateT 0 . go
+patFromExpr :: forall m . MonadFail m => (Symbol -> m PatAppType) -> Expr -> m Pat
+patFromExpr lookupAppType = flip evalStateT 0 . go Nothing
   where
-    go :: Expr -> StateT Int m Pat
-    go expr = case expr of
-      ExprApp Pattern (ExprSymbol x :<| expr' :<| Empty) ->
-        addName x <$> go expr'
-      ExprApp Blank Empty                    -> pure $ PatVar [] Nothing
-      ExprApp Blank (ExprSymbol h :<| Empty) -> pure $ PatVar [] (Just h)
-      ExprApp BlankSequence Empty            -> pure $ PatSeqVar [] OneOrMore
-      ExprApp BlankNullSequence Empty        -> pure $ PatSeqVar [] ZeroOrMore
-      ExprApp Alternatives pExprs@(_ :<| _) ->
-        foldr1 (PatAlt []) <$> traverse go pExprs
-      ExprApp Test (pExpr :<| cond :<| Empty) ->
-        PatCondition [] <$> go pExpr <*> pure cond
-      ExprApp Optional (pExpr :<| defExpr :<| Empty) -> do
-        pat <- go pExpr
+    go :: Maybe Symbol -> Expr -> StateT Int m Pat
+    go currentHead expr = case expr of
+      Pattern :@ Pair (ExprSymbol x) expr' ->
+        addName x <$> go currentHead expr'
+      Blank :@ Empty                    -> pure $ PatVar [] Nothing
+      Blank :@ Solo (ExprSymbol h)      -> pure $ PatVar [] (Just h)
+      BlankSequence :@ Empty            -> pure $ PatSeqVar [] OneOrMore
+      BlankNullSequence :@ Empty        -> pure $ PatSeqVar [] ZeroOrMore
+      Alternatives :@ pExprs@(_ :<| _) ->
+        foldr1 (PatAlt []) <$> traverse (go currentHead) pExprs
+      Test :@ Pair pExpr cond ->
+        PatCondition [] <$> go currentHead pExpr <*> pure cond
+      Optional :@ (Solo pExpr) -> do
+        pat <- go currentHead pExpr
+        case currentHead of
+          Just h  -> pure $ PatOptional [] pat (Default :@ Solo (ExprSymbol h))
+          Nothing -> fail "Optional pattern must appear under a head"
+      Optional :@ Pair pExpr defExpr -> do
+        pat <- go currentHead pExpr
         pure $ PatOptional [] pat defExpr
-      ExprApp PatternTest (pExpr :<| test :<| Empty) -> do
+      PatternTest :@ Pair pExpr test -> do
         testVar <- newAnonVarSymbol
-        pat <- go pExpr
+        pat <- go currentHead pExpr
         pure $
           PatCondition [] (addName testVar pat)
             (binary ConfirmPatternTest test (ExprSymbol testVar))
@@ -192,8 +197,9 @@ patFromExpr lookupAppType = flip evalStateT 0 . go
         appType <- case h of
           ExprSymbol sym -> lift $ lookupAppType sym
           _              -> pure PatAppFree
-        hPat <- go h
-        csPat <- traverse go cs
+        let headSym = case h of { ExprSymbol sym -> Just sym; _ -> Nothing }
+        hPat <- go headSym h
+        csPat <- traverse (go headSym) cs
         pure $ PatApp [] hPat appType csPat
 
     newAnonVarSymbol :: StateT Int m Symbol
