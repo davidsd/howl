@@ -37,6 +37,8 @@ module MicroMath.Eval.Context
   , newModuleSymbol
   , getDefinedSymbols
   , compilePat
+  , dummyAddToEvalCache
+  , dummyReturnIfInCache
   ) where
 
 import Control.Monad.Catch      (MonadCatch, MonadMask, MonadThrow)
@@ -75,10 +77,10 @@ newContext = do
   pure $ MkContext
     { symbolRecordTable      = symbolRecordTable
     , moduleNumberRef        = moduleNumberRef
-    -- , addToEvalCacheHandler  = defaultAddToEvalCache evalCache
-    -- , returnIfInCacheHandler = defaultReturnIfInCache evalCache
-    , addToEvalCacheHandler  = dummyAddToEvalCache evalCache
-    , returnIfInCacheHandler = dummyReturnIfInCache evalCache
+    , addToEvalCacheHandler  = defaultAddToEvalCache evalCache
+    , returnIfInCacheHandler = defaultReturnIfInCache evalCache
+    -- , addToEvalCacheHandler  = dummyAddToEvalCache evalCache
+    -- , returnIfInCacheHandler = dummyReturnIfInCache evalCache
     }
 
 runEvalWithContext :: Context -> Eval a -> IO a
