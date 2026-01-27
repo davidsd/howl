@@ -71,10 +71,10 @@ data AppType
 
 patAppTypeToAppType :: PatAppType -> AppType
 patAppTypeToAppType = \case
+  PatAppFree   -> AppFree
   PatAppC      -> AppC
   PatAppA sym  -> AppA sym Nothing
   PatAppAC sym -> AppAC sym Nothing
-  _            -> AppFree
 
 data Substitution = MkSubstitution Symbol Expr
   deriving (Eq, Ord, Show)
@@ -140,7 +140,7 @@ data MatchingEq
 -- equations: in practice, they are consing on 0,1, or 2 elements.
 data MatchStep
   = MatchBranch [Substitution] !(DList MatchingEq)
-  | MatchCondition !(DList MatchingEq) !Expr
+  | MatchCondition MatchingEq !Expr
 
 type DList a = [a] -> [a]
 
@@ -226,7 +226,7 @@ transformMatchK eq k z = case eq of
     let
       p' = addNames xs p
     in
-      k (MatchCondition (one $ SingleEq p' t) test) z
+      k (MatchCondition (SingleEq p' t) test) z
 
   -- | A PatApp matches an ExprApp if the heads match and the sequences match
   SingleEq (PatApp xs f fAppTy fArgs) expr@(ExprApp g gArgs) ->
@@ -264,7 +264,7 @@ transformMatchK eq k z = case eq of
     let
       p' = addNames xs p
     in
-      k (MatchCondition (one $ SeqEq appTy (p' :<| ss) ts) test) z
+      k (MatchCondition (SeqEq appTy (p' :<| ss) ts) test) z
 
   -- | Optional pattern in a sequence. The behavior here seems to be
   -- different from Mathematica. In Mathematica, you cannot name an
@@ -493,9 +493,8 @@ solveMatchMaybe initialMatchEq =
                     Just _  -> pure r
                     Nothing -> rest
 
-            MatchCondition addNewMatchEqs testExpr -> do
-              let condEqs = addNewMatchEqs []
-              r <- searchMatch condEqs substSet $ \substSet' -> do
+            MatchCondition condEq testExpr -> do
+              r <- searchMatch [condEq] substSet $ \substSet' -> do
                 ok <- checkTrue (applySubstitutions substSet' testExpr)
                 if ok
                   then searchMatch matchEqs substSet' onSuccess
