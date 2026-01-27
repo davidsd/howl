@@ -40,7 +40,7 @@ import MicroMath.Expr         (Expr (..), flattenWithHead, mapSymbols,
                                pattern ExprString)
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Pat          (Pat (..), PatAppType (..), SeqType (..),
-                               addNames)
+                               addNames, outerNames)
 import MicroMath.Symbol       (Symbol)
 import MicroMath.Util         (splits1K, splitsK, subSequencesK)
 
@@ -261,6 +261,20 @@ transformMatchK eq k z = case eq of
       p' = addNames xs p
     in
       k (MatchCondition (one $ SeqEq appTy (p' :<| ss) ts) test) z
+
+  -- | Optional pattern in a sequence. The behavior here seems to be
+  -- different from Mathematica. In Mathematica, you cannot name an
+  -- Optional pattern and have its variable name bound:
+  -- a:Optional[_,def] does not seem to bind a to anything. Meanwhile,
+  -- here a will be bound to whatever _ matches if it matches, or def
+  -- if it doesn't.
+  SeqEq appTy (PatOptional xs p defExpr :<| ss) ts ->
+    let
+      p' = addNames xs p
+    in
+      k (MatchBranch [] (one $ SeqEq appTy (p' :<| ss) ts)) $
+      k (MatchBranch (bindVars (outerNames p') defExpr) (one $ SeqEq appTy ss ts)) $
+      z
 
   -- | SVE: Sequence variable elimination (applies under any head)
   SeqEq appTy (PatSeqVar x seqTy :<| ss) ts ->

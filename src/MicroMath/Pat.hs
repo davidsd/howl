@@ -6,6 +6,7 @@ module MicroMath.Pat
   ( Pat(..)
   , PatAppType(..)
   , SeqType(..)
+  , outerNames
   , mapNames
   , addNames
   , patRootSymbol
@@ -20,8 +21,8 @@ import Data.String           (IsString (..))
 import MicroMath.Expr        (Expr (..), Literal, binary, pattern Alternatives,
                               pattern Blank, pattern BlankNullSequence,
                               pattern BlankSequence, pattern ConfirmPatternTest,
-                              pattern Pattern, pattern PatternTest,
-                              pattern Test)
+                              pattern Optional, pattern Pattern,
+                              pattern PatternTest, pattern Test)
 import MicroMath.Expr.PPrint ()
 import MicroMath.PPrint      (PPrint (..))
 import MicroMath.Symbol      (Symbol)
@@ -56,6 +57,7 @@ data Pat
   | PatSeqVar    ![Symbol] !SeqType
   | PatApp       ![Symbol] !Pat !PatAppType !(Seq Pat)
   | PatAlt       ![Symbol] !Pat !Pat
+  | PatOptional  ![Symbol] !Pat !Expr
   | PatCondition ![Symbol] !Pat !Expr
   deriving (Eq, Ord, Show)
 
@@ -72,17 +74,30 @@ data SeqType = ZeroOrMore | OneOrMore
 instance IsString Pat where
   fromString = PatSymbol [] . fromString
 
+-- | Map a function over the names of the outermost constructor in a
+-- 'Pat'.
 mapNames :: ([Symbol] -> [Symbol]) -> Pat -> Pat
 mapNames f = \case
-  PatSymbol    names l      -> PatSymbol    (f names) l
-  PatLit       names l      -> PatLit       (f names) l
-  PatVar       names h      -> PatVar       (f names) h
-  PatSeqVar    names ty     -> PatSeqVar    (f names) ty
-  PatApp       names h ty cs -> PatApp      (f names) h ty cs
-  PatAlt       names p1 p2  -> PatAlt       (f names) p1 p2
-  PatCondition names p expr ->
-    let names' = f names
-    in PatCondition names' p expr
+  PatSymbol    names l       -> PatSymbol    (f names) l
+  PatLit       names l       -> PatLit       (f names) l
+  PatVar       names h       -> PatVar       (f names) h
+  PatSeqVar    names ty      -> PatSeqVar    (f names) ty
+  PatApp       names h ty cs -> PatApp       (f names) h ty cs
+  PatAlt       names p1 p2   -> PatAlt       (f names) p1 p2
+  PatOptional  names p expr  -> PatOptional  (f names) p expr
+  PatCondition names p expr  -> PatCondition (f names) p expr
+
+-- | Get names from the outer-most constructor of a 'Pat'.
+outerNames :: Pat -> [Symbol]
+outerNames = \case
+  PatSymbol    names _     -> names
+  PatLit       names _     -> names
+  PatVar       names _     -> names
+  PatSeqVar    names _     -> names
+  PatApp       names _ _ _ -> names
+  PatAlt       names _ _   -> names
+  PatOptional  names _ _   -> names
+  PatCondition names _ _   -> names
 
 addNames :: [Symbol] -> Pat -> Pat
 addNames xs = mapNames (xs++)
@@ -126,6 +141,8 @@ instance PPrint Pat where
     ]
   pPrint (PatAlt names p1 p2) = pPrintNamed names $
     pPrint p1 ++ "|" ++ pPrint p2
+  pPrint (PatOptional names p e) = pPrintNamed names $
+    pPrint p ++ ":" ++ pPrint e
   pPrint (PatCondition names p t) = pPrintNamed names $
     pPrint p ++ "/;" ++ pPrint t
 
@@ -143,6 +160,8 @@ patRootSymbol = \case
 anonVars :: [Symbol]
 anonVars = [ fromString ("$$PatVar" <> show i) | i <- [0 :: Int ..] ]
 
+-- TODO: Keep track of current wrapping symbol f and if defExpr is
+-- missing in Optional, set it to Defalt[f].
 patFromExpr :: forall m . Monad m => (Symbol -> m PatAppType) -> Expr -> m Pat
 patFromExpr lookupAppType = flip evalStateT 0 . go
   where
@@ -158,6 +177,9 @@ patFromExpr lookupAppType = flip evalStateT 0 . go
         foldr1 (PatAlt []) <$> traverse go pExprs
       ExprApp Test (pExpr :<| cond :<| Empty) ->
         PatCondition [] <$> go pExpr <*> pure cond
+      ExprApp Optional (pExpr :<| defExpr :<| Empty) -> do
+        pat <- go pExpr
+        pure $ PatOptional [] pat defExpr
       ExprApp PatternTest (pExpr :<| test :<| Empty) -> do
         testVar <- newAnonVarSymbol
         pat <- go pExpr
@@ -171,8 +193,6 @@ patFromExpr lookupAppType = flip evalStateT 0 . go
           ExprSymbol sym -> lift $ lookupAppType sym
           _              -> pure PatAppFree
         hPat <- go h
-        -- (csPat, mkConditions) <- floatOutConditions <$> traverse go cs
-        -- pure $ mkConditions $ PatApp [] hPat appType csPat
         csPat <- traverse go cs
         pure $ PatApp [] hPat appType csPat
 

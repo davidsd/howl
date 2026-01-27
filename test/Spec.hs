@@ -340,6 +340,26 @@ main = hspec $ do
         result <- eval' "a + b + c /. Plus[x_] -> f[x]"
         pPrint result `shouldBe` "f[a + b + c]"
 
+      it "uses optional pattern when argument is present" $ do
+        result <- eval' "Foo[a,b,c] /. {Foo[Optional[x_,def],b,c] :> f[x]}"
+        pPrint result `shouldBe` "f[a]"
+
+      it "uses optional pattern default when argument is omitted" $ do
+        result <- eval' "Foo[b,c] /. {Foo[Optional[x_,def],b,c] :> f[x]}"
+        pPrint result `shouldBe` "f[def]"
+
+      it "handles multiple optional arguments" $ do
+        result <- eval' "Foo[] /. {Foo[Optional[x_,dx], Optional[y_,dy]] :> {x,y}}"
+        pPrint result `shouldBe` "{dx, dy}"
+
+      it "prefers provided optional arguments over defaults" $ do
+        result <- eval' "Foo[a] /. {Foo[Optional[x_,dx], Optional[y_,dy]] :> {x,y}}"
+        pPrint result `shouldBe` "{a, dy}"
+
+      it "respects head constraints inside optional patterns" $ do
+        result <- eval' "Foo[1] /. {Foo[Optional[x_Integer, dx]] :> x}"
+        pPrint result `shouldBe` "1"
+
     describe "Part" $ do
       it "extracts a list element" $ do
         result <- eval' "{1, 2, 3}[[2]]"
