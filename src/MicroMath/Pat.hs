@@ -16,6 +16,8 @@ import Control.Monad.State   (StateT, evalStateT, lift, state)
 import Data.Foldable         qualified as Foldable
 import Data.List             (intercalate)
 import Data.Sequence         (Seq, pattern (:<|), pattern (:|>), pattern Empty)
+import Data.Set              (Set)
+import Data.Set              qualified as Set
 import Data.String           (IsString (..))
 import MicroMath.Expr        (Expr (..), Literal, binary, pattern Alternatives,
                               pattern Blank, pattern BlankNullSequence,
@@ -56,7 +58,7 @@ data Pat
   | PatSeqVar    ![Symbol] !SeqType
   | PatApp       ![Symbol] !Pat !PatAppType !(Seq Pat)
   | PatAlt       ![Symbol] !Pat !Pat
-  | PatCondition ![Symbol] !Pat !Expr
+  | PatCondition ![Symbol] !(Set Symbol) !Pat !Expr
   deriving (Eq, Ord, Show)
 
 data PatAppType
@@ -80,7 +82,9 @@ mapNames f = \case
   PatSeqVar    names ty     -> PatSeqVar    (f names) ty
   PatApp       names h ty cs -> PatApp      (f names) h ty cs
   PatAlt       names p1 p2  -> PatAlt       (f names) p1 p2
-  PatCondition names p expr -> PatCondition (f names) p expr
+  PatCondition names _ p expr ->
+    let names' = f names
+    in PatCondition names' (patNamesPlain names' p) p expr
 
 addNames :: [Symbol] -> Pat -> Pat
 addNames xs = mapNames (xs++)
@@ -124,7 +128,7 @@ instance PPrint Pat where
     ]
   pPrint (PatAlt names p1 p2) = pPrintNamed names $
     pPrint p1 ++ "|" ++ pPrint p2
-  pPrint (PatCondition names p t) = pPrintNamed names $
+  pPrint (PatCondition names _ p t) = pPrintNamed names $
     pPrint p ++ "/;" ++ pPrint t
 
 -- | The patRootSymbol is the repeated head. If the patRootSymbol is a Symbol,
@@ -134,7 +138,7 @@ patRootSymbol :: Pat -> Maybe Symbol
 patRootSymbol = \case
   PatSymbol _ s      -> Just s
   PatApp _ h _ _     -> patRootSymbol h
-  PatCondition _ p _ -> patRootSymbol p
+  PatCondition _ _ p _ -> patRootSymbol p
   _                  -> Nothing
 
 -- | An infinite (lazy) list of symbols to be used as anonymous pattern variables
@@ -155,12 +159,13 @@ patFromExpr lookupAppType = flip evalStateT 0 . go
       ExprApp Alternatives pExprs@(_ :<| _) ->
         foldr1 (PatAlt []) <$> traverse go pExprs
       ExprApp Test (pExpr :<| cond :<| Empty) ->
-        PatCondition [] <$> go pExpr <*> pure cond
+        mkPatCondition [] <$> go pExpr <*> pure cond
       ExprApp PatternTest (pExpr :<| test :<| Empty) -> do
         testVar <- newAnonVarSymbol
         pat <- go pExpr
         pure $
-          PatCondition [] (addName testVar pat) (binary ConfirmPatternTest test (ExprSymbol testVar))
+          mkPatCondition [] (addName testVar pat)
+            (binary ConfirmPatternTest test (ExprSymbol testVar))
       ExprLit lit    -> pure $ PatLit [] lit
       ExprSymbol sym -> pure $ PatSymbol [] sym
       ExprApp h cs   -> do
@@ -186,6 +191,26 @@ floatOutConditions :: Seq Pat -> (Seq Pat, Pat -> Pat)
 floatOutConditions = goFloat Empty id
   where
     goFloat pats mkConditions Empty = (pats, mkConditions)
-    goFloat pats mkConditions (PatCondition names pat test :<| rest) =
-      goFloat pats ((\p -> PatCondition names p test) . mkConditions) (pat :<| rest)
+    goFloat pats mkConditions (PatCondition names _ pat test :<| rest) =
+      goFloat pats ((\p -> mkPatCondition names p test) . mkConditions) (pat :<| rest)
     goFloat pats mkConditions (pat :<| rest) = goFloat (pats :|> pat) mkConditions rest
+
+patNamesPlain :: [Symbol] -> Pat -> Set Symbol
+patNamesPlain names p =
+  Set.union (Set.fromList names) (patNamesInner p)
+  where
+    patNamesInner = \case
+      PatSymbol ns _     -> Set.fromList ns
+      PatLit ns _        -> Set.fromList ns
+      PatVar ns _        -> Set.fromList ns
+      PatSeqVar ns _     -> Set.fromList ns
+      PatApp ns h _ args ->
+        Set.unions [Set.fromList ns, patNamesInner h, Foldable.foldMap patNamesInner args]
+      PatAlt ns p1 p2    ->
+        Set.unions [Set.fromList ns, patNamesInner p1, patNamesInner p2]
+      PatCondition ns _ p' _ ->
+        Set.union (Set.fromList ns) (patNamesInner p')
+
+mkPatCondition :: [Symbol] -> Pat -> Expr -> Pat
+mkPatCondition names p expr =
+  PatCondition names (patNamesPlain names p) p expr
