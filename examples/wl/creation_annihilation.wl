@@ -2,13 +2,13 @@ ScalarQ[a] := False;
 ScalarQ[aDag] := False;
 ScalarQ[n_] /; NumericQ[n] := True;
 ScalarQ[x_ y_] := SclalarQ[x] && ScalarQ[y];
-ScalarQ[x_Plus] := And@@(ScalarQ/@x);
+ScalarQ[x_Plus] := And@@(ScalarQ/@(List@@x));
 ScalarQ[OpProduct[___]] := False;
 ScalarQ[_] := True;
 
 SetAttributes[OpProduct, Flat];
 OpProduct[x___,y_Plus,z___] := (OpProduct[x,#,z]&) /@ y;
-OpProduct[x___,y_ z_, w___] /; ScalarQ[y] := y OpProduct[x,z,w];
+OpProduct[x___,y_?ScalarQ z_, w___] := y OpProduct[x,z,w];
 
 (* The commutation relation *)
 OpProduct[x___,a,aDag,y___] := OpProduct[x,aDag,a,y] + OpProduct[x,y];
@@ -17,7 +17,7 @@ OpProduct[x___,a,aDag,y___] := OpProduct[x,aDag,a,y] + OpProduct[x,y];
 harmonic oscillator eigeinstates. *)
 MatrixElt[m_][OpProduct[]][n_] := If[m==n, 1, 0];
 MatrixElt[m_][x_Plus][n_] := (MatrixElt[m][#][n]&) /@ x;
-MatrixElt[m_][x_ y_][n_] /; ScalarQ[x] := x MatrixElt[m][y][n];
+MatrixElt[m_][x_?ScalarQ y_][n_] := x MatrixElt[m][y][n];
 MatrixElt[m_][OpProduct[x___,a]][n_] := Sqrt[n] MatrixElt[m][OpProduct[x]][n-1];
 MatrixElt[m_][OpProduct[x___,aDag]][n_] := Sqrt[n+1] MatrixElt[m][OpProduct[x]][n+1];
 

@@ -140,7 +140,7 @@ data MatchingEq
 -- equations: in practice, they are consing on 0,1, or 2 elements.
 data MatchStep
   = MatchBranch [Substitution] !(DList MatchingEq)
-  | MatchCondition !(Set Symbol) !(DList MatchingEq) !Expr
+  | MatchCondition !(DList MatchingEq) !Expr
 
 type DList a = [a] -> [a]
 
@@ -218,11 +218,11 @@ transformMatchK eq k z = case eq of
     z
 
   -- | Conditional pattern
-  SingleEq (PatCondition xs namesSet p test) t ->
+  SingleEq (PatCondition xs p test) t ->
     let
       p' = addNames xs p
     in
-      k (MatchCondition namesSet (one $ SingleEq p' t) test) z
+      k (MatchCondition (one $ SingleEq p' t) test) z
 
   -- | A PatApp matches an ExprApp if the heads match and the sequences match
   SingleEq (PatApp xs f fAppTy fArgs) expr@(ExprApp g gArgs) ->
@@ -254,6 +254,13 @@ transformMatchK eq k z = case eq of
     case seqTy of
       OneOrMore | ts == Empty -> z
       _                       -> k (MatchBranch (bindSeqVars x ts) zero) z
+
+  -- | Conditional pattern in a sequence
+  SeqEq appTy (PatCondition xs p test :<| ss) ts ->
+    let
+      p' = addNames xs p
+    in
+      k (MatchCondition (one $ SeqEq appTy (p' :<| ss) ts) test) z
 
   -- | SVE: Sequence variable elimination (applies under any head)
   SeqEq appTy (PatSeqVar x seqTy :<| ss) ts ->
@@ -442,25 +449,18 @@ transformMatchK eq k z = case eq of
 
   _ -> z
 
-type PendingCond = (Set Symbol, Expr)
-
 {-# INLINE solveMatchMaybe #-}
 solveMatchMaybe :: MatchingEq -> Eval (Maybe SubstitutionSet)
-solveMatchMaybe initialMatchEq = go [initialMatchEq] emptySubstitutionSet Set.empty []
+solveMatchMaybe initialMatchEq =
+  searchMatch [initialMatchEq] emptySubstitutionSet (pure . Just)
   where
-    go :: [MatchingEq] -> SubstitutionSet -> Set Symbol -> [PendingCond] -> Eval (Maybe SubstitutionSet)
-    go [] substSet bound conds = do
-      maybeConds <- checkReadyConds substSet bound conds
-      case maybeConds of
-        Nothing -> pure Nothing
-        Just remaining ->
-          if null remaining
-            then pure $ Just substSet
-            else do
-              ok <- checkAll substSet (map snd remaining)
-              pure $ if ok then Just substSet else Nothing
-
-    go (matchEq : matchEqs) substSet bound conds =
+    searchMatch
+      :: [MatchingEq]
+      -> SubstitutionSet
+      -> (SubstitutionSet -> Eval (Maybe SubstitutionSet))
+      -> Eval (Maybe SubstitutionSet)
+    searchMatch [] substSet onSuccess = onSuccess substSet
+    searchMatch (matchEq : matchEqs) substSet onSuccess =
       transformMatchK matchEq stepCase (pure Nothing)
       where
         stepCase :: MatchStep -> Eval (Maybe SubstitutionSet) -> Eval (Maybe SubstitutionSet)
@@ -470,58 +470,21 @@ solveMatchMaybe initialMatchEq = go [initialMatchEq] emptySubstitutionSet Set.em
               case insertSubstitutions newSubs substSet of
                 Nothing -> rest
                 Just substSet' -> do
-                  let
-                    newlyBound = Set.fromList [s | MkSubstitution s _ <- newSubs]
-                    bound' = Set.union bound newlyBound
-                  if Set.null newlyBound
-                    then do
-                      r <- go (addNewMatchEqs matchEqs) substSet' bound' conds
-                      case r of
-                        Just _  -> pure r
-                        Nothing -> rest
-                    else do
-                      maybeConds <- checkReadyConds substSet' bound' conds
-                      case maybeConds of
-                        Nothing -> rest
-                        Just conds' -> do
-                          r <- go (addNewMatchEqs matchEqs) substSet' bound' conds'
-                          case r of
-                            Just _  -> pure r
-                            Nothing -> rest
-
-            MatchCondition names addNewMatchEqs testExpr -> do
-              if Set.isSubsetOf names bound
-                then do
-                  ok <- checkTrue (applySubstitutions substSet testExpr)
-                  if ok
-                    then do
-                      r <- go (addNewMatchEqs matchEqs) substSet bound conds
-                      case r of
-                        Just _  -> pure r
-                        Nothing -> rest
-                    else rest
-                else do
-                  let conds' = (names, testExpr) : conds
-                  r <- go (addNewMatchEqs matchEqs) substSet bound conds'
+                  r <- searchMatch (addNewMatchEqs matchEqs) substSet' onSuccess
                   case r of
                     Just _  -> pure r
                     Nothing -> rest
 
-    checkReadyConds :: SubstitutionSet -> Set Symbol -> [PendingCond] -> Eval (Maybe [PendingCond])
-    checkReadyConds substSet bound conds = goReady [] conds
-      where
-        goReady acc [] = pure $ Just (reverse acc)
-        goReady acc ((names, testExpr) : rest)
-          | Set.isSubsetOf names bound = do
-              ok <- checkTrue (applySubstitutions substSet testExpr)
-              if ok then goReady acc rest else pure Nothing
-          | otherwise = goReady ((names, testExpr) : acc) rest
-
-    checkAll :: SubstitutionSet -> [Expr] -> Eval Bool
-    checkAll _ [] = pure True
-    checkAll substSet (testExpr : rest) = do
-      ok <- checkTrue (applySubstitutions substSet testExpr)
-      if ok then checkAll substSet rest else pure False
+            MatchCondition addNewMatchEqs testExpr -> do
+              let condEqs = addNewMatchEqs []
+              r <- searchMatch condEqs substSet $ \substSet' -> do
+                ok <- checkTrue (applySubstitutions substSet' testExpr)
+                if ok
+                  then searchMatch matchEqs substSet' onSuccess
+                  else pure Nothing
+              case r of
+                Just _  -> pure r
+                Nothing -> rest
 
 checkTrue :: Expr -> Eval Bool
 checkTrue = fmap (== Expr.True) . eval

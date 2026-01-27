@@ -587,7 +587,7 @@ exprHead _                = Nothing
 ---------- ConfirmPatternTest ----------
 
 confirmPatternTest :: Seq Expr -> Maybe Expr
-confirmPatternTest foo = Debug.traceShow foo $ case foo of
+confirmPatternTest = \case -- foo = Debug.traceShow foo $ case foo of
   Empty         -> Nothing
   test :<| rest -> Just $ And :@ (fmap (Expr.unary test) rest)
 
