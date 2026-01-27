@@ -210,15 +210,15 @@ transformMatchK eq k z = case eq of
   SingleEq (PatLit _ _)    (ExprApp _ _) -> z
 
   -- | A PatAlt has two branches corresponding to the two
-  -- patterns. Variables that are present in p2 but not present in p1
-  -- are bound to Sequence[] if p1 matches, and vice versa.
-  SingleEq (PatAlt xs miss1 miss2 p1 p2) t ->
-    let
-      p1' = addNames xs p1
-      p2' = addNames xs p2
-    in
-    k (MatchBranch (bindSeqVars miss1 Empty) (one $ SingleEq p1' t)) $
-    k (MatchBranch (bindSeqVars miss2 Empty) (one $ SingleEq p2' t)) $
+  -- patterns. NB: This only makes sense if the same free pattern
+  -- variables are present in each alternative.
+  --
+  -- It seems like Mathematica's behavior is that any pattern
+  -- variables in p2 get bound to Sequence[] if p1 matches, and vice
+  -- versa.
+  SingleEq (PatAlt xs p1 p2) t ->
+    k (MatchBranch [] (one $ SingleEq (addNames xs p1) t)) $
+    k (MatchBranch [] (one $ SingleEq (addNames xs p2) t)) $
     z
 
   -- | Conditional pattern

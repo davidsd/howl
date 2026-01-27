@@ -396,6 +396,14 @@ main = hspec $ do
         result <- eval' "Hold[Plus[1, 2]] /. {Hold[Plus[Optional[x_], Optional[y_], Optional[z_]]] :> {x,y,z}}"
         pPrint result `shouldBe` "{1, 2, 0}"
 
+      it "binds missing alt-pattern vars to Sequence[] (left branch)" $ do
+        result <- eval' "Foo[1] /. {Foo[x_Integer | y_String] :> {x, Baz[y]}}"
+        pPrint result `shouldBe` "{1, Baz[]}"
+
+      it "binds missing alt-pattern vars to Sequence[] (right branch)" $ do
+        result <- eval' "Foo[\"s\"] /. {Foo[x_Integer | y_String] :> {Baz[x], y}}"
+        pPrint result `shouldBe` "{Baz[], \"s\"}"
+
     describe "Part" $ do
       it "extracts a list element" $ do
         result <- eval' "{1, 2, 3}[[2]]"

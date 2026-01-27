@@ -1,4 +1,6 @@
+{-# OPTIONS_GHC -Wno-partial-fields #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NoFieldSelectors  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 
@@ -7,6 +9,7 @@ module MicroMath.Pat
   , PatAppType(..)
   , SeqType(..)
   , outerNames
+  , patNames
   , mapNames
   , addNames
   , patRootSymbol
@@ -18,6 +21,8 @@ import Data.Foldable         qualified as Foldable
 import Data.List             (intercalate)
 import Data.Sequence         (Seq, pattern (:<|), pattern Empty)
 import Data.String           (IsString (..))
+import Data.Set              (Set)
+import Data.Set              qualified as Set
 import MicroMath.Expr        (Expr (..), Literal, binary, pattern (:@),
                               pattern Alternatives, pattern Blank,
                               pattern BlankNullSequence, pattern BlankSequence,
@@ -41,7 +46,6 @@ Composite Patterns
 - KeyValuePattern
 
 Pattern Defaults
-_:e (Optional) pattern that defaults to e if omitted
 _. (Optional) pattern with predefined default
 Default - predefined default arguments for a function
 
@@ -52,15 +56,55 @@ Default - predefined default arguments for a function
 -- of the pattern match. We need a list because we can have something
 -- like x:(y:(z:_)). If the list is empty, the pattern is unnamed.
 data Pat
-  = PatSymbol    ![Symbol] {-# UNPACK #-} !Symbol
-  | PatLit       ![Symbol] !Literal
-    -- | The second argument is an optional head constraint.
-  | PatVar       ![Symbol] !(Maybe Symbol)
-  | PatSeqVar    ![Symbol] !SeqType
-  | PatApp       ![Symbol] !Pat !PatAppType !(Seq Pat)
-  | PatAlt       ![Symbol] !Pat !Pat
-  | PatOptional  ![Symbol] !Pat !Expr
-  | PatCondition ![Symbol] !Pat !Expr
+  -- | A literal symbol pattern.
+  = PatSymbol
+      { names  :: ![Symbol]
+      , symbol :: {-# UNPACK #-} !Symbol
+      }
+  -- | A literal (numeric/string) pattern.
+  | PatLit
+      { names   :: ![Symbol]
+      , literal :: !Literal
+      }
+  -- | A blank pattern, optionally constrained by a head symbol.
+  | PatVar
+      { names          :: ![Symbol]
+      , headConstraint :: !(Maybe Symbol)
+      }
+  -- | A sequence blank ('__' or '___').
+  | PatSeqVar
+      { names   :: ![Symbol]
+      , seqType :: !SeqType
+      }
+  -- | A head application pattern with precomputed app attributes.
+  | PatApp
+      { names   :: ![Symbol]
+      , headPat :: !Pat
+      , appType :: !PatAppType
+      , args    :: !(Seq Pat)
+      }
+  -- | Alternatives, with precomputed missing names for each branch.
+  --   When the left branch matches we bind missingInLeft to
+  --   'Sequence[]', and symmetrically for the right branch.
+  | PatAlt
+      { names          :: ![Symbol]
+      , missingInLeft  :: ![Symbol]
+      , missingInRight :: ![Symbol]
+      , left           :: !Pat
+      , right          :: !Pat
+      }
+  -- | An optional pattern with a default expression.
+  | PatOptional
+      { names       :: ![Symbol]
+      , pat         :: !Pat
+      , defaultExpr :: !Expr
+      }
+  -- | A pattern with a /; condition.
+  | PatCondition
+      { names    :: ![Symbol]
+      , pat      :: !Pat
+      , testExpr :: !Expr
+      }
   deriving (Eq, Ord, Show)
 
 data PatAppType
@@ -85,7 +129,7 @@ mapNames f = \case
   PatVar       names h       -> PatVar       (f names) h
   PatSeqVar    names ty      -> PatSeqVar    (f names) ty
   PatApp       names h ty cs -> PatApp       (f names) h ty cs
-  PatAlt       names p1 p2   -> PatAlt       (f names) p1 p2
+  PatAlt       names m1 m2 p1 p2 -> PatAlt   (f names) m1 m2 p1 p2
   PatOptional  names p expr  -> PatOptional  (f names) p expr
   PatCondition names p expr  -> PatCondition (f names) p expr
 
@@ -97,9 +141,25 @@ outerNames = \case
   PatVar       names _     -> names
   PatSeqVar    names _     -> names
   PatApp       names _ _ _ -> names
-  PatAlt       names _ _   -> names
+  PatAlt       names _ _ _ _ -> names
   PatOptional  names _ _   -> names
   PatCondition names _ _   -> names
+
+-- | All pattern variable names mentioned anywhere in a pattern.
+patNames :: Pat -> Set Symbol
+patNames = \case
+  PatSymbol names _     -> Set.fromList names
+  PatLit names _        -> Set.fromList names
+  PatVar names _        -> Set.fromList names
+  PatSeqVar names _     -> Set.fromList names
+  PatApp names h _ args ->
+    Set.unions [Set.fromList names, patNames h, Foldable.foldMap patNames args]
+  PatAlt names _ _ p1 p2 ->
+    Set.unions [Set.fromList names, patNames p1, patNames p2]
+  PatOptional names p _ ->
+    Set.union (Set.fromList names) (patNames p)
+  PatCondition names p _ ->
+    Set.union (Set.fromList names) (patNames p)
 
 addNames :: [Symbol] -> Pat -> Pat
 addNames xs = mapNames (xs++)
@@ -141,7 +201,7 @@ instance PPrint Pat where
     , intercalate ", " (map pPrint (Foldable.toList args))
     , "]"
     ]
-  pPrint (PatAlt names p1 p2) = pPrintNamed names $
+  pPrint (PatAlt names _ _ p1 p2) = pPrintNamed names $
     pPrint p1 ++ "|" ++ pPrint p2
   pPrint (PatOptional names p e) = pPrintNamed names $
     pPrint p ++ ":" ++ pPrint e
@@ -174,7 +234,7 @@ patFromExpr lookupAppType = flip evalStateT 0 . go Nothing
       BlankSequence :@ Empty            -> pure $ PatSeqVar [] OneOrMore
       BlankNullSequence :@ Empty        -> pure $ PatSeqVar [] ZeroOrMore
       Alternatives :@ pExprs@(_ :<| _) ->
-        foldr1 (PatAlt []) <$> traverse (go currentHead) pExprs
+        foldr1 mkPatAlt <$> traverse (go currentHead) pExprs
       Test :@ Pair pExpr cond ->
         PatCondition [] <$> go currentHead pExpr <*> pure cond
       Optional :@ (Solo pExpr) -> do
@@ -206,3 +266,12 @@ patFromExpr lookupAppType = flip evalStateT 0 . go Nothing
     newAnonVarSymbol = do
       varNum <- state (\i -> (i, i+1))
       pure $ anonVars !! varNum
+
+    mkPatAlt :: Pat -> Pat -> Pat
+    mkPatAlt p1 p2 =
+      let
+        n1 = patNames p1
+        n2 = patNames p2
+        miss1 = Set.toList (Set.difference n2 n1)
+        miss2 = Set.toList (Set.difference n1 n2)
+      in PatAlt [] miss1 miss2 p1 p2
