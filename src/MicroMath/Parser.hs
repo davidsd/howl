@@ -6,7 +6,6 @@
 module MicroMath.Parser
   ( normalizeParsedExpr
   , parseExprText
-  , parseCompoundExpressionText
   , readExprFile
   ) where
 
@@ -18,7 +17,7 @@ import Data.Char                      (isAlphaNum, isDigit)
 import Data.List                      (sortOn)
 import Data.Ord                       (Down (..))
 import Data.Scientific                (Scientific, base10Exponent, coefficient)
-import Data.Sequence                  (Seq, pattern (:<|), pattern Empty, (|>))
+import Data.Sequence                  (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence                  qualified as Seq
 import Data.Set                       qualified as Set
 import Data.String                    (IsString (..))
@@ -33,11 +32,12 @@ import MicroMath.Expr                 (BigFloat, Expr (..), pattern (:@),
                                        pattern ExprString, pattern ExprSymbol,
                                        pattern Optional, pattern Or,
                                        pattern Part, pattern Pattern,
+                                       pattern CompoundExpression,
                                        pattern Plus, pattern Sequence,
                                        pattern Subtract, pattern Times)
 import MicroMath.Expr                 qualified as Expr
 import MicroMath.Symbol               (Symbol)
-import MicroMath.Util                 (pattern Pair, pattern Solo)
+import MicroMath.Util                 (pattern Pair)
 import Numeric.Rounded.Simple         qualified as Rounded
 import Data.List                    (intercalate)
 import Data.List.NonEmpty           (toList)
@@ -68,7 +68,6 @@ data Tok
   | TLBrace | TRBrace -- { }
   | TLAssoc | TRAssoc -- <| |>
   | TComma
-  | TSemi
   | TOp Op
   deriving (Eq, Ord, Show)
 
@@ -126,6 +125,7 @@ data Op
   | OpBracketApply
   | OpPrefixPart
   | OpColon
+  | OpSemi
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 opToText :: Op -> Text
@@ -171,12 +171,19 @@ opToText = \case
   OpBracketApply      -> "<BracketApply>" -- internal only
   OpPrefixPart        -> "<Part>" -- internal only
   OpColon             -> ":"
+  OpSemi              -> ";"
+
+internalOps :: [Op]
+internalOps = [OpBracketApply, OpPrefixPart]
 
 -- | Important: sorted in reverse order of length
 opTextTable :: [(Op, Text)]
 opTextTable =
   sortOn (Down . Text.length . snd)
-  [ (op, opToText op) | op <- [minBound .. maxBound], op /= OpPrefixPart]
+  [ (op, opToText op)
+  | op <- [minBound .. maxBound]
+  , not (op `elem` internalOps)
+  ]
 
 blankTypeToExpr :: BlankType -> Expr
 blankTypeToExpr = \case
@@ -336,7 +343,6 @@ parsePunct = lexeme $ choice
   , TLBrack       <$ char '['
   , TRBrack       <$ char ']'
   , TComma        <$ char ','
-  , TSemi         <$ char ';'
   ]
 
 parseTok :: TextParser Tok
@@ -384,6 +390,30 @@ mergeDoubleBrackets = go (0 :: Int)
       | otherwise = TRBrack : go depth (TRBrack:ts)
     go depth (t:ts) = t : go depth ts
 
+-- | Insert a trailing Null after a semicolon when the next token is a closing
+-- token (or end of input), so compound expressions like "a;" parse as "a;Null".
+insertNullAfterTrailingSemi :: [Tok] -> [Tok]
+insertNullAfterTrailingSemi = go
+  where
+    go [] = []
+    go [TOp OpSemi] = [TOp OpSemi, TIdent "Null"]
+    go [t] = [t]
+    go (t1:t2:ts)
+      | t1 == TOp OpSemi && isClosingTok t2 =
+          t1 : TIdent "Null" : go (t2:ts)
+      | otherwise =
+          t1 : go (t2:ts)
+
+isClosingTok :: Tok -> Bool
+isClosingTok = \case
+  TRParen    -> True
+  TRBrack    -> True
+  TRDblBrack -> True
+  TRBrace    -> True
+  TRAssoc    -> True
+  TComma     -> True
+  _          -> False
+
 -- | Insert OpTimes between tokens where whitespace should be interpreted as multiplication.
 -- In Wolfram Language, adjacent terms like "2 x" or "f g" are multiplied.
 insertTimes :: [Tok] -> [Tok]
@@ -427,7 +457,9 @@ canStartMult = \case
   _          -> False
 
 lexAll :: TextParser [Tok]
-lexAll = fmap (insertApply . insertTimes . mergeDoubleBrackets) (sc *> many parseTok <* eof)
+lexAll =
+  fmap (insertApply . insertTimes . insertNullAfterTrailingSemi . mergeDoubleBrackets)
+    (sc *> many parseTok <* eof)
 
 -- | Now we're ready to define parsers that consume Tok's. We will
 -- build an expression parser, which means we only need to define
@@ -575,6 +607,8 @@ opTable =
     ]
   , [ prefix OpQuestion         (Expr.unary "Help")
     ]
+  , [ binaryL OpSemi            (Expr.binary CompoundExpression)
+    ]
   ]
 
 -- | [Note: Pattern vs Optional] In WL, both Pattern and Optional are
@@ -645,6 +679,7 @@ normalizeParsedExpr expr = case expr of
   Times :@ args -> flattenHead Times args
   And   :@ args -> flattenHead And   args
   Or    :@ args -> flattenHead Or    args
+  CompoundExpression :@ args -> flattenHead CompoundExpression args
   h :@ args ->
     normalizeParsedExpr h :@ fmap normalizeParsedExpr args
   where
@@ -655,46 +690,22 @@ parseExpr = do
   expr <- makeExprParser parseTerm opTable
   normalizePatternChains (normalizeParsedExpr expr)
 
-parseExprText :: Text -> Either String Expr
-parseExprText txt =
-  case parse lexAll "<expr>" txt of
-    Left bundle -> Left (errorBundlePretty bundle)
-    Right toks ->
-      case parse parseExpr "<tokens>" toks of
-        Left bundle -> Left (tokErrorBundlePretty bundle)
-        Right expr  -> Right expr
-
-parseCompoundExpression :: TokParser Expr
-parseCompoundExpression = do
-  (exprs, hasTrailing) <- getExpr Empty
-  pure $ case (exprs, hasTrailing) of
-    (Empty, _)         -> Expr.Null
-    (Solo expr, False) -> expr
-    (_        , True)  -> Expr.CompoundExpression :@ (exprs |> Expr.Null)
-    (_        , False) -> Expr.CompoundExpression :@ exprs
-  where
-    getExpr exprs = optional parseExpr >>= \case
-      Just expr -> getSemi (exprs |> expr)
-      -- Has trailing semicolon
-      Nothing   -> pure (exprs, True)
-    getSemi exprs = optional (single TSemi) >>= \case
-      Just _ -> getExpr exprs
-      -- No trailing semicolon
-      Nothing -> pure (exprs, False)
-
-parseCompoundExpressionText :: FilePath -> Text -> Either String Expr
-parseCompoundExpressionText path ce =
-  case parse lexAll path ce of
+parseExprTextWithPath :: FilePath -> Text -> Either String Expr
+parseExprTextWithPath path txt =
+  case parse lexAll path txt of
     Left bundle -> Left $ errorBundlePretty bundle
     Right toks ->
-      case parse parseCompoundExpression path toks of
+      case parse parseExpr path toks of
         Left bundle -> Left $ tokErrorBundlePretty bundle
         Right expr  -> Right expr
+
+parseExprText :: Text -> Either String Expr
+parseExprText = parseExprTextWithPath "<expr>"
 
 readExprFile :: MonadIO m => FilePath -> m Expr
 readExprFile path = liftIO $ do
   contents <- Text.readFile path
-  case parseCompoundExpressionText path contents of
+  case parseExprTextWithPath path contents of
     Left err   -> putStrLn err >> pure Expr.Null
     Right expr -> pure expr
 

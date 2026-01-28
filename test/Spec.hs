@@ -263,6 +263,13 @@ main = hspec $ do
     it "parses multiple bracket applies with prefix apply (wl syntax)" $
       parseExprText "a@b[c][d][e]" `shouldBe` parseExprText "a[b[c][d][e]]"
 
+  describe "CompoundExpression parsing" $ do
+    it "parses trailing semicolon as Null at end of input" $
+      parseExprText "a;" `shouldBe` parseExprText "a;Null"
+
+    it "parses trailing semicolon before comma as Null" $
+      parseExprText "f[a;, b]" `shouldBe` parseExprText "f[a;Null, b]"
+
   describe "Part parsing" $ do
     it "parses double brackets into Part" $
       parseExprText "a[[b,c]]"

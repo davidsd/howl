@@ -45,7 +45,7 @@ import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                pattern Times, toBigFloat, toDouble)
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Expr.TH      (declareBuiltins)
-import MicroMath.Parser       (parseCompoundExpressionText, readExprFile)
+import MicroMath.Parser       (parseExprText, readExprFile)
 import MicroMath.Pat          (patRootSymbol)
 import MicroMath.Symbol       (Symbol)
 import MicroMath.ToBuiltin    (ToBuiltin (..), builtinDecl, Variadic(..))
@@ -867,7 +867,7 @@ help sym = do
 -- ========== Building Contexts ========== --
 
 run :: Text -> Eval Expr
-run input = case parseCompoundExpressionText "" input of
+run input = case parseExprText input of
   Left err   -> liftIO (putStrLn err) >> pure Expr.Null
   Right expr -> eval expr
 
