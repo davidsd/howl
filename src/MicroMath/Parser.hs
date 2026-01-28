@@ -10,6 +10,7 @@ module MicroMath.Parser
   , readExprFile
   ) where
 
+import Control.Applicative            (some)
 import Control.Monad                  (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Control.Monad.IO.Class         (MonadIO, liftIO)
@@ -56,7 +57,7 @@ import Text.Megaparsec.Error         (ParseError, ParseErrorBundle,
 data Tok
   = TIdent  Symbol
   | TInt    Integer
-  | TReal   Double -- TODO: Multiprecision
+  | TReal   Double
   | TBigFloat BigFloatTok
   | TPatVar (Maybe Symbol) BlankType (Maybe Symbol)
   | TSlot   (Maybe Integer) SlotType
@@ -122,6 +123,7 @@ data Op
   | OpAmpersand
   | OpTilde
   | OpPrefixApply
+  | OpBracketApply
   | OpPrefixPart
   | OpColon
   deriving (Eq, Ord, Show, Bounded, Enum)
@@ -166,6 +168,7 @@ opToText = \case
   OpAmpersand         -> "&"
   OpTilde             -> "~"   -- TODO
   OpPrefixApply       -> "@"
+  OpBracketApply      -> "<BracketApply>" -- internal only
   OpPrefixPart        -> "<Part>" -- internal only
   OpColon             -> ":"
 
@@ -254,13 +257,46 @@ parseNumber =
           e = base10Exponent s
       in c * (10 ^ e)
 
+specialCharMap :: [(String, Char)]
+specialCharMap =
+  [ ("Alpha",   '\x0391'), ("Beta",    '\x0392'), ("Gamma",   '\x0393')
+  , ("Delta",   '\x0394'), ("Epsilon", '\x0395'), ("Zeta",    '\x0396')
+  , ("Eta",     '\x0397'), ("Theta",   '\x0398'), ("Iota",    '\x0399')
+  , ("Kappa",   '\x039A'), ("Lambda",  '\x039B'), ("Mu",      '\x039C')
+  , ("Nu",      '\x039D'), ("Xi",      '\x039E'), ("Omicron", '\x039F')
+  , ("Pi",      '\x03A0'), ("Rho",     '\x03A1'), ("Sigma",   '\x03A3')
+  , ("Tau",     '\x03A4'), ("Upsilon", '\x03A5'), ("Phi",     '\x03A6')
+  , ("Chi",     '\x03A7'), ("Psi",     '\x03A8'), ("Omega",   '\x03A9')
+  , ("alpha",   '\x03B1'), ("beta",    '\x03B2'), ("gamma",   '\x03B3')
+  , ("delta",   '\x03B4'), ("epsilon", '\x03B5'), ("zeta",    '\x03B6')
+  , ("eta",     '\x03B7'), ("theta",   '\x03B8'), ("iota",    '\x03B9')
+  , ("kappa",   '\x03BA'), ("lambda",  '\x03BB'), ("mu",      '\x03BC')
+  , ("nu",      '\x03BD'), ("xi",      '\x03BE'), ("omicron", '\x03BF')
+  , ("pi",      '\x03C0'), ("rho",     '\x03C1'), ("sigma",   '\x03C3')
+  , ("tau",     '\x03C4'), ("upsilon", '\x03C5'), ("phi",     '\x03C6')
+  , ("chi",     '\x03C7'), ("psi",     '\x03C8'), ("omega",   '\x03C9')
+  ]
+
 -- This is only a starter ident lexer.
 -- WL symbols allow contexts with backticks, $, and more.
 parseSymbol :: TextParser Symbol
 parseSymbol = lexeme $ do
-  first <- letterChar <|> char '$'
-  rest <- many (satisfy (\c -> isAlphaNum c || c `elem` ("$`" :: String)))
+  first <- symbolStart
+  rest <- many symbolChar
   pure (fromString (first:rest))
+  where
+    symbolStart = parseSpecialChar <|> letterChar <|> char '$'
+    symbolChar =
+      parseSpecialChar <|>
+      satisfy (\c -> isAlphaNum c || c `elem` ("$`" :: String))
+
+    parseSpecialChar = do
+      _ <- string "\\["
+      name <- some letterChar
+      _ <- char ']'
+      case lookup name specialCharMap of
+        Just c -> pure c
+        Nothing -> fail ("unknown special character: " <> name)
 
 parseIdent :: TextParser Tok
 parseIdent = TIdent <$> parseSymbol
@@ -328,7 +364,7 @@ insertApply :: [Tok] -> [Tok]
 insertApply ts = do
   t <- ts
   case t of
-    TLBrack    -> [TOp OpPrefixApply, TLBrack]
+    TLBrack    -> [TOp OpBracketApply, TLBrack]
     TLDblBrack -> [TOp OpPrefixPart, TLDblBrack]
     _          -> pure t
 
@@ -476,7 +512,9 @@ opTable :: [[Operator TokParser Expr]]
 opTable =
   [ [ binaryL OpQuestion        (Expr.binary "PatternTest")
     ]
-  , [ binaryL OpPrefixApply     applyExprFlattenSequence
+  , [ binaryL OpBracketApply    applyExprFlattenSequence
+    ]
+  , [ binaryR OpPrefixApply     applyExprFlattenSequence
     , binaryL OpPrefixPart      applyExprPartSequence
     ]
   , [ binaryL OpApply           (Expr.binary "Apply")

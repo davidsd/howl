@@ -9,8 +9,6 @@
 module MicroMath.Eval
   ( SubstitutionSet(..)
   , Substitution(..)
-  , MatchingEq(..)
-  , singletonSubstitutionSet
   , emptySubstitutionSet
   , insertSubstitution
   , insertSubstitutions
@@ -42,7 +40,7 @@ import MicroMath.Expr         (Expr (..), flattenWithHead, mapSymbols,
                                pattern ExprString)
 import MicroMath.Expr         qualified as Expr
 import MicroMath.Pat          (Pat (..), PatAppType (..), SeqType (..),
-                               addNames, outerNames)
+                               addNames)
 import MicroMath.Symbol       (Symbol)
 import MicroMath.Util         (splits1K, splitsK, subSequencesK)
 
@@ -73,10 +71,10 @@ data AppType
 
 patAppTypeToAppType :: PatAppType -> AppType
 patAppTypeToAppType = \case
-  PatAppFree   -> AppFree
   PatAppC      -> AppC
   PatAppA sym  -> AppA sym Nothing
   PatAppAC sym -> AppAC sym Nothing
+  _            -> AppFree
 
 data Substitution = MkSubstitution Symbol Expr
   deriving (Eq, Ord, Show)
@@ -90,7 +88,7 @@ emptySubstitutionSet :: SubstitutionSet
 emptySubstitutionSet = MkSubstitutionSet Map.empty
 
 singletonSubstitutionSet :: Symbol -> Expr -> SubstitutionSet
-singletonSubstitutionSet x expr = MkSubstitutionSet $ Map.singleton x expr
+singletonSubstitutionSet x expr = MkSubstitutionSet $ Map.si
 
 -- | Attempt to insert a Substitution. If an old binding is already
 -- present and agrees with the new one, or if there was no old
@@ -145,7 +143,7 @@ data MatchingEq
 -- equations: in practice, they are consing on 0,1, or 2 elements.
 data MatchStep
   = MatchBranch [Substitution] !(DList MatchingEq)
-  | MatchCondition MatchingEq !Expr
+  | MatchCondition !(Set Symbol) !(DList MatchingEq) !Expr
 
 type DList a = [a] -> [a]
 
@@ -215,23 +213,19 @@ transformMatchK eq k z = case eq of
   SingleEq (PatLit _ _)    (ExprApp _ _) -> z
 
   -- | A PatAlt has two branches corresponding to the two
-  -- patterns. Variables that are present in p2 but not present in p1
-  -- are bound to Sequence[] if p1 matches, and vice versa.
-  SingleEq (PatAlt xs miss1 miss2 p1 p2) t ->
-    let
-      p1' = addNames xs p1
-      p2' = addNames xs p2
-    in
-    k (MatchBranch (bindSeqVars miss1 Empty) (one $ SingleEq p1' t)) $
-    k (MatchBranch (bindSeqVars miss2 Empty) (one $ SingleEq p2' t)) $
+  -- patterns. NB: This only makes sense if the same free pattern
+  -- variables are present in each alternative.
+  SingleEq (PatAlt xs p1 p2) t ->
+    k (MatchBranch [] (one $ SingleEq (addNames xs p1) t)) $
+    k (MatchBranch [] (one $ SingleEq (addNames xs p2) t)) $
     z
 
   -- | Conditional pattern
-  SingleEq (PatCondition xs p test) t ->
+  SingleEq (PatCondition xs namesSet p test) t ->
     let
       p' = addNames xs p
     in
-      k (MatchCondition (SingleEq p' t) test) z
+      k (MatchCondition namesSet (one $ SingleEq p' t) test) z
 
   -- | A PatApp matches an ExprApp if the heads match and the sequences match
   SingleEq (PatApp xs f fAppTy fArgs) expr@(ExprApp g gArgs) ->
@@ -263,27 +257,6 @@ transformMatchK eq k z = case eq of
     case seqTy of
       OneOrMore | ts == Empty -> z
       _                       -> k (MatchBranch (bindSeqVars x ts) zero) z
-
-  -- | Conditional pattern in a sequence
-  SeqEq appTy (PatCondition xs p test :<| ss) ts ->
-    let
-      p' = addNames xs p
-    in
-      k (MatchCondition (SeqEq appTy (p' :<| ss) ts) test) z
-
-  -- | Optional pattern in a sequence. The behavior here seems to be
-  -- different from Mathematica. In Mathematica, you cannot name an
-  -- Optional pattern and have its variable name bound:
-  -- a:Optional[_,def] does not seem to bind a to anything. Meanwhile,
-  -- here a will be bound to whatever _ matches if it matches, or def
-  -- if it doesn't.
-  SeqEq appTy (PatOptional xs p defExpr :<| ss) ts ->
-    let
-      p' = addNames xs p
-    in
-      k (MatchBranch [] (one $ SeqEq appTy (p' :<| ss) ts)) $
-      k (MatchBranch (bindVars (outerNames p') defExpr) (one $ SeqEq appTy ss ts)) $
-      z
 
   -- | SVE: Sequence variable elimination (applies under any head)
   SeqEq appTy (PatSeqVar x seqTy :<| ss) ts ->
@@ -498,8 +471,9 @@ solveMatchMaybe initialMatchEq =
                     Just _  -> pure r
                     Nothing -> rest
 
-            MatchCondition condEq testExpr -> do
-              r <- searchMatch [condEq] substSet $ \substSet' -> do
+            MatchCondition _names addNewMatchEqs testExpr -> do
+              let condEqs = addNewMatchEqs []
+              r <- searchMatch condEqs substSet $ \substSet' -> do
                 ok <- checkTrue (applySubstitutions substSet' testExpr)
                 if ok
                   then searchMatch matchEqs substSet' onSuccess

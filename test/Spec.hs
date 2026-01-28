@@ -250,6 +250,19 @@ main = hspec $ do
       parseExprText "-b!" `shouldBe`
         Right (ExprApp "Times" (Seq.fromList [ExprInteger (-1), ExprApp "Factorial" (Seq.fromList ["b"])]))
 
+    it "parses prefix apply lower precedence than bracket apply" $
+      parseExprText "a@b[c][d]" `shouldBe`
+        Right (ExprApp "a" (Seq.fromList [ExprApp (ExprApp "b" (Seq.fromList ["c"])) (Seq.fromList ["d"])]))
+
+    it "parses prefix apply as right associative (wl syntax)" $
+      parseExprText "a@b@c" `shouldBe` parseExprText "a[b[c]]"
+
+    it "parses mixed prefix apply and bracket apply (wl syntax)" $
+      parseExprText "a@b[c]@d" `shouldBe` parseExprText "a[b[c][d]]"
+
+    it "parses multiple bracket applies with prefix apply (wl syntax)" $
+      parseExprText "a@b[c][d][e]" `shouldBe` parseExprText "a[b[c][d][e]]"
+
   describe "Part parsing" $ do
     it "parses double brackets into Part" $
       parseExprText "a[[b,c]]"
@@ -454,6 +467,18 @@ main = hspec $ do
       it "creates lists" $ do
         result <- eval' "{1, 2, 3}"
         pPrint result `shouldBe` "{1, 2, 3}"
+
+      it "computes Length of a list" $ do
+        result <- eval' "Length[{1, 2, 3}]"
+        pPrint result `shouldBe` "3"
+
+      it "takes a prefix of a list" $ do
+        result <- eval' "Take[{1, 2, 3}, 2]"
+        pPrint result `shouldBe` "{1, 2}"
+
+      it "drops a prefix of a list" $ do
+        result <- eval' "Drop[{1, 2, 3}, 2]"
+        pPrint result `shouldBe` "{3}"
 
       it "maps over lists" $ do
         result <- eval' "Map[f, {1, 2, 3}]"

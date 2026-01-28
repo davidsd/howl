@@ -24,7 +24,8 @@ import Math.Combinat          (binomial, multinomial)
 import MicroMath.Eval         (Substitution (..), SubstitutionSet,
                                emptySubstitutionSet, eval, insertSubstitution,
                                insertSubstitutions, lookupBinding,
-                               removeBindings, tryApplyRule)
+                               removeBindings, singletonSubstitutionSet,
+                               tryApplyRule, solveMatchMaybe, MatchingEq(..))
 import MicroMath.Eval.Context (Attributes (..), Decl (..), Eval (..),
                                HoldType (..), Rule (..), addDecl, clear,
                                clearAll, compilePat, getDefinedSymbols,
@@ -42,7 +43,7 @@ import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                pattern Slot, pattern TagSetDelayed,
                                pattern Times, toBigFloat, toDouble)
 import MicroMath.Expr         qualified as Expr
-import MicroMath.Expr.TH      (declareBuiltin, declareBuiltins)
+import MicroMath.Expr.TH      (declareBuiltins)
 import MicroMath.Parser       (parseCompoundExpressionText, readExprFile)
 import MicroMath.Pat          (patRootSymbol)
 import MicroMath.Symbol       (Symbol)
@@ -304,15 +305,44 @@ equalDef _ _                             = Nothing
 
 -- ========== Scoped constructs ========== --
 
----------- Function ----------
+$(declareBuiltins ''Expr 'fromString
+  [ "Function"
+  , "Let"
+  , "Module"
+  , "Table"
+  ])
 
-$(declareBuiltin ''Expr 'fromString "Function" "Function")
-$(declareBuiltin ''Expr 'fromString "Let" "Let")
-$(declareBuiltin ''Expr 'fromString "Module" "Module")
+-- | A datatype that matches a single expression e or a list of
+-- expressions {e1,...,en}, such that the expressions can all be
+-- mapped to the type 'a'.
+newtype ListOrSolo a = MkListOrSolo (Seq a)
+instance FromExpr a => FromExpr (ListOrSolo a) where
+  fromExpr = fmap MkListOrSolo . \case
+    List :@ es -> mapM fromExpr es
+    e          -> fmap pure $ fromExpr e
+
+data TableRange
+  = RangeLength Integer
+  | RangeIndices Symbol Numeric Numeric Numeric
+  | RangeList Symbol (Seq Expr)
+
+instance FromExpr TableRange where
+  fromExpr = \case
+    List :@ Solo (ExprInteger i)
+      -> Just $ RangeLength i
+    List :@ (ExprSymbol x :<| ExprNumeric i :<| Empty)
+      -> Just $ RangeIndices x 1 i 1
+    List :@ (ExprSymbol x :<| ExprNumeric i :<| ExprNumeric j :<| Empty)
+      -> Just $ RangeIndices x i j 1
+    List :@ (ExprSymbol x :<| ExprNumeric i :<| ExprNumeric j :<| ExprNumeric k :<| Empty)
+      -> Just $ RangeIndices x i j k
+    List :@ (ExprSymbol x :<| (List :@ xs) :<| Empty)
+      -> Just $ RangeList x xs
+    _ -> Nothing
 
 -- | Detects any new variables introduced by the given
 -- expression. This is used to avoid overwriting shadowing variables
--- in constructs like Function, Let, and Module.
+-- in constructs like Function, Let, Module, and Table.
 --
 -- For example, we should have:
 --
@@ -327,6 +357,10 @@ introducedVariables = \case
   Function :@ Pair (ExprView (MkListOrSolo vars))     _ -> vars
   Let      :@ Pair (ExprView (MkListOrSolo bindings)) _ -> fmap bindVar bindings
   Module   :@ Pair (ExprView (MkListOrSolo vars))     _ -> vars
+  Table    :@ Pair _ (ExprView range) -> case range of
+    RangeIndices var _ _ _ -> Solo var
+    RangeList var _        -> Solo var
+    _                      -> Empty
   _ -> Empty
 
 -- | Replace the Symbols in the given Expr with their corresponding
@@ -347,14 +381,7 @@ applySubstitutionsWithShadowing = go
         | Just rhs <- lookupBinding sym substSet -> rhs
       _ -> expr
 
--- | A datatype that matches a single expression e or a list of
--- expressions {e1,...,en}, such that the expressions can all be
--- mapped to the type 'a'.
-newtype ListOrSolo a = MkListOrSolo (Seq a)
-instance FromExpr a => FromExpr (ListOrSolo a) where
-  fromExpr = fmap MkListOrSolo . \case
-    List :@ es -> mapM fromExpr es
-    e          -> fmap pure $ fromExpr e
+---------- Function ----------
 
 -- | Function[x,body][y] is implemented by performing the symbolic
 -- substitution body /. x->y *before evaluation*. As a consequence,
@@ -466,10 +493,24 @@ mapDef = \cases
   f (h :@ xs) -> Just $ h :@ (fmap (Expr.unary f) xs)
   _ _ -> Nothing
 
+-- TODO: multiple indices
+mapAt :: Expr -> Expr -> Int -> Maybe Expr
+mapAt fExpr (ExprApp h cs) n
+  | n == 0
+  = Just $ ExprApp (Expr.unary fExpr h) cs
+  | n > 0 && n <= Seq.length cs
+  = Just $ ExprApp h $ Seq.adjust' (Expr.unary fExpr) (n-1) cs
+  | n < 0 && -n <= Seq.length cs
+  = Just $ ExprApp h $ Seq.adjust' (Expr.unary fExpr) (Seq.length cs + n) cs
+  | otherwise = Nothing
+mapAt _ _ _ = Nothing
+
 ---------- ReplaceAll ----------
 
-$(declareBuiltin ''Expr 'fromString "RuleDelayed" "RuleDelayed")
-$(declareBuiltin ''Expr 'fromString "Rule" "Rule")
+$(declareBuiltins ''Expr 'fromString
+  [ "RuleDelayed"
+  , "Rule"
+  ])
 
 -- | Either a Rule or RuleDelayed. These are treated in exactly the
 -- same way -- the only difference being that RuleDelayed has
@@ -539,6 +580,13 @@ replaceRepeated expr rules = go expr
         then go newExpr
         else pure newExpr
 
+---------- Length ----------
+
+lengthDef :: Expr -> Int
+lengthDef = \case
+  ExprApp _ xs -> Seq.length xs
+  _            -> 0
+
 ---------- Part ----------
 
 -- | This matches Mathematica's behavior where it only returns a Part
@@ -581,6 +629,58 @@ exprHead (ExprDouble _)   = Just "Double"
 exprHead (ExprBigFloat _) = Just "BigFloat"
 exprHead (ExprString _)   = Just "String"
 exprHead _                = Nothing
+
+---------- Table ----------
+
+table :: Expr -> TableRange -> Expr
+table body range = case range of
+  RangeLength n -> List :@ Seq.replicate (fromIntegral n) body
+  RangeIndices xVar i j k -> List :@ Seq.unfoldr go i
+    where
+      go x
+        | x > j = Nothing
+        | otherwise =
+          let
+            subst = singletonSubstitutionSet xVar (ExprNumeric x)
+            body' = applySubstitutionsWithShadowing subst body
+          in
+            Just (body', x + k)
+  RangeList xVar xs -> List :@ fmap substX xs
+    where
+      substX x = applySubstitutionsWithShadowing (singletonSubstitutionSet xVar x) body
+
+
+---------- Take/Drop ----------
+
+newtype AList a = MkList (Seq a)
+
+instance FromExpr a => FromExpr (AList a) where
+  fromExpr = \case
+    List :@ xs -> fmap MkList (mapM fromExpr xs)
+    _          -> Nothing
+
+instance ToExpr a => ToExpr (AList a) where
+  toExpr (MkList xs) = List :@ fmap toExpr xs
+
+takeDef :: AList Expr -> Int -> AList Expr
+takeDef (MkList xs) n = MkList (Seq.take n xs)
+
+dropDef :: AList Expr -> Int -> AList Expr
+dropDef (MkList xs) n = MkList (Seq.drop n xs)
+
+---------- Count ----------
+
+-- TODO: Level specification
+count :: AList Expr -> Expr -> Eval Int
+count (MkList xs) patExpr = do
+  pat <- compilePat patExpr
+  let
+    go expr i = do
+      maybeMatch <- solveMatchMaybe (SingleEq pat expr)
+      pure $ case maybeMatch of
+        Just _  -> i+1
+        Nothing -> i
+  Foldable.foldrM go 0 xs
 
 ---------- ConfirmPatternTest ----------
 
@@ -757,6 +857,7 @@ defStdLib = do
   modifyAttributes "Or" setFlat
   def "Or" normalizeOr
 
+  def "Identity" (id @Expr)
   def "Equal" equalDef
   def "Greater" greaterDef
   def "Less" lessDef
@@ -770,8 +871,15 @@ defStdLib = do
   def "ConfirmPatternTest" confirmPatternTest
 
   def "Map" mapDef
+  def "MapAt" mapAt
   def "Head" exprHead
   def "Part" part
+  def "Length" lengthDef
+  def "Table" table
+  def "Take" takeDef
+  def "Drop" dropDef
+  modifyAttributes "Count" (setHoldType HoldRest)
+  def "Count" count
 
   modifyAttributes "Plus" (setFlat . setOrderless)
   def "Plus" normalizePlus
@@ -808,6 +916,7 @@ defStdLib = do
     , "Not[True]    := False"
     , "Not[False]   := True"
     , "Not[Not[x_]] := x"
+    , "MemberQ[xs_,y_] := Or@@((SameQ[y,#]&)/@xs)"
     ]
 
   def "MultinomialPowerExpand" multinomialPowerExpand
