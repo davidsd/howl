@@ -5,6 +5,7 @@
 
 module MicroMath.ToBuiltin
   ( ToBuiltin(..)
+  , Variadic(..)
   , builtinDecl
   ) where
 
@@ -46,18 +47,28 @@ instance {-# OVERLAPPABLE #-} ToExpr a => ToBuiltin (Eval a) where
 instance {-# OVERLAPPABLE #-} ToExpr a => ToBuiltin a where
   toBuiltin = toBuiltin @(Eval (Maybe Expr)) . pure . Just . toExpr
 
+
 -- | Provide instances for variadic functions with these return types,
--- i.e. functions that take a 'Seq Expr' as an argument. The
--- OVERLAPPING pragma instructs GHC to prefer these instances when
--- they apply.
-instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> Eval (Maybe a)) where
-  toBuiltin f = fmap (fmap toExpr) . f
-instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> Eval a) where
-  toBuiltin f = fmap (Just . toExpr) . f
-instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> Maybe a) where
-  toBuiltin f = pure . fmap toExpr . f
-instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> a) where
-  toBuiltin f = pure . Just . toExpr . f
+-- i.e. functions that take a 'Seq Expr' with arbitrary length as an
+-- argument.
+newtype Variadic a b = MkVariadic (Seq a -> b) 
+
+instance {-# OVERLAPPABLE #-} (FromExpr a, ToExpr b) => ToBuiltin (Variadic a (Eval (Maybe b))) where
+  toBuiltin (MkVariadic f) xs = case mapM fromExpr xs of
+    Just as -> fmap (fmap toExpr) $ f as
+    Nothing -> pure Nothing
+instance {-# OVERLAPPABLE #-} (FromExpr a, ToExpr b) => ToBuiltin (Variadic a (Maybe b)) where
+  toBuiltin (MkVariadic f) xs = case mapM fromExpr xs of
+    Just as -> pure $ fmap toExpr $ f as
+    Nothing -> pure Nothing
+instance {-# OVERLAPPABLE #-} (FromExpr a, ToExpr b) => ToBuiltin (Variadic a (Eval b)) where
+  toBuiltin (MkVariadic f) xs = case mapM fromExpr xs of
+    Just as -> fmap (Just . toExpr) $ f as
+    Nothing -> pure Nothing
+instance {-# OVERLAPPABLE #-} (FromExpr a, ToExpr b) => ToBuiltin (Variadic a b) where
+  toBuiltin (MkVariadic f) xs = case mapM fromExpr xs of
+    Just as -> pure . Just . toExpr $ f as
+    Nothing -> pure Nothing
 
 -- | Provide instances for functions of the form a -> b -> ... -> r,
 -- where r is one of the return types above, and a, b, ... are
@@ -72,7 +83,7 @@ instance {-# OVERLAPPING #-} ToExpr a => ToBuiltin (Seq Expr -> a) where
 -- Expr -> Integer -> Eval (Maybe Numeric)
 -- ...
 --
-instance {-# OVERLAPPABLE #-} (FromExpr a, ToBuiltin f) => ToBuiltin (a -> f) where
+instance (FromExpr a, ToBuiltin f) => ToBuiltin (a -> f) where
   toBuiltin f = \case
     x :<| rest -> case fromExpr x of
       Just x' -> toBuiltin (f x') rest

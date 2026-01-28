@@ -10,6 +10,7 @@
 
 module MicroMath.StdLib where
 
+import Data.Set qualified as Set
 import Control.Monad          (guard, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.Foldable          qualified as Foldable
@@ -47,7 +48,7 @@ import MicroMath.Expr.TH      (declareBuiltins)
 import MicroMath.Parser       (parseCompoundExpressionText, readExprFile)
 import MicroMath.Pat          (patRootSymbol)
 import MicroMath.Symbol       (Symbol)
-import MicroMath.ToBuiltin    (ToBuiltin (..), builtinDecl)
+import MicroMath.ToBuiltin    (ToBuiltin (..), builtinDecl, Variadic(..))
 import MicroMath.Util         (pattern Pair, pattern Solo)
 import Numeric.Rounded.Simple qualified as Rounded
 
@@ -366,6 +367,23 @@ introducedVariables = \case
 -- | Replace the Symbols in the given Expr with their corresponding
 -- Bindings in 'substSet', allowing new local variables introduced in
 -- sub-expressions to shadow the given substitutions.
+--
+-- [NB Shadowing in patterns]: It would be nice if we could implement
+-- shadowing for variables in patterns and rules. For example, morally
+-- speaking we should not be able to modify the variable x inside the
+-- rule:
+--
+-- x_ :> x+1
+--
+-- However, both Mathematica and MicroMath currently have:
+--
+-- (x_:>x+2)/.x->12 ---> Pattern[12, Blank[]] :> 12 + 2
+--
+-- It is difficult to get around this because x is introduced in a
+-- pattern and then used on the RHS of a rule, and we would have to
+-- enumerate all the places that a variable bound in a pattern might
+-- show up. Maybe it's only in Rule, RuleDelayed, Set, SetDelayed,
+-- TagSetDelayed, UpSet, UpSetDelayed?
 applySubstitutionsWithShadowing :: SubstitutionSet -> Expr -> Expr
 applySubstitutionsWithShadowing = go
   where
@@ -675,9 +693,29 @@ reverseDef = \case
   ExprApp h xs -> Just $ ExprApp h (Seq.reverse xs)
   _            -> Nothing
 
+---------- Union ----------
+
+union :: Seq (AList Expr) -> AList Expr
+union = MkList . Seq.fromList . Set.toList . Set.unions . fmap toSet
+  where
+    toSet (MkList xs) = Set.fromList (Foldable.toList xs)
+
+---------- Intersection ----------
+
+intersection :: Seq (AList Expr) -> AList Expr
+intersection = MkList . Seq.fromList . Set.toList . intersectAll . fmap toSet
+  where
+    toSet (MkList xs) = Set.fromList (Foldable.toList xs)
+    intersectAll = \case
+      Empty    -> Set.empty
+      s :<| ss -> Foldable.foldl' Set.intersection s ss
+
 ---------- Count and Position ----------
 
--- TODO: Level specification
+-- TODO: Level specification. To do this, we need a way of declaring
+-- only certain arguments to be Held. Basically we need a HoldArgs
+-- (Set Int) constructor for HoldType. Then count and position would
+-- have hold type HoldArgs (Set.singleton 2).
 count :: AList Expr -> Expr -> Eval Int
 count (MkList xs) patExpr = do
   pat <- compilePat patExpr
@@ -699,6 +737,14 @@ position (MkList xs) patExpr = do
         Just _  -> (ixs :|> i, i+1)
         Nothing -> (ixs      , i+1)
   MkList . fst <$> Foldable.foldrM go (Empty, 1) xs
+
+---------- Flatten ----------
+
+-- TODO: Level specification
+flatten :: Expr -> Maybe Expr
+flatten = \case
+  ExprApp h cs -> Just $ ExprApp h (Expr.flattenWithHead h cs)
+  _            -> Nothing
 
 ---------- ConfirmPatternTest ----------
 
@@ -846,7 +892,7 @@ defStdLib = do
   def "SetDelayed" setDelayedDef
 
   modifyAttributes "Hold" (setHoldType HoldAll)
-  def "CompoundExpression" compoundExpression
+  def "CompoundExpression" (MkVariadic compoundExpression)
   def "Get" (readExprFile @Eval . Text.unpack)
   def "SetAttributes" setAttributes
   def "Clear" clear
@@ -870,10 +916,10 @@ defStdLib = do
     ]
 
   modifyAttributes "And" setFlat
-  def "And" normalizeAnd
+  def "And" (MkVariadic normalizeAnd)
 
   modifyAttributes "Or" setFlat
-  def "Or" normalizeOr
+  def "Or" (MkVariadic normalizeOr)
 
   def "Identity" (id @Expr)
   def "Equal" equalDef
@@ -886,32 +932,35 @@ defStdLib = do
   modifyAttributes "RuleDelayed" (setHoldType HoldAll)
   def "ReplaceAll" replaceAll
   def "ReplaceRepeated" replaceRepeated
-  def "ConfirmPatternTest" confirmPatternTest
+  def "ConfirmPatternTest" (MkVariadic confirmPatternTest)
 
   def "Map" mapDef
   def "MapAt" mapAt
   def "Head" exprHead
-  def "Part" part
+  def "Part" (MkVariadic part)
   def "Length" lengthDef
   def "Table" table
   def "Take" takeDef
   def "Drop" dropDef
   def "Reverse" reverseDef
+  def "Union" (MkVariadic union)
+  def "Intersection" (MkVariadic intersection)
+  def "Flatten" flatten
   modifyAttributes "Count" (setHoldType HoldRest)
   def "Count" count
   modifyAttributes "Position" (setHoldType HoldRest)
   def "Position" position
 
   modifyAttributes "Plus" (setFlat . setOrderless)
-  def "Plus" normalizePlus
+  def "Plus" (MkVariadic normalizePlus)
 
   modifyAttributes "Times" (setFlat . setOrderless)
-  def "Times" normalizeTimes
+  def "Times" (MkVariadic normalizeTimes)
 
   def "Power" normalizePower
   def "Sqrt" $ \e -> normalizePower e (ExprRational (1/2))
 
-  def "SameQ" sameQ
+  def "SameQ" (MkVariadic sameQ)
   def "OrderedQ" orderedQ
 
   sequence_ $ do

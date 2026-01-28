@@ -504,6 +504,76 @@ main = hspec $ do
         result <- eval' "Position[{1, 2, 3, 4}, _Integer]"
         pPrint result `shouldBe` "{1, 2, 3, 4}"
 
+    describe "Flatten" $ do
+      it "flattens nested lists" $ do
+        result <- eval' "Flatten[{a, {b, c}, {d, {e}}}]"
+        pPrint result `shouldBe` "{a, b, c, d, e}"
+
+      it "flattens nested applications with the same head" $ do
+        result <- eval' "Flatten[f[a, f[b, c], f[d, f[e]]]]"
+        pPrint result `shouldBe` "f[a, b, c, d, e]"
+
+      it "does not flatten different heads" $ do
+        result <- eval' "Flatten[f[a, g[b, c]]]"
+        pPrint result `shouldBe` "f[a, g[b, c]]"
+
+    describe "Union" $ do
+      it "computes the union of lists" $ do
+        result <- eval' "Union[{3, 2, 1, 2}, {2, 4}]"
+        pPrint result `shouldBe` "{1, 2, 3, 4}"
+
+    describe "Intersection" $ do
+      it "computes the intersection of lists" $ do
+        result <- eval' "Intersection[{3, 2, 1, 2}, {2, 4}]"
+        pPrint result `shouldBe` "{2}"
+
+    describe "StdLib extras" $ do
+      it "reverses lists" $ do
+        result <- eval' "Reverse[{1, 2, 3}]"
+        pPrint result `shouldBe` "{3, 2, 1}"
+
+      it "maps at a position" $ do
+        result <- eval' "MapAt[f, g[a, b, c], 2]"
+        pPrint result `shouldBe` "g[a, f[b], c]"
+
+      it "builds a simple table with an index" $ do
+        result <- eval' "Table[i, {i, 3}]"
+        pPrint result `shouldBe` "{1, 2, 3}"
+
+      it "builds a table over a list of values" $ do
+        result <- eval' "Table[i^2, {i, {1, 3, 5}}]"
+        pPrint result `shouldBe` "{1, 9, 25}"
+
+      it "evaluates If with True/False branches" $ do
+        resultTrue <- eval' "If[True, 1, 2]"
+        pPrint resultTrue `shouldBe` "1"
+        resultFalse <- eval' "If[False, 1, 2]"
+        pPrint resultFalse `shouldBe` "2"
+
+      it "replaces repeatedly until fixed point" $ do
+        result <- eval' "x //. {x -> y, y -> z}"
+        pPrint result `shouldBe` "z"
+
+      it "checks SameQ" $ do
+        resultSame <- eval' "SameQ[1, 1, 1]"
+        pPrint resultSame `shouldBe` "True"
+
+      it "checks OrderedQ" $ do
+        resultOrdered <- eval' "OrderedQ[{1, 2, 3}]"
+        pPrint resultOrdered `shouldBe` "True"
+
+      it "checks MemberQ" $ do
+        resultMember <- eval' "MemberQ[{1, 2, 3}, 2]"
+        pPrint resultMember `shouldBe` "True"
+
+      it "checks Not" $ do
+        resultNot <- eval' "Not[Not[True]]"
+        pPrint resultNot `shouldBe` "True"
+
+      it "evaluates Let bindings" $ do
+        result <- eval' "Let[{x = 2, y = x + 3}, y]"
+        pPrint result `shouldBe` "5"
+
     describe "Expand" $ do
       it "expands simple product" $ do
         result <- eval' "Expand[(x + 1)(x + 2)]"
