@@ -488,6 +488,22 @@ main = hspec $ do
         result <- eval' "Apply[Plus, {1, 2, 3}]"
         pPrint result `shouldBe` "6"
 
+      it "counts matches in a list" $ do
+        result <- eval' "Count[{a, b, a, c, a}, a]"
+        pPrint result `shouldBe` "3"
+
+      it "counts pattern matches in a list" $ do
+        result <- eval' "Count[{1, 2, 3, 4}, _Integer]"
+        pPrint result `shouldBe` "4"
+
+      it "returns positions of matching elements" $ do
+        result <- eval' "Position[{a, b, a, c, a}, a]"
+        pPrint result `shouldBe` "{1, 3, 5}"
+
+      it "returns positions for pattern matches" $ do
+        result <- eval' "Position[{1, 2, 3, 4}, _Integer]"
+        pPrint result `shouldBe` "{1, 2, 3, 4}"
+
     describe "Expand" $ do
       it "expands simple product" $ do
         result <- eval' "Expand[(x + 1)(x + 2)]"

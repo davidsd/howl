@@ -158,7 +158,11 @@ pPrintPrec ctx (ExprApp f args) = case (f, Foldable.toList args) of
     -- Pretty print a product, using juxtaposition with spaces where needed
     pPrintTimes [] = "1"
     pPrintTimes [x] = pPrintPrec PrecTimes x
-    pPrintTimes (ExprNumeric n : xs) | n < 0 = "-" <> pPrintTimes (ExprNumeric (negateNumeric n) : xs)
+    pPrintTimes (ExprNumeric n : xs) | n < 0 =
+      case negateNumeric n of
+        NInteger 1  -> "-" <> pPrintTimes xs
+        NRational 1 -> "-" <> pPrintTimes xs
+        n'          -> "-" <> pPrintTimes (ExprNumeric n' : xs)
     pPrintTimes (x:xs) = pPrintPrec PrecTimes x <> pPrintTimesRest xs
 
     -- Print remaining factors, adding space before each

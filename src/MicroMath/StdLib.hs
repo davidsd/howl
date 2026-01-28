@@ -668,7 +668,14 @@ takeDef (MkList xs) n = MkList (Seq.take n xs)
 dropDef :: AList Expr -> Int -> AList Expr
 dropDef (MkList xs) n = MkList (Seq.drop n xs)
 
----------- Count ----------
+---------- Reverse ----------
+
+reverseDef :: Expr -> Maybe Expr
+reverseDef = \case
+  ExprApp h xs -> Just $ ExprApp h (Seq.reverse xs)
+  _            -> Nothing
+
+---------- Count and Position ----------
 
 -- TODO: Level specification
 count :: AList Expr -> Expr -> Eval Int
@@ -681,6 +688,17 @@ count (MkList xs) patExpr = do
         Just _  -> i+1
         Nothing -> i
   Foldable.foldrM go 0 xs
+
+position :: AList Expr -> Expr -> Eval (AList Int)
+position (MkList xs) patExpr = do
+  pat <- compilePat patExpr
+  let
+    go expr (ixs, !i) = do
+      maybeMatch <- solveMatchMaybe (SingleEq pat expr)
+      pure $ case maybeMatch of
+        Just _  -> (ixs :|> i, i+1)
+        Nothing -> (ixs      , i+1)
+  MkList . fst <$> Foldable.foldrM go (Empty, 1) xs
 
 ---------- ConfirmPatternTest ----------
 
@@ -878,8 +896,11 @@ defStdLib = do
   def "Table" table
   def "Take" takeDef
   def "Drop" dropDef
+  def "Reverse" reverseDef
   modifyAttributes "Count" (setHoldType HoldRest)
   def "Count" count
+  modifyAttributes "Position" (setHoldType HoldRest)
+  def "Position" position
 
   modifyAttributes "Plus" (setFlat . setOrderless)
   def "Plus" normalizePlus
