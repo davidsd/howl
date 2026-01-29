@@ -17,6 +17,7 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
+    wl/StdLib.wl
 
 source-repository head
   type: git
@@ -53,10 +54,12 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
   build-depends:
       base >=4.7 && <5
+    , bytestring
     , combinat
     , containers
     , deepseq
     , exceptions
+    , file-embed
     , hashable
     , hashtables
     , megaparsec
@@ -83,10 +86,12 @@ executable fib
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
+    , bytestring
     , combinat
     , containers
     , deepseq
     , exceptions
+    , file-embed
     , hashable
     , hashtables
     , megaparsec
@@ -114,6 +119,7 @@ executable laplace
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
+    , bytestring
     , combinat
     , containers
     , deepseq
@@ -146,10 +152,12 @@ executable mmath
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
+    , bytestring
     , combinat
     , containers
     , deepseq
     , exceptions
+    , file-embed
     , hashable
     , hashtables
     , haskeline
@@ -180,10 +188,12 @@ test-suite micromath-test
   build-depends:
       QuickCheck
     , base >=4.7 && <5
+    , bytestring
     , combinat
     , containers
     , deepseq
     , exceptions
+    , file-embed
     , hashable
     , hashtables
     , hspec

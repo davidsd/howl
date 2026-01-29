@@ -505,11 +505,11 @@ main = hspec $ do
 
       it "returns positions of matching elements" $ do
         result <- eval' "Position[{a, b, a, c, a}, a]"
-        pPrint result `shouldBe` "{1, 3, 5}"
+        pPrint result `shouldBe` "{{1}, {3}, {5}}"
 
       it "returns positions for pattern matches" $ do
         result <- eval' "Position[{1, 2, 3, 4}, _Integer]"
-        pPrint result `shouldBe` "{1, 2, 3, 4}"
+        pPrint result `shouldBe` "{{1}, {2}, {3}, {4}}"
 
     describe "Flatten" $ do
       it "flattens nested lists" $ do

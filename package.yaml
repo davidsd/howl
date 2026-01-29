@@ -9,6 +9,7 @@ language: GHC2021
 
 extra-source-files:
 - README.md
+- wl/StdLib.wl
 
 description:         An implementation of a small subset of the Wolfram language in Haskell
 
@@ -31,6 +32,8 @@ dependencies:
 - exceptions
 - optparse-applicative
 - rounded
+- bytestring
+- file-embed
 
 ghc-options:
 - -Wall

@@ -560,7 +560,7 @@ opTable =
     ]
   , [ postfix OpBang            (Expr.unary "Factorial")
     ]
-  , [ prefix OpMinus (Expr.binary "Times" (ExprInteger (-1)))
+  , [ prefix  OpMinus           (Expr.binary "Times" (ExprInteger (-1)))
     ]
   , [ binaryR OpPower           (Expr.binary "Power")
     ]
@@ -570,9 +570,6 @@ opTable =
   , [ binaryL OpPlus            (Expr.binary "Plus")
     , binaryL OpMinus           (Expr.binary "Subtract")
     ]
-  , [ binaryL OpOr              (Expr.binary "Or")
-    , binaryL OpAnd             (Expr.binary "And")
-    ]
   , [ binaryL OpLess            (Expr.binary "Less")
     , binaryL OpGreater         (Expr.binary "Greater")
     , binaryL OpLessEqual       (Expr.binary "LessEqual")
@@ -581,6 +578,9 @@ opTable =
     , binaryL OpUnequal         (Expr.binary "Unequal")
     , binaryL OpSameQ           (Expr.binary "SameQ")
     , binaryL OpUnsameQ         (Expr.binary "UnsameQ")
+    ]
+  , [ binaryL OpOr              (Expr.binary "Or")
+    , binaryL OpAnd             (Expr.binary "And")
     ]
   , [ binaryL OpAlternative     (Expr.binary "Alternatives")
     ]

@@ -10,23 +10,26 @@
 
 module MicroMath.StdLib where
 
-import Data.Set qualified as Set
 import Control.Monad          (guard, void)
 import Control.Monad.IO.Class (liftIO)
+import Data.FileEmbed         (embedFile, makeRelativeToProject)
 import Data.Foldable          qualified as Foldable
 import Data.Map.Strict        (Map)
 import Data.Map.Strict        qualified as Map
 import Data.Sequence          (Seq, pattern (:<|), pattern (:|>), pattern Empty)
 import Data.Sequence          qualified as Seq
+import Data.Set               qualified as Set
 import Data.String            (fromString)
 import Data.Text              (Text)
 import Data.Text              qualified as Text
+import Data.Text.Encoding     qualified as TE
 import Math.Combinat          (binomial, multinomial)
-import MicroMath.Eval         (Substitution (..), SubstitutionSet,
-                               emptySubstitutionSet, eval, insertSubstitution,
-                               insertSubstitutions, lookupBinding,
-                               removeBindings, singletonSubstitutionSet,
-                               tryApplyRule, solveMatchMaybe, MatchingEq(..))
+import MicroMath.Eval         (MatchingEq (..), Substitution (..),
+                               SubstitutionSet, emptySubstitutionSet, eval,
+                               insertSubstitution, insertSubstitutions,
+                               lookupBinding, removeBindings,
+                               singletonSubstitutionSet, solveMatchMaybe,
+                               tryApplyRule)
 import MicroMath.Eval.Context (Attributes (..), Decl (..), Eval (..),
                                HoldType (..), Rule (..), addDecl, clear,
                                clearAll, compilePat, getDefinedSymbols,
@@ -48,7 +51,7 @@ import MicroMath.Expr.TH      (declareBuiltins)
 import MicroMath.Parser       (parseExprText, readExprFile)
 import MicroMath.Pat          (patRootSymbol)
 import MicroMath.Symbol       (Symbol)
-import MicroMath.ToBuiltin    (ToBuiltin (..), builtinDecl, Variadic(..))
+import MicroMath.ToBuiltin    (ToBuiltin (..), Variadic (..), builtinDecl)
 import MicroMath.Util         (pattern Pair, pattern Solo)
 import Numeric.Rounded.Simple qualified as Rounded
 
@@ -670,7 +673,7 @@ table body range = case range of
 
 ---------- Take/Drop ----------
 
-newtype AList a = MkList (Seq a)
+newtype AList a = MkList { unList :: Seq a }
 
 instance FromExpr a => FromExpr (AList a) where
   fromExpr = \case
@@ -680,11 +683,25 @@ instance FromExpr a => FromExpr (AList a) where
 instance ToExpr a => ToExpr (AList a) where
   toExpr (MkList xs) = List :@ fmap toExpr xs
 
-takeDef :: AList Expr -> Int -> AList Expr
-takeDef (MkList xs) n = MkList (Seq.take n xs)
+takeDef :: AList Expr -> Int -> Maybe (AList Expr)
+takeDef (MkList xs) n
+  | n <= Seq.length xs = Just $ MkList (Seq.take n xs)
+  | otherwise          = Nothing
 
-dropDef :: AList Expr -> Int -> AList Expr
-dropDef (MkList xs) n = MkList (Seq.drop n xs)
+dropDef :: AList Expr -> Int -> Maybe (AList Expr)
+dropDef (MkList xs) n
+  | n <= Seq.length xs = Just $ MkList (Seq.drop n xs)
+  | otherwise          = Nothing
+
+firstDef :: Expr -> Maybe Expr
+firstDef = \case
+  ExprApp _ (x :<| _) -> Just x
+  _                   -> Nothing
+
+restDef :: Expr -> Maybe Expr
+restDef = \case
+  ExprApp h (_ :<| xs) -> Just (ExprApp h xs)
+  _                    -> Nothing
 
 ---------- Reverse ----------
 
@@ -710,33 +727,62 @@ intersection = MkList . Seq.fromList . Set.toList . intersectAll . fmap toSet
       Empty    -> Set.empty
       s :<| ss -> Foldable.foldl' Set.intersection s ss
 
+---------- Ordering ----------
+
+ordering :: AList Expr -> AList Int
+ordering (MkList xs) = MkList $
+  fmap (succ . snd) $
+  Seq.unstableSortOn fst $
+  Seq.mapWithIndex (\i x -> (x,i)) xs
+
+orderingN :: AList Expr -> Int -> AList Int
+orderingN xs n = MkList . Seq.take n . (.unList) . ordering $ xs
+
+---------- Sort ----------
+
+sortDef :: AList Expr -> AList Expr
+sortDef (MkList xs) = MkList $ Seq.unstableSort xs
+
 ---------- Count and Position ----------
 
 -- TODO: Level specification. To do this, we need a way of declaring
 -- only certain arguments to be Held. Basically we need a HoldArgs
 -- (Set Int) constructor for HoldType. Then count and position would
 -- have hold type HoldArgs (Set.singleton 2).
-count :: AList Expr -> Expr -> Eval Int
-count (MkList xs) patExpr = do
-  pat <- compilePat patExpr
-  let
-    go expr i = do
-      maybeMatch <- solveMatchMaybe (SingleEq pat expr)
-      pure $ case maybeMatch of
-        Just _  -> i+1
-        Nothing -> i
-  Foldable.foldrM go 0 xs
+count :: Expr -> Expr -> Eval Int
+count expr patExpr = case expr of
+  ExprApp _ xs -> do
+    pat <- compilePat patExpr
+    let
+      go e i = do
+        maybeMatch <- solveMatchMaybe (SingleEq pat e)
+        pure $ case maybeMatch of
+          Just _  -> i+1
+          Nothing -> i
+    Foldable.foldrM go 0 xs
+  _ -> pure 0
 
-position :: AList Expr -> Expr -> Eval (AList Int)
-position (MkList xs) patExpr = do
+position :: Expr -> Expr -> Eval (AList (AList Int))
+position expr patExpr = do
   pat <- compilePat patExpr
-  let
-    go expr (ixs, !i) = do
+  case expr of
+    ExprApp h xs -> do
+      let
+        go :: Seq Int -> Int -> Seq Expr -> Eval (Seq Int)
+        go acc _ Empty = pure acc
+        go acc i (y :<| ys) = do
+          maybeMatch <- solveMatchMaybe (SingleEq pat y)
+          case maybeMatch of
+            Just _  -> go (acc :|> i) (i+1) ys
+            Nothing -> go acc (i+1) ys
+      positions <- go Empty 0 (h :<| xs)
+      pure $ MkList $ fmap (MkList . Solo) positions
+    _ -> do
       maybeMatch <- solveMatchMaybe (SingleEq pat expr)
+      -- No idea why, but this matches Mathematica's behavior
       pure $ case maybeMatch of
-        Just _  -> (ixs :|> i, i+1)
-        Nothing -> (ixs      , i+1)
-  MkList . fst <$> Foldable.foldrM go (Empty, 1) xs
+        Just _  -> MkList (Solo (MkList Empty))
+        Nothing -> MkList Empty
 
 ---------- Flatten ----------
 
@@ -853,7 +899,7 @@ instance FromExpr AttrModifier where
     "HoldRest"  -> Just $ setHoldType HoldRest
     _           -> Nothing
 
-setAttributes :: Symbol -> (ListOrSolo AttrModifier) -> Eval ()
+setAttributes :: Symbol -> ListOrSolo AttrModifier -> Eval ()
 setAttributes sym (MkListOrSolo attrs) =
   mapM_ (modifyAttributes sym . (.getModifier)) attrs
 
@@ -883,6 +929,11 @@ get_ = void . get
 def :: ToBuiltin f => Symbol -> f -> Eval ()
 def sym f = addDecl $ builtinDecl sym f
 
+stdLibWL :: Text
+stdLibWL =
+  TE.decodeUtf8
+  $(makeRelativeToProject "wl/StdLib.wl" >>= embedFile)
+
 defStdLib :: Eval ()
 defStdLib = do
   modifyAttributes "Set" (setHoldType HoldFirst)
@@ -908,12 +959,6 @@ defStdLib = do
 
   modifyAttributes "Module" (setHoldType HoldAll)
   def "Module" moduleDef
-
-  modifyAttributes "If" (setHoldType HoldRest)
-  mapM_ run
-    [ "If[True,  x_, _ ] := x"
-    , "If[False, _,  y_] := y"
-    ]
 
   modifyAttributes "And" setFlat
   def "And" (MkVariadic normalizeAnd)
@@ -942,9 +987,14 @@ defStdLib = do
   def "Table" table
   def "Take" takeDef
   def "Drop" dropDef
+  def "First" firstDef
+  def "Rest" restDef
   def "Reverse" reverseDef
   def "Union" (MkVariadic union)
   def "Intersection" (MkVariadic intersection)
+  def "Ordering" ordering
+  def "Ordering" orderingN
+  def "Sort" sortDef
   def "Flatten" flatten
   modifyAttributes "Count" (setHoldType HoldRest)
   def "Count" count
@@ -962,6 +1012,8 @@ defStdLib = do
 
   def "SameQ" (MkVariadic sameQ)
   def "OrderedQ" orderedQ
+  def "EvenQ" (even @Integer)
+  def "OddQ" (odd @Integer)
 
   sequence_ $ do
     numFn <- builtinNumericFunctions
@@ -969,31 +1021,6 @@ defStdLib = do
   def "NumericFunctionQ" numericFunctionQ
 
   def "NumericQ" $ \(_ :: Numeric) -> True
-  mapM_ run
-    [ "NumericQ[Pi] := True"
-    , "NumericQ[E] := True"
-    , "NumericQ[f_[xs___]] := NumericFunctionQ[f] && And @@ Map[NumericQ, {xs}]"
-    , "NumericQ[_] := False"
-    ]
-
-  mapM_ run
-    [ "Apply[h_,hp_[xs___]] := h[xs]"
-    , "Default[Times] := 1"
-    , "Default[Plus] := 0"
-    , "Default[And] := True"
-    , "Default[Or] := False"
-    , "UnsameQ[xs___] := Not[SameQ[xs]]"
-    , "Not[True]    := False"
-    , "Not[False]   := True"
-    , "Not[Not[x_]] := x"
-    , "MemberQ[xs_,y_] := Or@@((SameQ[y,#]&)/@xs)"
-    ]
-
   def "MultinomialPowerExpand" multinomialPowerExpand
-  mapM_ run
-    [ "Expand[a_ * b_Plus] := (Expand[a*#]&) /@ b"
-    , "Expand[b_Plus] := Expand /@ b"
-    , "Expand[Power[b_Plus, c_Integer]]      /; c >= 0 := Expand /@ MultinomialPowerExpand[b,c]"
-    , "Expand[a_ * Power[b_Plus, c_Integer]] /; c >= 0 := (Expand[a*#]&) /@ MultinomialPowerExpand[b,c]"
-    , "Expand[expr_] := expr"
-    ]
+
+  run_ stdLibWL
