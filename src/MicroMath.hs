@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module MicroMath
   ( module Exports
   ) where
@@ -9,4 +11,7 @@ import MicroMath.Expr.PPrint  as Exports ()
 import MicroMath.Parser       as Exports (parseExprText, readExprFile)
 import MicroMath.Pat          as Exports
 import MicroMath.PPrint       as Exports
-import MicroMath.StdLib       as Exports (def, defStdLib, get, get_, run, run_)
+import MicroMath.StdLib       as Exports (AList (..), def, defStdLib, get, get_,
+                                          run, run_)
+import MicroMath.Symbol       as Exports
+import MicroMath.Util         as Exports (pattern Pair, pattern Solo)

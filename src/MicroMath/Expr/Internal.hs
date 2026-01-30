@@ -122,7 +122,10 @@ pattern ExprRational :: Rational -> Expr
 pattern ExprRational q = ExprNumeric (NRational q)
 
 instance FromExpr Rational where
-  fromExpr = \case { ExprRational x -> Just x; _ -> Nothing }
+  fromExpr = \case
+    ExprInteger n  -> Just $ fromIntegral n
+    ExprRational x -> Just x
+    _              -> Nothing
 
 -- | Convert a Rational into an Expr, representing it as an
 -- ExprInteger if it is an integer.

@@ -175,6 +175,41 @@ executable mmath
     , text-short
   default-language: GHC2021
 
+executable susyO2
+  main-is: Main.hs
+  other-modules:
+      ExprTypes
+      Paths_micromath
+  autogen-modules:
+      Paths_micromath
+  hs-source-dirs:
+      examples/susyO2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , combinat
+    , containers
+    , deepseq
+    , exceptions
+    , file-embed
+    , hashable
+    , hashtables
+    , matrix
+    , megaparsec
+    , micromath
+    , mtl
+    , optparse-applicative
+    , parser-combinators
+    , primitive
+    , rounded
+    , scientific
+    , symbolize
+    , template-haskell
+    , text
+    , text-short
+  default-language: GHC2021
+
 test-suite micromath-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs

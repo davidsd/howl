@@ -2,6 +2,7 @@
 
 module MicroMath.Expr.Numeric
   ( Numeric(..)
+  , FromNumeric(..)
   , BigFloat
   , BigFloatPrecision
   , fromBigFloat
@@ -107,6 +108,29 @@ instance Fractional Numeric where
   fromRational r
     | denominator r == 1 = NInteger (numerator r)
     | otherwise          = NRational r
+
+class FromNumeric a where
+  fromNumeric :: Numeric -> Maybe a
+
+instance FromNumeric Integer where
+  fromNumeric (NInteger i) = Just i
+  fromNumeric (NRational r)
+    | denominator r == 1 = Just (numerator r)
+    | otherwise          = Nothing
+  fromNumeric _ = Nothing
+
+instance FromNumeric Int where
+  fromNumeric = fmap fromIntegral . fromNumeric @Integer
+
+instance FromNumeric Rational where
+  fromNumeric (NInteger i)  = Just $ fromIntegral i
+  fromNumeric (NRational r) = Just r
+  fromNumeric _             = Nothing
+
+-- TODO: FromNumeric for Rounded with type-level precision!
+
+instance FromNumeric Double where
+  fromNumeric = Just . toDouble
 
 fromReal :: Double -> Numeric
 fromReal = NDouble
