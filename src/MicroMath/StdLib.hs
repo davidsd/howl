@@ -693,6 +693,17 @@ dropDef (MkList xs) n
   | n <= Seq.length xs = Just $ MkList (Seq.drop n xs)
   | otherwise          = Nothing
 
+---------- Accumulate ----------
+
+accumulateDef :: AList Expr -> AList Expr
+accumulateDef (MkList xs) = MkList $ case xs of
+  Empty      -> Empty
+  x :<| rest -> snd $ Foldable.foldl' step (x, Solo x) rest
+  where
+    step (acc, out) y =
+      let acc' = normalizePlus (Pair acc y)
+      in (acc', out :|> acc')
+
 firstDef :: Expr -> Maybe Expr
 firstDef = \case
   ExprApp _ (x :<| _) -> Just x
@@ -987,6 +998,7 @@ defStdLib = do
   def "Table" table
   def "Take" takeDef
   def "Drop" dropDef
+  def "Accumulate" accumulateDef
   def "First" firstDef
   def "Rest" restDef
   def "Reverse" reverseDef

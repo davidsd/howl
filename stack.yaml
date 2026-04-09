@@ -3,13 +3,12 @@ snapshot:
 
 packages:
 - .
-- /Users/davidsd/src/rounded
 
 extra-deps:
 - combinat-0.2.10.1@sha256:c039827890044eda529d9115daa5d93d0e30f68483cfde560786cd2e3483db50,5857
 - compact-word-vectors-0.2.0.2@sha256:49cf00f224000f149306e7043c228fa33e3dba87f10589e8326388c3278ba594,2709
-# - git: https://github.com/davidsd/rounded.git
-#   commit: 37a432c820da4b4dc8b8241631d73d6561d6a6ae
+- git: https://github.com/davidsd/rounded.git
+  commit: 37a432c820da4b4dc8b8241631d73d6561d6a6ae
 - git: https://github.com/davidsd/long-double.git
   commit: 86c1012cdeddefad188a83b2a487155c9075d4e6
 - git: https://github.com/davidsd/hgmp.git
