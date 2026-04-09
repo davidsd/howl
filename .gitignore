@@ -1,7 +1,11 @@
 .stack-work/
+dist-newstyle/
 stack.yaml.lock
+*.prof
+*.prof.html
+out.txt
 *~
 .DS_Store
 src/.DS_Store
-src/MicroMath/.DS_Store
+src/Howl/.DS_Store
 performance
