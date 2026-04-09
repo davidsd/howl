@@ -46,7 +46,7 @@ The core algorithm needed to implement the Wolfram Language is a procedure for m
 
 [loris](https://github.com/rljacobson/loris) is another implementation (in Rust) of the Wolfram Language based on the Dundua-Kutsia-Marin paper. Loris was important inspiration for Howl.
 
-[mathics](https://mathics.org/) is "A free, open-source alternative to Mathematica", implemented in python. Unlike Howl, Mathics makes a reasonable attempt towards feature parity with Mathematica, including implementing a much larger proportion of Mathematica's standard library, providing a notebook interface, graphics features, and much more.
+[mathics](https://mathics.org/) is "A free, open-source alternative to Mathematica", implemented in Python. Unlike Howl, Mathics makes a reasonable attempt towards feature parity with Mathematica, including implementing a much larger proportion of Mathematica's standard library, providing a notebook interface, graphics features, and much more.
 
 ## Background: trees and replacement rules
 
@@ -56,7 +56,7 @@ Mathematica is essentially an engine for repeatedly applying replacement rules t
 
 `Plus`, `Times`, `a`,`b`, and `c` are all symbols, while 3 is an integer literal.
 
-Replacement rules have a pattern on the left-hand-side and an expression on the right-hand-side. For example, we might define the rule
+Replacement rules have a pattern on the left-hand side and an expression on the right-hand side. For example, we might define the rule
 
 ```mathematica
 (* Distributive property *)
@@ -109,7 +109,7 @@ myProgram = do
 main :: IO ()
 main = runEval myProgram >>= putStrLn . pPrint
 ```
-The type of the function `fib :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal, and returns an integer literal. For example, `Fib[x]` (where x is a symbol) doesn't match the rule we defined, and remains `Fib[x]`. The typeclasses `ToExpr`/`FromExpr` are used to automatically convert `Expr`'s to and from Haskell data, and define rules that only match `Expr`'s of the appropriate form.
+The type of the function `fib :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal, and returns an integer literal. For example, `Fib[x]` (where x is a symbol) doesn't match the rule we defined, and remains `Fib[x]`. The typeclasses `ToExpr`/`FromExpr` are used to automatically convert `Expr`s to and from Haskell data, and define rules that only match `Expr`s of the appropriate form.
 
 Why would you want to do this? Well, it is generally horrible to write actual programs in Mathematica. It does not have a type system, it is slow, lists are the only conveniently available data structure, editing interfaces are bad. So instead, you can write your programs in Haskell. But Haskell does not have much in the way of computer algebra. So if you need mathematical expressions and simplification using replacement rules, you could use a `Howl` `Expr`.
 
@@ -151,7 +151,7 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
 
 - Howl implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` or `Unevaluated`. It also does not implement `Listable`, and hopefully it never will. Please use `Map` instead.
 
-- Attributes must be set before rules are defined. The reason is that the left-hand-side is compiled into a pattern, and the way compilation works depends on the attributes of the symbols in the pattern. If these attributes are changed later, the compiled pattern that is already in the Context will not be updated.
+- Attributes must be set before rules are defined. The reason is that the left-hand side is compiled into a pattern, and the way compilation works depends on the attributes of the symbols in the pattern. If these attributes are changed later, the compiled pattern that is already in the Context will not be updated.
 
 - Howl does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
   ```
@@ -169,7 +169,7 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
 
 Howl is an experiment. Before actually using Howl in practice, you should probably ask:
 
-- Can I just write everything in Haskell and bypass `Howl` `Expr`'s and the Howl evaluator? If the answer is yes, you should do it.
+- Can I just write everything in Haskell and bypass Howl `Expr`s and the Howl evaluator? If the answer is yes, you should do it.
 
 - Do I want to spend my time writing Haskell functions that implement missing features in the Howl standard library just so I can run Wolfram Language programs that use those features? If the answer is no, you shouldn't do it.
 
