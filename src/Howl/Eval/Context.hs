@@ -6,7 +6,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
-module MicroMath.Eval.Context
+module Howl.Eval.Context
   ( Rule(..)
   , Context(..)
   , Attributes(..)
@@ -49,12 +49,12 @@ import Data.IORef               (IORef, atomicModifyIORef', newIORef)
 import Data.Sequence            (Seq, pattern Empty, (|>))
 import Data.Sequence            qualified as Seq
 import Data.Text.Short          qualified as ShortText
-import MicroMath.Expr           (Expr (..))
-import MicroMath.Eval.EvalCache (EvalCache, insertEvalCache, lookupEvalCache,
+import Howl.Expr           (Expr (..))
+import Howl.Eval.EvalCache (EvalCache, insertEvalCache, lookupEvalCache,
                                  newEvalCache)
-import MicroMath.Pat            (Pat (..), PatAppType(..), patFromExpr)
-import MicroMath.PPrint         (PPrint (..))
-import MicroMath.Symbol         (Symbol, symbolFromShortText, symbolToShortText)
+import Howl.Pat            (Pat (..), PatAppType(..), patFromExpr)
+import Howl.PPrint         (PPrint (..))
+import Howl.Symbol         (Symbol, symbolFromShortText, symbolToShortText)
 
 
 type HashTable k v = HT.BasicHashTable k v

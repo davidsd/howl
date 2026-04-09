@@ -7,8 +7,6 @@ module Main where
 
 import Data.Matrix qualified as Matrix
 import Data.Matrix (Matrix)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
 import Data.Containers.ListUtils (nubOrd)
 import Data.FileEmbed            (makeRelativeToProject, strToExp)
 import Data.Foldable             qualified as Foldable
@@ -18,7 +16,7 @@ import Data.Set                  (Set)
 import Data.Set                  qualified as Set
 import ExprTypes                 (FreeVect (..), Monomial (..), freeVectTerms, vec,
                                   mkMonic, zeroFreeVect)
-import MicroMath
+import Howl
 
 data Letter = P | Pb | Z | Zb | Psi | Psib
   deriving (Eq, Ord, Enum, Bounded)
@@ -216,6 +214,12 @@ irrepsUpToLevel level = do
 -}
 
 --myProgram :: Eval [Maybe (FreeVect (Monomial Tr) Numeric)]
+myProgram :: Eval
+  ( Set (FreeVect (Monomial Tr Int) Rational)
+  , Set (FreeVect (Monomial Tr Int) Rational)
+  , Set (FreeVect (Monomial Tr Int) Rational)
+  , Matrix (FreeVect (Monomial Tr Int) Rational)
+  )
 myProgram = do
   defStdLib
   get_ susyO2WL

@@ -1,6 +1,6 @@
-name:                micromath
+name:                howl
 version:             0.1.0.0
-github:              "davidsd/micromath"
+github:              "davidsd/howl"
 license:             BSD-3-Clause
 author:              "David Simmons-Duffin"
 maintainer:          "dsd@caltech.edu"
@@ -50,7 +50,7 @@ library:
   source-dirs: src
 
 executables:
-  mmath:
+  howl-repl:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -59,7 +59,7 @@ executables:
     - -with-rtsopts=-N
     - -O2
     dependencies:
-    - micromath
+    - howl
     - haskeline
     - text
 
@@ -72,7 +72,7 @@ executables:
     - -with-rtsopts=-N
     - -O2
     dependencies:
-    - micromath
+    - howl
 
   laplace:
     main:                Main.hs
@@ -83,7 +83,7 @@ executables:
     - -with-rtsopts=-N
     - -O2
     dependencies:
-    - micromath
+    - howl
     - file-embed
 
   susyO2:
@@ -95,12 +95,12 @@ executables:
     - -with-rtsopts=-N
     - -O2
     dependencies:
-    - micromath
+    - howl
     - file-embed
     - matrix
 
 tests:
-  micromath-test:
+  howl-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -108,6 +108,6 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - micromath
+    - howl
     - hspec
     - QuickCheck

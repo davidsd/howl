@@ -1,4 +1,4 @@
-module MicroMath.PPrint
+module Howl.PPrint
   ( PPrint(..)
   ) where
 

@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module MicroMath.Util
+module Howl.Util
   ( splitsK
   , splits1K
   , subSequencesK

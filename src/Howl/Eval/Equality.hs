@@ -1,13 +1,13 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module MicroMath.Eval.Equality
+module Howl.Eval.Equality
   ( exprEqualFast
   ) where
 
 import Data.Sequence           (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence qualified as Seq
 import GHC.StableName          (makeStableName)
-import MicroMath.Expr.Internal (Expr (..))
+import Howl.Expr.Internal (Expr (..))
 import System.IO.Unsafe        (unsafePerformIO)
 
 -- | Fast equality check for evaluator rewrite detection.

@@ -5,7 +5,7 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
-module MicroMath.Expr.Syntax
+module Howl.Expr.Syntax
   ( pattern Sequence
   , pattern List
   , pattern Apply
@@ -55,8 +55,8 @@ module MicroMath.Expr.Syntax
 import Data.Foldable           qualified as Foldable
 import Data.Sequence           qualified as Seq
 import Data.String             (fromString)
-import MicroMath.Expr.Internal (Expr (..), FromExpr (..), ToExpr (..))
-import MicroMath.Expr.TH       (declareBuiltins)
+import Howl.Expr.Internal (Expr (..), FromExpr (..), ToExpr (..))
+import Howl.Expr.TH       (declareBuiltins)
 import Prelude                 hiding (False, True)
 import Prelude qualified
 

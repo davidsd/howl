@@ -7,13 +7,13 @@ import Data.Sequence           qualified as Seq
 import Data.String             (fromString)
 import Data.Text               (Text)
 import Data.Text               qualified as Text
-import MicroMath                (defStdLib, eval, run, runEval)
-import MicroMath.Expr         (pattern Part)
-import MicroMath.Expr.Internal (Expr (..), pattern ExprBigFloat,
+import Howl                     (defStdLib, eval, run, runEval)
+import Howl.Expr              (pattern Part)
+import Howl.Expr.Internal     (Expr (..), pattern ExprBigFloat,
                                 pattern ExprDouble, pattern ExprInteger)
-import MicroMath.Expr.PPrint   ()
-import MicroMath.Parser        (normalizeParsedExpr, parseExprText)
-import MicroMath.PPrint        (PPrint (..))
+import Howl.Expr.PPrint        ()
+import Howl.Parser             (normalizeParsedExpr, parseExprText)
+import Howl.PPrint             (PPrint (..))
 import Numeric.Rounded.Simple qualified as Rounded
 import Test.Hspec
 import Test.Hspec.QuickCheck   (prop)

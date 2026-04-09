@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module MicroMath.Symbol.Simple
+module Howl.Symbol.Simple
   ( Symbol
   , symbolToShortText
   , symbolFromShortText
@@ -10,7 +10,7 @@ import Data.Hashable    (Hashable)
 import Data.String      (IsString (..))
 import Data.Text.Short  (ShortText)
 import Data.Text.Short  qualified as ShortText
-import MicroMath.PPrint (PPrint (..))
+import Howl.PPrint (PPrint (..))
 
 newtype Symbol = MkSymbol ShortText
   deriving (Eq, Ord, Show, Hashable)

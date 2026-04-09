@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module MicroMath.Expr.Numeric
+module Howl.Expr.Numeric
   ( Numeric(..)
   , FromNumeric(..)
   , BigFloat
@@ -19,7 +19,7 @@ module MicroMath.Expr.Numeric
 import Data.Ratio                  (numerator, denominator)
 import Numeric.Rounded.Simple      (Rounded)
 import Numeric.Rounded.Simple qualified as Rounded
-import MicroMath.PPrint (PPrint(..))
+import Howl.PPrint (PPrint(..))
 
 type BigFloat = Rounded
 type BigFloatPrecision = Rounded.Precision

@@ -3,7 +3,7 @@
 
 module Main where
 
-import MicroMath
+import Howl
 import Data.FileEmbed (makeRelativeToProject, strToExp)
 
 vectorCalculusSrc :: FilePath

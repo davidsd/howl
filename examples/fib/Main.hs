@@ -2,7 +2,7 @@
 
 module Main where
 
-import MicroMath
+import Howl
 
 fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (drop 1 fibs)

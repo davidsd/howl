@@ -3,7 +3,7 @@
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module MicroMath.Parser
+module Howl.Parser
   ( normalizeParsedExpr
   , parseExprText
   , readExprFile
@@ -25,7 +25,7 @@ import Data.Text                      (Text)
 import Data.Text                      qualified as Text
 import Data.Text.IO                   qualified as Text
 import Data.Void                      (Void)
-import MicroMath.Expr                 (BigFloat, Expr (..), pattern (:@),
+import Howl.Expr                 (BigFloat, Expr (..), pattern (:@),
                                        pattern And, pattern Divide,
                                        pattern ExprBigFloat, pattern ExprDouble,
                                        pattern ExprInteger, pattern ExprNumeric,
@@ -35,9 +35,9 @@ import MicroMath.Expr                 (BigFloat, Expr (..), pattern (:@),
                                        pattern CompoundExpression,
                                        pattern Plus, pattern Sequence,
                                        pattern Subtract, pattern Times)
-import MicroMath.Expr                 qualified as Expr
-import MicroMath.Symbol               (Symbol)
-import MicroMath.Util                 (pattern Pair)
+import Howl.Expr                 qualified as Expr
+import Howl.Symbol               (Symbol)
+import Howl.Util                 (pattern Pair)
 import Numeric.Rounded.Simple         qualified as Rounded
 import Data.List                    (intercalate)
 import Data.List.NonEmpty           (toList)

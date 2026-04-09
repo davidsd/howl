@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module MicroMath.Expr.TH
+module Howl.Expr.TH
   ( declareBuiltin
   , declareBuiltins
   ) where

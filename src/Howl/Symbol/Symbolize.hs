@@ -1,13 +1,13 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module MicroMath.Symbol.Symbolize
+module Howl.Symbol.Symbolize
   ( Symbol
   , symbolToShortText
   , symbolFromShortText
   ) where
 
 import Data.Text.Short  (ShortText)
-import MicroMath.PPrint (PPrint (..))
+import Howl.PPrint (PPrint (..))
 import Symbolize        (Symbol)
 import Symbolize        qualified as Symbolize
 

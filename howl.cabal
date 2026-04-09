@@ -4,11 +4,11 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 
-name:           micromath
+name:           howl
 version:        0.1.0.0
 description:    An implementation of a small subset of the Wolfram language in Haskell
-homepage:       https://github.com/davidsd/micromath#readme
-bug-reports:    https://github.com/davidsd/micromath/issues
+homepage:       https://github.com/davidsd/howl#readme
+bug-reports:    https://github.com/davidsd/howl/issues
 author:         David Simmons-Duffin
 maintainer:     dsd@caltech.edu
 copyright:      2026 David Simmons-Duffin
@@ -21,34 +21,34 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/davidsd/micromath
+  location: https://github.com/davidsd/howl
 
 library
   exposed-modules:
-      MicroMath
-      MicroMath.Eval
-      MicroMath.Eval.Context
-      MicroMath.Eval.Equality
-      MicroMath.Eval.EvalCache
-      MicroMath.Expr
-      MicroMath.Expr.Internal
-      MicroMath.Expr.Numeric
-      MicroMath.Expr.PPrint
-      MicroMath.Expr.Syntax
-      MicroMath.Expr.TH
-      MicroMath.Parser
-      MicroMath.Pat
-      MicroMath.PPrint
-      MicroMath.StdLib
-      MicroMath.Symbol
-      MicroMath.Symbol.Simple
-      MicroMath.Symbol.Symbolize
-      MicroMath.ToBuiltin
-      MicroMath.Util
+      Howl
+      Howl.Eval
+      Howl.Eval.Context
+      Howl.Eval.Equality
+      Howl.Eval.EvalCache
+      Howl.Expr
+      Howl.Expr.Internal
+      Howl.Expr.Numeric
+      Howl.Expr.PPrint
+      Howl.Expr.Syntax
+      Howl.Expr.TH
+      Howl.Parser
+      Howl.Pat
+      Howl.PPrint
+      Howl.StdLib
+      Howl.Symbol
+      Howl.Symbol.Simple
+      Howl.Symbol.Symbolize
+      Howl.ToBuiltin
+      Howl.Util
   other-modules:
-      Paths_micromath
+      Paths_howl
   autogen-modules:
-      Paths_micromath
+      Paths_howl
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
@@ -78,9 +78,9 @@ library
 executable fib
   main-is: Main.hs
   other-modules:
-      Paths_micromath
+      Paths_howl
   autogen-modules:
-      Paths_micromath
+      Paths_howl
   hs-source-dirs:
       examples/fib
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
@@ -94,8 +94,42 @@ executable fib
     , file-embed
     , hashable
     , hashtables
+    , howl
     , megaparsec
-    , micromath
+    , mtl
+    , optparse-applicative
+    , parser-combinators
+    , primitive
+    , rounded
+    , scientific
+    , symbolize
+    , template-haskell
+    , text
+    , text-short
+  default-language: GHC2021
+
+executable howl-repl
+  main-is: Main.hs
+  other-modules:
+      Paths_howl
+  autogen-modules:
+      Paths_howl
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , combinat
+    , containers
+    , deepseq
+    , exceptions
+    , file-embed
+    , hashable
+    , hashtables
+    , haskeline
+    , howl
+    , megaparsec
     , mtl
     , optparse-applicative
     , parser-combinators
@@ -111,9 +145,9 @@ executable fib
 executable laplace
   main-is: Main.hs
   other-modules:
-      Paths_micromath
+      Paths_howl
   autogen-modules:
-      Paths_micromath
+      Paths_howl
   hs-source-dirs:
       examples/laplace
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
@@ -127,42 +161,8 @@ executable laplace
     , file-embed
     , hashable
     , hashtables
+    , howl
     , megaparsec
-    , micromath
-    , mtl
-    , optparse-applicative
-    , parser-combinators
-    , primitive
-    , rounded
-    , scientific
-    , symbolize
-    , template-haskell
-    , text
-    , text-short
-  default-language: GHC2021
-
-executable mmath
-  main-is: Main.hs
-  other-modules:
-      Paths_micromath
-  autogen-modules:
-      Paths_micromath
-  hs-source-dirs:
-      app
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
-  build-depends:
-      base >=4.7 && <5
-    , bytestring
-    , combinat
-    , containers
-    , deepseq
-    , exceptions
-    , file-embed
-    , hashable
-    , hashtables
-    , haskeline
-    , megaparsec
-    , micromath
     , mtl
     , optparse-applicative
     , parser-combinators
@@ -179,9 +179,9 @@ executable susyO2
   main-is: Main.hs
   other-modules:
       ExprTypes
-      Paths_micromath
+      Paths_howl
   autogen-modules:
-      Paths_micromath
+      Paths_howl
   hs-source-dirs:
       examples/susyO2
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
@@ -195,9 +195,9 @@ executable susyO2
     , file-embed
     , hashable
     , hashtables
+    , howl
     , matrix
     , megaparsec
-    , micromath
     , mtl
     , optparse-applicative
     , parser-combinators
@@ -210,13 +210,13 @@ executable susyO2
     , text-short
   default-language: GHC2021
 
-test-suite micromath-test
+test-suite howl-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_micromath
+      Paths_howl
   autogen-modules:
-      Paths_micromath
+      Paths_howl
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N
@@ -231,9 +231,9 @@ test-suite micromath-test
     , file-embed
     , hashable
     , hashtables
+    , howl
     , hspec
     , megaparsec
-    , micromath
     , mtl
     , optparse-applicative
     , parser-combinators

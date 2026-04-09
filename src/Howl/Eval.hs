@@ -6,7 +6,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
-module MicroMath.Eval
+module Howl.Eval
   ( SubstitutionSet(..)
   , Substitution(..)
   , MatchingEq(..)
@@ -22,8 +22,6 @@ module MicroMath.Eval
   , eval
   ) where
 
-import Debug.Trace qualified as Debug
-import MicroMath.PPrint (pPrint)
 import Control.Monad          (foldM)
 import Data.Map.Lazy          (Map)
 import Data.Map.Lazy          qualified as Map
@@ -31,20 +29,20 @@ import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence          qualified as Seq
 import Data.Set               (Set)
 import Data.Set               qualified as Set
-import MicroMath.Eval.Context (Attributes (..), Eval (..), HoldType (..),
+import Howl.Eval.Context (Attributes (..), Eval (..), HoldType (..),
                                Rule (..), SymbolRecord (..), addToEvalCache,
                                emptyAttributes, lookupSymbolRecord,
                                returnIfInCache)
-import MicroMath.Eval.Equality (exprEqualFast)
-import MicroMath.Expr         (Expr (..), flattenWithHead, mapSymbols,
+import Howl.Eval.Equality (exprEqualFast)
+import Howl.Expr         (Expr (..), flattenWithHead, mapSymbols,
                                pattern ExprBigFloat, pattern ExprDouble,
                                pattern ExprInteger, pattern ExprRational,
                                pattern ExprString)
-import MicroMath.Expr         qualified as Expr
-import MicroMath.Pat          (Pat (..), PatAppType (..), SeqType (..),
+import Howl.Expr         qualified as Expr
+import Howl.Pat          (Pat (..), PatAppType (..), SeqType (..),
                                addNames, outerNames)
-import MicroMath.Symbol       (Symbol)
-import MicroMath.Util         (splits1K, splitsK, subSequencesK)
+import Howl.Symbol       (Symbol)
+import Howl.Util         (splits1K, splitsK, subSequencesK)
 
 {- ============== Pattern Matching ================
 
@@ -516,34 +514,34 @@ checkTrue = fmap (== Expr.True) . eval
 Mathematica's standard evaluation sequence is described here
 (https://reference.wolfram.com/language/tutorial/Evaluation.html). Unfortunately,
 it contains some typos, which I'll try to fix below. I also added
-implementation comments for the current status in MicroMath.
+implementation comments for the current status in Howl.
 
 - If the expression is a raw object (e.g., Integer, String, etc.),
-  leave it unchanged. MicroMath: Done.
+  leave it unchanged. Howl: Done.
 
-- Evaluate the head h of the expression. MicroMath: Done.
+- Evaluate the head h of the expression. Howl: Done.
 
 - Evaluate each element ei of the expression in turn. If h is a symbol
   with attributes HoldFirst, HoldRest, HoldAll, or HoldAllComplete,
-  then skip evaluation of certain elements. MicroMath: HoldAllComplete
+  then skip evaluation of certain elements. Howl: HoldAllComplete
   not implemented.
 
 - Unless h has attributes SequenceHold or HoldAllComplete, flatten out
-  all Sequence objects that appear among the ei. MicroMath:
+  all Sequence objects that appear among the ei. Howl:
   SequenceHold/HoldAllComplete not implemented.
 
 - Unless h has attribute HoldAllComplete, strip the outermost of any
-  Unevaluated wrappers that appear among the ei. MicroMath: Not
+  Unevaluated wrappers that appear among the ei. Howl: Not
   implemented.
 
 - If h has attribute Flat, then flatten out all nested expressions
-  with head h. MicroMath: Done.
+  with head h. Howl: Done.
 
 - If h has attribute Listable, then thread through any ei that are
-  lists. MicroMath: Listable not implemented.
+  lists. Howl: Listable not implemented.
 
 - If h has attribute Orderless, then sort the ei into
-  order. MicroMath: Done.
+  order. Howl: Done.
 
 - Unless h has attribute HoldAllComplete, use any user-defined
   upvalues of symbols f appearing in the form h[f[e1,...],...]. NB: We
@@ -555,18 +553,18 @@ implementation comments for the current status in MicroMath.
   Because g appears inside the head of the expression and not in the
   sequence of arguments, it is not considered to be at "level 1".
 
-- Use any builtin upvalues. MicroMath: We allow the user to choose the
+- Use any builtin upvalues. Howl: We allow the user to choose the
   ordering, and there is no special privilege given to
   builtin/user-defined UpValues.
 
 - Use any user-defined down-values associated to h in the form
   h[...] or for h[...][...]. Presumably this also means repeated
-  curried application h[...][...][...]. MicroMath: Mathematica
+  curried application h[...][...][...]. Howl: Mathematica
   distinguishes between down-values and sub-values. For now, we don't
   distinguish --- down values are associated to the root symbol.
 
 - Use any built‐in transformation rules for h[...] or
-  h[...][...]. MicroMath: Again, we don't distinguish between
+  h[...][...]. Howl: Again, we don't distinguish between
   built-in/user-defined downvalues.
 
 Note that, conceptually, we would like to try every rule in the

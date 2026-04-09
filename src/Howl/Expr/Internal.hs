@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
-module MicroMath.Expr.Internal
+module Howl.Expr.Internal
   ( Literal(..)
   , Expr(..)
   , pattern (:@)
@@ -33,9 +33,9 @@ import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence          qualified as Seq
 import Data.String            (IsString (..))
 import Data.Text              (Text)
-import MicroMath.Expr.Numeric (Numeric (..), BigFloat)
-import MicroMath.PPrint       (PPrint (..))
-import MicroMath.Symbol       (Symbol)
+import Howl.Expr.Numeric (Numeric (..), BigFloat)
+import Howl.PPrint       (PPrint (..))
+import Howl.Symbol       (Symbol)
 
 -- | NB: The ordering of constructors is chosen so that the derived
 -- Ord instance gives the correct ordering of expressions.

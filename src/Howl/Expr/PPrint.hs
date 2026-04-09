@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns    #-}
 
-module MicroMath.Expr.PPrint
+module Howl.Expr.PPrint
   ( Prec(..)
   , pPrintPrec
   , pPrintLit
@@ -11,9 +11,9 @@ module MicroMath.Expr.PPrint
 import Data.Foldable             qualified as Foldable
 import Data.List                 (intercalate)
 import Data.Sequence             qualified as Seq
-import MicroMath.Expr.Internal   (Expr (..), Literal (..), pattern ExprNumeric)
-import MicroMath.Expr.Numeric    (Numeric (..))
-import MicroMath.Expr.Syntax     (pattern Plus, pattern Times, pattern Power,
+import Howl.Expr.Internal   (Expr (..), Literal (..), pattern ExprNumeric)
+import Howl.Expr.Numeric    (Numeric (..))
+import Howl.Expr.Syntax     (pattern Plus, pattern Times, pattern Power,
                                   pattern List, pattern Rule, pattern RuleDelayed,
                                   pattern Set, pattern SetDelayed,
                                   pattern Equal, pattern Unequal,
@@ -22,7 +22,7 @@ import MicroMath.Expr.Syntax     (pattern Plus, pattern Times, pattern Power,
                                   pattern SameQ, pattern UnsameQ,
                                   pattern And, pattern Or,
                                   pattern Alternatives)
-import MicroMath.PPrint          (PPrint (..))
+import Howl.PPrint          (PPrint (..))
 import Numeric.Rounded.Simple qualified as Rounded
 
 -- | Precedence levels for pretty printing (higher = binds tighter)

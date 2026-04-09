@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module MicroMath.Symbol
+module Howl.Symbol
   ( Symbol
   , symbolToShortText
   , symbolFromShortText
   ) where
 
---import MicroMath.Symbol.Simple
-import MicroMath.Symbol.Symbolize
+--import Howl.Symbol.Simple
+import Howl.Symbol.Symbolize

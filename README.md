@@ -1,10 +1,19 @@
-# MicroMath
+# Howl
 
-MicroMath is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica), in Haskell. It is both a Haskell library and executable. As a Haskell library, MicroMath makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions.  One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages, see [StdLib.hs](https://github.com/davidsd/micromath/blob/main/src/MicroMath/StdLib.hs) as an example.
+Howl (**H**askell **O**pen **W**olfram **L**anguage interpreter) is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica), in Haskell. It is both a Haskell library and executable. As a Haskell library, Howl makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions. One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages, see [StdLib.hs](https://github.com/davidsd/howl/blob/main/src/Howl/StdLib.hs) as an example.
 
-## Intro: trees and replacement rules
+## Prior art
 
-At its core, Mathematica is an engine for repeatedly applying replacement rules to trees of data. A mathematical expression is represented as a tree. For example, the expression `3+a(b+c)` can be written `Plus[3,Times[a,Plus[b,c]]]`, which as a tree looks like this:
+The core algorithm needed to implement the Wolfram Language is a procedure for matching patterns to expressions (see below for details). Howl implements the algorithm $M_\textrm{Mma}$ described in [Variadic equational matching in associative and commutative theories](https://www.sciencedirect.com/science/article/pii/S0747717121000079) by Besik Dundua, Temur Kutsia, and Mircea Marin
+[pdf](https://www3.risc.jku.at/publications/download/risc_6260/variadic-equational-matching-jsc-final-with-mma-versions.pdf). 
+
+[loris](https://github.com/rljacobson/loris) is another implementation (in Rust) of the Wolfram Language based on the Dundua-Kutsia-Marin paper. Loris was important inspiration for Howl.
+
+[mathics](https://mathics.org/) is "A free, open-source alternative to Mathematica", implemented in python. Unlike Howl, Mathics makes a reasonable attempt towards feature parity with Mathematica, including implementing a much larger proportion of Mathematica's standard library, providing a notebook interface, graphics features, and much more.
+
+## Background: trees and replacement rules
+
+Mathematica is essentially an engine for repeatedly applying replacement rules to trees of data. A mathematical expression is represented as a tree. For example, the expression `3+a(b+c)` can be written `Plus[3,Times[a,Plus[b,c]]]`, which as a tree looks like this:
 
 <img width="339" height="398" alt="Screenshot 2026-01-22 at 11 59 16 PM" src="https://github.com/user-attachments/assets/941c3f90-6b87-4fc0-88f5-1d22714c681e" />
 
@@ -28,31 +37,24 @@ If we add this to the global rules, then Mathematica will recognize that part of
 
 <img width="338" height="266" alt="Screenshot 2026-01-23 at 12 04 15 AM" src="https://github.com/user-attachments/assets/db9453b4-fed1-4c36-a658-dc3a329d0596" />
 
-In actuality, this example doesn't work in Mathematica because the symbol `Times` is protected and you are not allowed to define new rules for it. But you can do it in MicroMath:
+In actuality, this example doesn't work in Mathematica because the symbol `Times` is protected and you are not allowed to define new rules for it. But you can do it in Howl:
 
 ```
-MicroMath, version 0.1 :? for help
+Howl, version 0.1 :? for help
 > x_(y_+z_) := x y + x z;
 > 3 + a (b + c)
 3 + a b + a c
 ```
 
-## Matching algorithm and Loris
-
-The core algorithm needed to implement the Wolfram Language is a procedure for matching patterns to expressions. MicroMath implements the algorithm $M_\textrm{Mma}$ described in [Variadic equational matching in associative and commutative theories](https://www.sciencedirect.com/science/article/pii/S0747717121000079) by Besik Dundua, Temur Kutsia, and Mircea Marin
-[pdf](https://www3.risc.jku.at/publications/download/risc_6260/variadic-equational-matching-jsc-final-with-mma-versions.pdf). 
-
-[loris](https://github.com/rljacobson/loris) is another implementation (in Rust) of the Wolfram Language based on this paper. Loris was important inspiration for MicroMath.
-
 ## Interoperation with Haskell
 
-When MicroMath is used as a Haskell library, you can easily define replacement rules that use Haskell functions.
+When Howl is used as a Haskell library, you can easily define replacement rules that use Haskell functions.
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import MicroMath
+import Howl
 
 fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
@@ -66,23 +68,29 @@ myProgram = do
   def "Fib" fib
   run "Expand[(x + Fib[100])^Fib[3]]"
 
--- Prints: Plus[125475243067621153271396401396356512255625, Power[x, 2], Times[708449696358523830150, x]]
+-- Prints: 125475243067621153271396401396356512255625 + x^2 + 708449696358523830150 x
 main :: IO ()
-main = runEval myProgram >>= print
+main = runEval myProgram >>= putStrLn . pPrint
 ```
 The type of the function `fib :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal, and returns an integer literal. For example, `Fib[x]` (where x is a symbol) doesn't match the rule we defined, and remains `Fib[x]`. The typeclasses `ToExpr`/`FromExpr` are used to automatically convert `Expr`'s to and from Haskell data, and define rules that only match `Expr`'s of the appropriate form.
 
-Why would you want to do this? Well, it is generally horrible to write actual programs in Mathematica. It does not have a type system, it is slow, lists are the only conveniently available data structure, editing interfaces are bad. So instead, you can write your programs in Haskell. But Haskell does not have much in the way of computer algebra. So when you need mathematical expressions and simplification using replacement rules, you can use a `MicroMath` `Expr`.
+Why would you want to do this? Well, it is generally horrible to write actual programs in Mathematica. It does not have a type system, it is slow, lists are the only conveniently available data structure, editing interfaces are bad. So instead, you can write your programs in Haskell. But Haskell does not have much in the way of computer algebra. So if you need mathematical expressions and simplification using replacement rules, you could use a `Howl` `Expr`.
 
-Often in theoretical physics, we encounter a need to define custom symbolic manipulation rules. Some examples are Clifford matrix algebra used in Feynman diagrams, algebras of creation and annihilation operators, or vector calculus. The Wolfram Language was designed (in part) to make it easy to create these custom systems. That is an application where it really shines. MicroMath makes it possible to use these customized algebraic systems in Haskell.
+Before actually using Howl in practice, you should probably ask:
+
+- Can I just write everything in Haskell and bypass `Howl` `Expr`'s and the Howl evaluator? If the answer is yes, you should do it.
+
+- Do I want to spend my time writing Haskell functions that implement missing features in the Howl standard library just so I can write Wolfram Language programs that use those features? If the answer is no, you shouldn't do it.
+
+I haven't actually found a real situation where the answers to these questions are "no" and "yes". Please let me know if you encounter one.
 
 ## Some differences from Mathematica
 
-Here is a woefully incomplete list of differences between MicroMath and Mathematica
+Here is a woefully incomplete list of differences between Howl and Mathematica
 
-- MicroMath has a few dozen functions in the standard library. Mathematica version 14.0 has 6,600 builtin functions.
+- Howl has a few dozen functions in the standard library. Mathematica version 14.0 has 6,600 builtin functions.
 
-- MicroMath is slower than Mathematica. How much slower depends on the program. For example, the following program takes 40 seconds to run in MicroMath and 7 seconds in Mathematica, on my M4 Max laptop:
+- Howl is slower than Mathematica. How much slower depends on the program. For example, the following program takes 40 seconds to run in Howl and 7 seconds in Mathematica, on my M4 Max laptop:
   ```mathematica
   fib[0] := 0;
   fib[1] := 1;
@@ -91,17 +99,17 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   ```
   If you know how to make it faster, please tell me!
 
-- MicroMath does not evaluate patterns as if they were expressions. In other words, you can imagine that every pattern in MicroMath is wrapped in `HoldPattern`.
+- Howl does not evaluate patterns as if they were expressions. In other words, you can imagine that every pattern in Howl is wrapped in `HoldPattern`.
 
-- MicroMath does not currently attempt to sort user-defined rules in reverse order of specificity. It stores rules in the order that they are defined. For example:
+- Howl does not currently attempt to sort user-defined rules in reverse order of specificity. It stores rules in the order that they are defined. For example:
   ```mathematica
   Foo[_] := True;
   Foo[3] := False;
-  (* Evaluates to False in Mathematica, but True in MicroMath *)
+  (* Evaluates to False in Mathematica, but True in Howl *)
   Foo[3]
   ```
 
-- MicroMath does not have `Block` or `With`. Instead, it defines `Let`, which implements shadowing, as is standard in most functional languages. For example:
+- Howl does not have `Block` or `With`. Instead, it defines `Let`, which implements shadowing, as is standard in most functional languages. For example:
   ```
   > Let[x=12,Let[x=9,x+3]+x]
   24
@@ -112,23 +120,22 @@ Here is a woefully incomplete list of differences between MicroMath and Mathemat
   11
   ```
 
-- MicroMath implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` or `Unevaluated`. It also does not implement `Listable`, and hopefully it never will. Please use `Map` instead.
+- Howl implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` or `Unevaluated`. It also does not implement `Listable`, and hopefully it never will. Please use `Map` instead.
 
 - Attributes must be set before rules are defined. The reason is that the left-hand-side is compiled into a pattern, and the way compilation works depends on the attributes of the symbols in the pattern. If these attributes are changed later, the compiled pattern that is already in the Context will not be updated.
 
-- MicroMath does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
+- Howl does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
   ```
   > a b c /. {a c :> Foobar}
   b Foobar
   ```
-  MicroMath does not recognize that `Times[a,b,c]` can be rewritten as `Times[Times[a,c],b]` which has `Times[a,c]` as a sub-expression that matches the pattern. However, you can do this:
+  Howl does not recognize that `Times[a,b,c]` can be rewritten as `Times[Times[a,c],b]` which has `Times[a,c]` as a sub-expression that matches the pattern. However, you can do this:
   ```
   > a b c /. {a c x___ :> Foobar x}
   b Foobar
   ```
-  This works because the left-hand side matches the whole expression `a b c`, taking into account commutativity of `Times` (which the MicroMath pattern matcher does).
+  This works because the left-hand side matches the whole expression `a b c`, taking into account commutativity of `Times` (which the Howl pattern matcher does).
   
-
 
 
 

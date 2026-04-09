@@ -8,7 +8,7 @@
 {-# LANGUAGE UndecidableInstances  #-}
 {-# LANGUAGE ViewPatterns          #-}
 
-module MicroMath.StdLib where
+module Howl.StdLib where
 
 import Control.Monad          (guard, void)
 import Control.Monad.IO.Class (liftIO)
@@ -24,19 +24,19 @@ import Data.Text              (Text)
 import Data.Text              qualified as Text
 import Data.Text.Encoding     qualified as TE
 import Math.Combinat          (binomial, multinomial)
-import MicroMath.Eval         (MatchingEq (..), Substitution (..),
+import Howl.Eval         (MatchingEq (..), Substitution (..),
                                SubstitutionSet, emptySubstitutionSet, eval,
                                insertSubstitution, insertSubstitutions,
                                lookupBinding, removeBindings,
                                singletonSubstitutionSet, solveMatchMaybe,
                                tryApplyRule)
-import MicroMath.Eval.Context (Attributes (..), Decl (..), Eval (..),
+import Howl.Eval.Context (Attributes (..), Decl (..), Eval (..),
                                HoldType (..), Rule (..), addDecl, clear,
                                clearAll, compilePat, getDefinedSymbols,
                                lookupAttributes, lookupSymbolRecord,
                                modifyAttributes, newModuleSymbol, setFlat,
                                setHoldType, setNumericFunction, setOrderless)
-import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
+import Howl.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                ToExpr (..), bigFloatPrecision, pattern (:@),
                                pattern And, pattern ExprBigFloat,
                                pattern ExprDouble, pattern ExprInteger,
@@ -46,13 +46,13 @@ import MicroMath.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                pattern Plus, pattern Power, pattern Set,
                                pattern Slot, pattern TagSetDelayed,
                                pattern Times, toBigFloat, toDouble)
-import MicroMath.Expr         qualified as Expr
-import MicroMath.Expr.TH      (declareBuiltins)
-import MicroMath.Parser       (parseExprText, readExprFile)
-import MicroMath.Pat          (patRootSymbol)
-import MicroMath.Symbol       (Symbol)
-import MicroMath.ToBuiltin    (ToBuiltin (..), Variadic (..), builtinDecl)
-import MicroMath.Util         (pattern Pair, pattern Solo)
+import Howl.Expr         qualified as Expr
+import Howl.Expr.TH      (declareBuiltins)
+import Howl.Parser       (parseExprText, readExprFile)
+import Howl.Pat          (patRootSymbol)
+import Howl.Symbol       (Symbol)
+import Howl.ToBuiltin    (ToBuiltin (..), Variadic (..), builtinDecl)
+import Howl.Util         (pattern Pair, pattern Solo)
 import Numeric.Rounded.Simple qualified as Rounded
 
 ---------- Plus ----------
@@ -378,7 +378,7 @@ introducedVariables = \case
 --
 -- x_ :> x+1
 --
--- However, both Mathematica and MicroMath currently have:
+-- However, both Mathematica and Howl currently have:
 --
 -- (x_:>x+2)/.x->12 ---> Pattern[12, Blank[]] :> 12 + 2
 --

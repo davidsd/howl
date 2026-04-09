@@ -10,11 +10,11 @@ import Control.Monad.Trans      (lift)
 import Data.List                qualified as List
 import Data.Text                (Text)
 import Data.Text                qualified as Text
-import MicroMath                (Eval, Expr (..), PPrint (..), compilePat,
+import Howl                     (Eval, Expr (..), PPrint (..), compilePat,
                                  defStdLib, eval, fullForm, get, pattern Null,
                                  run, runEval)
-import MicroMath.Parser         (parseExprText)
-import MicroMath.Util           (pattern Solo)
+import Howl.Parser              (parseExprText)
+import Howl.Util                (pattern Solo)
 import Options.Applicative
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine,
                                  outputStrLn, runInputT)
@@ -45,8 +45,8 @@ optsInfo :: ParserInfo Mode
 optsInfo =
   info (modeParser <**> helper)
   ( fullDesc
-    <> progDesc "MicroMath REPL / evaluator"
-    <> header "micromath"
+    <> progDesc "Howl REPL / evaluator"
+    <> header "howl"
   )
 
 main :: IO ()
@@ -75,7 +75,7 @@ runRepl = runInputT defaultSettings evalRepl
 
 evalRepl :: InputT Eval ()
 evalRepl = do
-  outputStrLn "MicroMath, version 0.1 :? for help"
+  outputStrLn "Howl, version 0.1 :? for help"
   lift defStdLib
   loop
   where

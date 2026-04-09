@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 
-module MicroMath.Pat
+module Howl.Pat
   ( Pat(..)
   , PatAppType(..)
   , SeqType(..)
@@ -23,16 +23,16 @@ import Data.Sequence         (Seq, pattern (:<|), pattern Empty)
 import Data.String           (IsString (..))
 import Data.Set              (Set)
 import Data.Set              qualified as Set
-import MicroMath.Expr        (Expr (..), Literal, binary, pattern (:@),
+import Howl.Expr        (Expr (..), Literal, binary, pattern (:@),
                               pattern Alternatives, pattern Blank,
                               pattern BlankNullSequence, pattern BlankSequence,
                               pattern ConfirmPatternTest, pattern Default,
                               pattern Optional, pattern Pattern,
                               pattern PatternTest, pattern Test)
-import MicroMath.Expr.PPrint ()
-import MicroMath.PPrint      (PPrint (..))
-import MicroMath.Symbol      (Symbol)
-import MicroMath.Util        (pattern Pair, pattern Solo)
+import Howl.Expr.PPrint ()
+import Howl.PPrint      (PPrint (..))
+import Howl.Symbol      (Symbol)
+import Howl.Util        (pattern Pair, pattern Solo)
 
 {- | TODO:
 

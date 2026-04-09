@@ -3,17 +3,17 @@
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module MicroMath.ToBuiltin
+module Howl.ToBuiltin
   ( ToBuiltin(..)
   , Variadic(..)
   , builtinDecl
   ) where
 
 import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
-import MicroMath.Eval.Context (Decl (..), Eval (..), Rule (..))
-import MicroMath.Expr         (Expr (..), FromExpr (..), ToExpr (..),
+import Howl.Eval.Context (Decl (..), Eval (..), Rule (..))
+import Howl.Expr         (Expr (..), FromExpr (..), ToExpr (..),
                                pattern (:@))
-import MicroMath.Symbol       (Symbol)
+import Howl.Symbol       (Symbol)
 
 -- | Given a function type f, turn it into an operation on a 'Seq
 -- Expr' (which we think of as the arguments to a symbolic function).

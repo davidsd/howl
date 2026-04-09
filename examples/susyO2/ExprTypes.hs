@@ -5,16 +5,13 @@
 
 module ExprTypes where
 
-import Data.Containers.ListUtils (nubOrd)
-import Data.FileEmbed            (makeRelativeToProject, strToExp)
 import Data.Foldable             qualified as Foldable
 import Data.Map.Strict           (Map)
 import Data.Map.Strict           qualified as Map
-import Data.Sequence             (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence             (pattern (:<|))
 import Data.Sequence             qualified as Seq
 import Data.Set                  (Set)
-import Data.Set                  qualified as Set
-import MicroMath
+import Howl
 
 data Power a n = MkPower a n
   deriving (Eq, Ord, Show)

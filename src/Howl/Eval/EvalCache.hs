@@ -1,6 +1,6 @@
 {-# LANGUAGE NoFieldSelectors #-}
 
-module MicroMath.Eval.EvalCache
+module Howl.Eval.EvalCache
   ( EvalCache
   , newEvalCache
   , lookupEvalCache
@@ -12,7 +12,7 @@ import Control.Exception       (evaluate)
 import Data.Hashable           (Hashable (..))
 import Data.HashTable.IO       qualified as HT
 import GHC.StableName          (StableName, hashStableName, makeStableName)
-import MicroMath.Expr.Internal (Expr)
+import Howl.Expr.Internal (Expr)
 import System.Mem.Weak         (Weak, mkWeakPtr)
 
 newtype SN a = SN (StableName a)
