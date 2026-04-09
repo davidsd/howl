@@ -4,6 +4,41 @@ Howl (**H**askell **O**pen **W**olfram **L**anguage interpreter) is an implement
 
 Mathematica is a registered trademark of Wolfram Research, Inc., and Wolfram Language is a trademark of Wolfram Research, Inc.; this project is independent and not affiliated with, endorsed by, or sponsored by Wolfram Research.
 
+## Installation
+
+You can build with stack:
+
+```bash
+git clone https://github.com/davidsd/howl.git
+cd howl
+stack build
+```
+
+## Usage
+
+The main executable is `howl-repl`.
+
+Start the REPL with `stack`:
+```bash
+stack run howl-repl
+```
+
+Evaluate a single expression without entering the REPL:
+```bash
+stack run howl-repl -- --expr 'Expand[(x + 1)^3]'
+```
+
+Load a file and (optionally) evaluate an expression:
+```bash
+stack run howl-repl -- --file examples/wl/fib.wl --expr 'fib[10]'
+```
+
+There are also some example executables in the repository:
+```bash
+stack run fib
+stack run laplace
+```
+
 ## Prior art
 
 The core algorithm needed to implement the Wolfram Language is a procedure for matching patterns to expressions (see below for details). Howl implements the algorithm $M_\textrm{Mma}$ described in [Variadic equational matching in associative and commutative theories](https://www.sciencedirect.com/science/article/pii/S0747717121000079) by Besik Dundua, Temur Kutsia, and Mircea Marin
@@ -141,4 +176,3 @@ Howl is an experiment. Before actually using Howl in practice, you should probab
 I haven't yet found a real situation where the answers to these questions are "no" and "yes". Please let me know if you encounter one.
 
 Still, Wolfram Language patterns are a concise way to express symbolic rules that can be cumbersome to implement in Haskell. For example, [vector_calculus.wl](https://github.com/davidsd/howl/blob/main/examples/wl/vector_calculus.wl) gives a concise set of rules for performing basic vector calculus. It is a pain to implement this kind of thing directly in Haskell, see [orthogonal-reps](https://gitlab.com/davidsd/orthogonal-reps) for an example. It would be nice if Haskell had native support for sequence variables and some of the more powerful features of Wolfram Language patterns. When doing symbolic manipulation, it is also nice to sometimes *not* have types: will the arguments of `Exp` be integers or rationals or rational functions of some variables or square roots of other expressions? Sometimes you don't know yet, and you don't want to worry about this.
-

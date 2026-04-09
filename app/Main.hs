@@ -19,31 +19,34 @@ import Options.Applicative
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine,
                                  outputStrLn, runInputT)
 
--- | Top-level mode of operation
-data Mode
-  = Repl
-  | EvalFile FilePath
-  | EvalExpr Text.Text
+data Options = MkOptions
+  { file :: !(Maybe FilePath)
+  , expr :: !(Maybe Text.Text)
+  }
 
-modeParser :: Parser Mode
-modeParser =
-  EvalFile <$> strOption
-  ( long "file"
-    <> short 'f'
-    <> metavar "FILE"
-    <> help "Evaluate FILE and print the result"
-  )
-  <|> EvalExpr . Text.pack <$> strOption
-  ( long "expr"
-    <> short 'e'
-    <> metavar "EXPR"
-    <> help "Evaluate EXPR and print the result"
-  )
-  <|> pure Repl
+optionsParser :: Parser Options
+optionsParser =
+  MkOptions
+    <$> optional
+      ( strOption
+        ( long "file"
+          <> short 'f'
+          <> metavar "FILE"
+          <> help "Evaluate FILE before optionally evaluating EXPR"
+        )
+      )
+    <*> optional
+      ( Text.pack <$> strOption
+        ( long "expr"
+          <> short 'e'
+          <> metavar "EXPR"
+          <> help "Evaluate EXPR"
+        )
+      )
 
-optsInfo :: ParserInfo Mode
+optsInfo :: ParserInfo Options
 optsInfo =
-  info (modeParser <**> helper)
+  info (optionsParser <**> helper)
   ( fullDesc
     <> progDesc "Howl REPL / evaluator"
     <> header "howl"
@@ -51,24 +54,28 @@ optsInfo =
 
 main :: IO ()
 main = do
-  mode <- execParser optsInfo
-  runEval $ case mode of
-    Repl         -> runRepl
-    EvalFile fp  -> runFile fp
-    EvalExpr txt -> runExpr txt
+  opts <- execParser optsInfo
+  runEval $
+    case (opts.file, opts.expr) of
+      (Nothing, Nothing) -> runRepl
+      _                  -> runBatch opts
 
-runFile :: FilePath -> Eval ()
-runFile fp = do
+runBatch :: Options -> Eval ()
+runBatch opts = do
   defStdLib
-  inputExpr <- get fp
-  result <- eval inputExpr
-  unlessNull result $ liftIO . putStrLn . formatOutput
+  maybe (pure ()) runFileContent opts.file
+  maybe (pure ()) runExprContent opts.expr
+  where
+    runFileContent :: FilePath -> Eval ()
+    runFileContent fp = do
+      inputExpr <- get fp
+      result <- eval inputExpr
+      unlessNull result $ liftIO . putStrLn . formatOutput
 
-runExpr :: Text -> Eval ()
-runExpr input = do
-  defStdLib
-  result <- run input
-  unlessNull result $ liftIO . putStrLn . formatOutput
+    runExprContent :: Text -> Eval ()
+    runExprContent input = do
+      result <- run input
+      unlessNull result $ liftIO . putStrLn . formatOutput
 
 runRepl :: Eval ()
 runRepl = runInputT defaultSettings evalRepl
