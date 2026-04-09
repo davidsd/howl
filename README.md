@@ -76,14 +76,6 @@ The type of the function `fib :: Int -> Integer` is used to define a rule that o
 
 Why would you want to do this? Well, it is generally horrible to write actual programs in Mathematica. It does not have a type system, it is slow, lists are the only conveniently available data structure, editing interfaces are bad. So instead, you can write your programs in Haskell. But Haskell does not have much in the way of computer algebra. So if you need mathematical expressions and simplification using replacement rules, you could use a `Howl` `Expr`.
 
-Before actually using Howl in practice, you should probably ask:
-
-- Can I just write everything in Haskell and bypass `Howl` `Expr`'s and the Howl evaluator? If the answer is yes, you should do it.
-
-- Do I want to spend my time writing Haskell functions that implement missing features in the Howl standard library just so I can write Wolfram Language programs that use those features? If the answer is no, you shouldn't do it.
-
-I haven't actually found a real situation where the answers to these questions are "no" and "yes". Please let me know if you encounter one.
-
 ## Some differences from Mathematica
 
 Here is a woefully incomplete list of differences between Howl and Mathematica
@@ -136,8 +128,17 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
   ```
   This works because the left-hand side matches the whole expression `a b c`, taking into account commutativity of `Times` (which the Howl pattern matcher does).
   
+## Some thoughts about this whole idea
 
+Howl is an experiment. Before actually using Howl in practice, you should probably ask:
 
+- Can I just write everything in Haskell and bypass `Howl` `Expr`'s and the Howl evaluator? If the answer is yes, you should do it.
+
+- Do I want to spend my time writing Haskell functions that implement missing features in the Howl standard library just so I can run Wolfram Language programs that use those features? If the answer is no, you shouldn't do it.
+
+I haven't yet found a real situation where the answers to these questions are "no" and "yes". Please let me know if you encounter one.
+
+Still, Wolfram Language patterns are a concise way to express symbolic rules that can be cumbersome to implement in Haskell. For example, [vector_calculus.wl](https://github.com/davidsd/howl/blob/main/examples/wl/vector_calculus.wl) gives a concise set of rules for performing basic vector calculus. It is a pain to implement this kind of thing directly in Haskell, see [orthogonal-reps](https://gitlab.com/davidsd/orthogonal-reps) for an example. It would be nice if Haskell had native support for sequence variables and some of the more powerful features of Wolfram Language patterns. When doing symbolic manipulation, it is also nice to sometimes *not* have types: will the arguments of `Exp` be integers or rationals or rational functions of some variables or square roots of other expressions? Sometimes you don't know yet, and you don't want to worry about this.
 
 
 
