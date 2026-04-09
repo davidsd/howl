@@ -1,0 +1,67 @@
+digraph ExprTreeAfter {
+  graph [
+    rankdir=TB
+    bgcolor="transparent"
+    pad="0.2"
+    nodesep="0.2"
+    ranksep="0.45"
+  ];
+
+  node [
+    shape=box
+    fixedsize=false
+    style=filled
+    fillcolor="#f4efe2"
+    color="#4e4036"
+    fontname="Helvetica"
+    fontsize=16
+    height=0.5
+    penwidth=1.2
+  ];
+
+  edge [
+    color="#6b5a4d"
+    penwidth=1.2
+  ];
+
+  plus0  [label="Plus"];
+  three  [label="3", margin="0.06,0.03", width=0.38];
+  times0 [label="Times"];
+  times1 [label="Times"];
+  a0     [label="a", margin="0.06,0.03", width=0.38];
+  b0     [label="b", margin="0.06,0.03", width=0.38];
+  a1     [label="a", margin="0.06,0.03", width=0.38];
+  c0     [label="c", margin="0.06,0.03", width=0.38];
+  gap0   [label="", style=invis, width=0.12, height=0.01, penwidth=0];
+  gap1   [label="", style=invis, width=0.08, height=0.01, penwidth=0];
+  gap2   [label="", style=invis, width=0.08, height=0.01, penwidth=0];
+  mid0   [label="", style=invis, width=0.01, height=0.01, penwidth=0];
+  mid1   [label="", style=invis, width=0.01, height=0.01, penwidth=0];
+  rootgap [label="", style=invis, width=0.06, height=0.01, penwidth=0];
+
+  plus0  -> three  [weight=2];
+  plus0  -> times0 [weight=2];
+  plus0  -> times1 [weight=3];
+  plus0  -> gap1 [style=invis, weight=1];
+  times0 -> a0;
+  times0 -> b0;
+  times1 -> a1;
+  times1 -> c0;
+  times0 -> mid0 [style=invis, weight=20];
+  times1 -> mid1 [style=invis, weight=20];
+
+  { rank=same; plus0; }
+  { rank=same; three; gap0; times0; gap1; times1; rootgap; }
+  { rank=same; a0; mid0; b0; gap2; a1; mid1; c0; }
+
+  three -> gap0 [style=invis, weight=3];
+  gap0 -> times0 [style=invis, weight=3];
+  times0 -> gap1 [style=invis, weight=4];
+  gap1 -> times1 [style=invis, weight=4];
+  a0 -> mid0 [style=invis, weight=4];
+  mid0 -> b0 [style=invis, weight=4];
+  b0 -> gap2 [style=invis, weight=5];
+  gap2 -> a1 [style=invis, weight=5];
+  a1 -> mid1 [style=invis, weight=4];
+  mid1 -> c0 [style=invis, weight=4];
+}

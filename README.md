@@ -2,6 +2,8 @@
 
 Howl (**H**askell **O**pen **W**olfram **L**anguage interpreter) is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica), in Haskell. It is both a Haskell library and executable. As a Haskell library, Howl makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions. One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages, see [StdLib.hs](https://github.com/davidsd/howl/blob/main/src/Howl/StdLib.hs) as an example.
 
+Mathematica is a registered trademark of Wolfram Research, Inc., and Wolfram Language is a trademark of Wolfram Research, Inc.; this project is independent and not affiliated with, endorsed by, or sponsored by Wolfram Research.
+
 ## Prior art
 
 The core algorithm needed to implement the Wolfram Language is a procedure for matching patterns to expressions (see below for details). Howl implements the algorithm $M_\textrm{Mma}$ described in [Variadic equational matching in associative and commutative theories](https://www.sciencedirect.com/science/article/pii/S0747717121000079) by Besik Dundua, Temur Kutsia, and Mircea Marin
@@ -15,7 +17,7 @@ The core algorithm needed to implement the Wolfram Language is a procedure for m
 
 Mathematica is essentially an engine for repeatedly applying replacement rules to trees of data. A mathematical expression is represented as a tree. For example, the expression `3+a(b+c)` can be written `Plus[3,Times[a,Plus[b,c]]]`, which as a tree looks like this:
 
-<img width="339" height="398" alt="Screenshot 2026-01-22 at 11 59 16 PM" src="https://github.com/user-attachments/assets/941c3f90-6b87-4fc0-88f5-1d22714c681e" />
+<img width="340" alt="Tree for Plus[3,Times[a,Plus[b,c]]]" src="docs/images/tree-before.svg" />
 
 `Plus`, `Times`, `a`,`b`, and `c` are all symbols, while 3 is an integer literal.
 
@@ -35,7 +37,7 @@ x_(y_+z_) := x y + x z;
 
 If we add this to the global rules, then Mathematica will recognize that part of the tree above matches the left-hand side of this rule with the substitutions `{x -> a, y -> b, z -> c}`. It will then replace that part of the tree with the right-hand side of the rule, with the given substitutions, giving in this case `3+(a b+a c)`. Mathematica also knows that `Plus` is "Flat", i.e. associative, so it will further simplify this expression to `3 + a b + a c`, which as a tree looks like this
 
-<img width="338" height="266" alt="Screenshot 2026-01-23 at 12 04 15 AM" src="https://github.com/user-attachments/assets/db9453b4-fed1-4c36-a658-dc3a329d0596" />
+<img width="340" alt="Tree for Plus[3,Times[a,b],Times[a,c]]" src="docs/images/tree-after.svg" />
 
 In actuality, this example doesn't work in Mathematica because the symbol `Times` is protected and you are not allowed to define new rules for it. But you can do it in Howl:
 
@@ -139,6 +141,4 @@ Howl is an experiment. Before actually using Howl in practice, you should probab
 I haven't yet found a real situation where the answers to these questions are "no" and "yes". Please let me know if you encounter one.
 
 Still, Wolfram Language patterns are a concise way to express symbolic rules that can be cumbersome to implement in Haskell. For example, [vector_calculus.wl](https://github.com/davidsd/howl/blob/main/examples/wl/vector_calculus.wl) gives a concise set of rules for performing basic vector calculus. It is a pain to implement this kind of thing directly in Haskell, see [orthogonal-reps](https://gitlab.com/davidsd/orthogonal-reps) for an example. It would be nice if Haskell had native support for sequence variables and some of the more powerful features of Wolfram Language patterns. When doing symbolic manipulation, it is also nice to sometimes *not* have types: will the arguments of `Exp` be integers or rationals or rational functions of some variables or square roots of other expressions? Sometimes you don't know yet, and you don't want to worry about this.
-
-
 

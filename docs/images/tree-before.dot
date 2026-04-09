@@ -1,0 +1,41 @@
+digraph ExprTreeBefore {
+  graph [
+    rankdir=TB
+    bgcolor="transparent"
+    pad="0.2"
+    nodesep="0.35"
+    ranksep="0.45"
+  ];
+
+  node [
+    shape=box
+    fixedsize=false
+    style=filled
+    fillcolor="#f4efe2"
+    color="#4e4036"
+    fontname="Helvetica"
+    fontsize=16
+    height=0.5
+    penwidth=1.2
+  ];
+
+  edge [
+    color="#6b5a4d"
+    penwidth=1.2
+  ];
+
+  plus0  [label="Plus"];
+  three  [label="3", margin="0.06,0.03", width=0.38];
+  times0 [label="Times"];
+  a0     [label="a", margin="0.06,0.03", width=0.38];
+  plus1  [label="Plus"];
+  b0     [label="b", margin="0.06,0.03", width=0.38];
+  c0     [label="c", margin="0.06,0.03", width=0.38];
+
+  plus0  -> three;
+  plus0  -> times0;
+  times0 -> a0;
+  times0 -> plus1;
+  plus1  -> b0;
+  plus1  -> c0;
+}
