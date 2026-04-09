@@ -48,6 +48,10 @@ The core algorithm needed to implement the Wolfram Language is a procedure for m
 
 [mathics](https://mathics.org/) is "A free, open-source alternative to Mathematica", implemented in Python. Unlike Howl, Mathics makes a reasonable attempt towards feature parity with Mathematica, including implementing a much larger proportion of Mathematica's standard library, providing a notebook interface, graphics features, and much more.
 
+[Woxi](https://woxi.ad-si.com/) is a Wolfram Language interpreter written in Rust.
+
+[mmaclone](https://github.com/jyh1/mmaclone) is another Wolfram Language interpreter written in Haskell.
+
 ## Background: trees and replacement rules
 
 Mathematica is essentially an engine for repeatedly applying replacement rules to trees of data. A mathematical expression is represented as a tree. For example, the expression `3+a(b+c)` can be written `Plus[3,Times[a,Plus[b,c]]]`, which as a tree looks like this:
