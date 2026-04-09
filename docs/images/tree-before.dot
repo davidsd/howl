@@ -11,8 +11,8 @@ digraph ExprTreeBefore {
     shape=box
     fixedsize=false
     style=filled
-    fillcolor="#f4efe2"
-    color="#4e4036"
+    fillcolor="#eaf3ff"
+    color="#2f5e9e"
     fontname="Helvetica"
     fontsize=16
     height=0.5
@@ -20,7 +20,7 @@ digraph ExprTreeBefore {
   ];
 
   edge [
-    color="#6b5a4d"
+    color="#4f78ad"
     penwidth=1.2
   ];
 

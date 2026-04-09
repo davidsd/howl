@@ -11,44 +11,44 @@
 <!-- plus0 -->
 <g id="node1" class="node">
 <title>plus0</title>
-<polygon fill="#f4efe2" stroke="#4e4036" stroke-width="1.2" points="143.68,-172 89.68,-172 89.68,-136 143.68,-136 143.68,-172"/>
+<polygon fill="#eaf3ff" stroke="#2f5e9e" stroke-width="1.2" points="143.68,-172 89.68,-172 89.68,-136 143.68,-136 143.68,-172"/>
 <text text-anchor="middle" x="116.68" y="-147.05" font-family="Helvetica,sans-Serif" font-size="16.00">Plus</text>
 </g>
 <!-- three -->
 <g id="node2" class="node">
 <title>three</title>
-<polygon fill="#f4efe2" stroke="#4e4036" stroke-width="1.2" points="27.36,-104 0,-104 0,-68 27.36,-68 27.36,-104"/>
+<polygon fill="#eaf3ff" stroke="#2f5e9e" stroke-width="1.2" points="27.36,-104 0,-104 0,-68 27.36,-68 27.36,-104"/>
 <text text-anchor="middle" x="13.68" y="-79.05" font-family="Helvetica,sans-Serif" font-size="16.00">3</text>
 </g>
 <!-- plus0&#45;&gt;three -->
 <g id="edge1" class="edge">
 <title>plus0&#45;&gt;three</title>
-<path fill="none" stroke="#6b5a4d" stroke-width="1.2" d="M89.49,-138.04C75.39,-130.02 57.82,-119.59 37.32,-105.53"/>
-<polygon fill="#6b5a4d" stroke="#6b5a4d" stroke-width="1.2" points="39.39,-102.7 29.19,-99.84 35.38,-108.44 39.39,-102.7"/>
+<path fill="none" stroke="#4f78ad" stroke-width="1.2" d="M89.49,-138.04C75.39,-130.02 57.82,-119.59 37.32,-105.53"/>
+<polygon fill="#4f78ad" stroke="#4f78ad" stroke-width="1.2" points="39.39,-102.7 29.19,-99.84 35.38,-108.44 39.39,-102.7"/>
 </g>
 <!-- times0 -->
 <g id="node3" class="node">
 <title>times0</title>
-<polygon fill="#f4efe2" stroke="#4e4036" stroke-width="1.2" points="123.43,-104 63.93,-104 63.93,-68 123.43,-68 123.43,-104"/>
+<polygon fill="#eaf3ff" stroke="#2f5e9e" stroke-width="1.2" points="123.43,-104 63.93,-104 63.93,-68 123.43,-68 123.43,-104"/>
 <text text-anchor="middle" x="93.68" y="-79.05" font-family="Helvetica,sans-Serif" font-size="16.00">Times</text>
 </g>
 <!-- plus0&#45;&gt;times0 -->
 <g id="edge2" class="edge">
 <title>plus0&#45;&gt;times0</title>
-<path fill="none" stroke="#6b5a4d" stroke-width="1.2" d="M110.64,-135.66C108.49,-129.49 106.01,-122.38 103.62,-115.53"/>
-<polygon fill="#6b5a4d" stroke="#6b5a4d" stroke-width="1.2" points="106.96,-114.46 100.36,-106.17 100.35,-116.76 106.96,-114.46"/>
+<path fill="none" stroke="#4f78ad" stroke-width="1.2" d="M110.64,-135.66C108.49,-129.49 106.01,-122.38 103.62,-115.53"/>
+<polygon fill="#4f78ad" stroke="#4f78ad" stroke-width="1.2" points="106.96,-114.46 100.36,-106.17 100.35,-116.76 106.96,-114.46"/>
 </g>
 <!-- times1 -->
 <g id="node4" class="node">
 <title>times1</title>
-<polygon fill="#f4efe2" stroke="#4e4036" stroke-width="1.2" points="241.43,-104 181.93,-104 181.93,-68 241.43,-68 241.43,-104"/>
+<polygon fill="#eaf3ff" stroke="#2f5e9e" stroke-width="1.2" points="241.43,-104 181.93,-104 181.93,-68 241.43,-68 241.43,-104"/>
 <text text-anchor="middle" x="211.68" y="-79.05" font-family="Helvetica,sans-Serif" font-size="16.00">Times</text>
 </g>
 <!-- plus0&#45;&gt;times1 -->
 <g id="edge3" class="edge">
 <title>plus0&#45;&gt;times1</title>
-<path fill="none" stroke="#6b5a4d" stroke-width="1.2" d="M141.64,-135.66C152.46,-128.14 165.32,-119.21 177.04,-111.06"/>
-<polygon fill="#6b5a4d" stroke="#6b5a4d" stroke-width="1.2" points="178.85,-114.07 185.07,-105.49 174.86,-108.32 178.85,-114.07"/>
+<path fill="none" stroke="#4f78ad" stroke-width="1.2" d="M141.64,-135.66C152.46,-128.14 165.32,-119.21 177.04,-111.06"/>
+<polygon fill="#4f78ad" stroke="#4f78ad" stroke-width="1.2" points="178.85,-114.07 185.07,-105.49 174.86,-108.32 178.85,-114.07"/>
 </g>
 <!-- gap1 -->
 <!-- plus0&#45;&gt;gap1 -->
@@ -57,26 +57,26 @@
 <!-- a0 -->
 <g id="node5" class="node">
 <title>a0</title>
-<polygon fill="#f4efe2" stroke="#4e4036" stroke-width="1.2" points="79.36,-36 52,-36 52,0 79.36,0 79.36,-36"/>
+<polygon fill="#eaf3ff" stroke="#2f5e9e" stroke-width="1.2" points="79.36,-36 52,-36 52,0 79.36,0 79.36,-36"/>
 <text text-anchor="middle" x="65.68" y="-11.05" font-family="Helvetica,sans-Serif" font-size="16.00">a</text>
 </g>
 <!-- times0&#45;&gt;a0 -->
 <g id="edge5" class="edge">
 <title>times0&#45;&gt;a0</title>
-<path fill="none" stroke="#6b5a4d" stroke-width="1.2" d="M86.32,-67.66C83.68,-61.42 80.62,-54.2 77.68,-47.27"/>
-<polygon fill="#6b5a4d" stroke="#6b5a4d" stroke-width="1.2" points="80.92,-45.96 73.79,-38.13 74.48,-48.7 80.92,-45.96"/>
+<path fill="none" stroke="#4f78ad" stroke-width="1.2" d="M86.32,-67.66C83.68,-61.42 80.62,-54.2 77.68,-47.27"/>
+<polygon fill="#4f78ad" stroke="#4f78ad" stroke-width="1.2" points="80.92,-45.96 73.79,-38.13 74.48,-48.7 80.92,-45.96"/>
 </g>
 <!-- b0 -->
 <g id="node6" class="node">
 <title>b0</title>
-<polygon fill="#f4efe2" stroke="#4e4036" stroke-width="1.2" points="135.36,-36 108,-36 108,0 135.36,0 135.36,-36"/>
+<polygon fill="#eaf3ff" stroke="#2f5e9e" stroke-width="1.2" points="135.36,-36 108,-36 108,0 135.36,0 135.36,-36"/>
 <text text-anchor="middle" x="121.68" y="-11.05" font-family="Helvetica,sans-Serif" font-size="16.00">b</text>
 </g>
 <!-- times0&#45;&gt;b0 -->
 <g id="edge6" class="edge">
 <title>times0&#45;&gt;b0</title>
-<path fill="none" stroke="#6b5a4d" stroke-width="1.2" d="M101.04,-67.66C103.68,-61.42 106.74,-54.2 109.68,-47.27"/>
-<polygon fill="#6b5a4d" stroke="#6b5a4d" stroke-width="1.2" points="112.88,-48.7 113.57,-38.13 106.44,-45.96 112.88,-48.7"/>
+<path fill="none" stroke="#4f78ad" stroke-width="1.2" d="M101.04,-67.66C103.68,-61.42 106.74,-54.2 109.68,-47.27"/>
+<polygon fill="#4f78ad" stroke="#4f78ad" stroke-width="1.2" points="112.88,-48.7 113.57,-38.13 106.44,-45.96 112.88,-48.7"/>
 </g>
 <!-- times0&#45;&gt;gap1 -->
 <!-- mid0 -->
@@ -84,26 +84,26 @@
 <!-- a1 -->
 <g id="node7" class="node">
 <title>a1</title>
-<polygon fill="#f4efe2" stroke="#4e4036" stroke-width="1.2" points="197.36,-36 170,-36 170,0 197.36,0 197.36,-36"/>
+<polygon fill="#eaf3ff" stroke="#2f5e9e" stroke-width="1.2" points="197.36,-36 170,-36 170,0 197.36,0 197.36,-36"/>
 <text text-anchor="middle" x="183.68" y="-11.05" font-family="Helvetica,sans-Serif" font-size="16.00">a</text>
 </g>
 <!-- times1&#45;&gt;a1 -->
 <g id="edge7" class="edge">
 <title>times1&#45;&gt;a1</title>
-<path fill="none" stroke="#6b5a4d" stroke-width="1.2" d="M204.32,-67.66C201.68,-61.42 198.62,-54.2 195.68,-47.27"/>
-<polygon fill="#6b5a4d" stroke="#6b5a4d" stroke-width="1.2" points="198.92,-45.96 191.79,-38.13 192.48,-48.7 198.92,-45.96"/>
+<path fill="none" stroke="#4f78ad" stroke-width="1.2" d="M204.32,-67.66C201.68,-61.42 198.62,-54.2 195.68,-47.27"/>
+<polygon fill="#4f78ad" stroke="#4f78ad" stroke-width="1.2" points="198.92,-45.96 191.79,-38.13 192.48,-48.7 198.92,-45.96"/>
 </g>
 <!-- c0 -->
 <g id="node8" class="node">
 <title>c0</title>
-<polygon fill="#f4efe2" stroke="#4e4036" stroke-width="1.2" points="253.36,-36 226,-36 226,0 253.36,0 253.36,-36"/>
+<polygon fill="#eaf3ff" stroke="#2f5e9e" stroke-width="1.2" points="253.36,-36 226,-36 226,0 253.36,0 253.36,-36"/>
 <text text-anchor="middle" x="239.68" y="-11.05" font-family="Helvetica,sans-Serif" font-size="16.00">c</text>
 </g>
 <!-- times1&#45;&gt;c0 -->
 <g id="edge8" class="edge">
 <title>times1&#45;&gt;c0</title>
-<path fill="none" stroke="#6b5a4d" stroke-width="1.2" d="M219.04,-67.66C221.68,-61.42 224.74,-54.2 227.68,-47.27"/>
-<polygon fill="#6b5a4d" stroke="#6b5a4d" stroke-width="1.2" points="230.88,-48.7 231.57,-38.13 224.44,-45.96 230.88,-48.7"/>
+<path fill="none" stroke="#4f78ad" stroke-width="1.2" d="M219.04,-67.66C221.68,-61.42 224.74,-54.2 227.68,-47.27"/>
+<polygon fill="#4f78ad" stroke="#4f78ad" stroke-width="1.2" points="230.88,-48.7 231.57,-38.13 224.44,-45.96 230.88,-48.7"/>
 </g>
 <!-- mid1 -->
 <!-- times1&#45;&gt;mid1 -->
