@@ -46,10 +46,12 @@ import Howl.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                pattern Plus, pattern Power, pattern Set,
                                pattern Slot, pattern TagSetDelayed,
                                pattern Times, toBigFloat, toDouble)
+import Howl.Expr.PPrint  ()
 import Howl.Expr         qualified as Expr
 import Howl.Expr.TH      (declareBuiltins)
 import Howl.Parser       (parseExprText, readExprFile)
 import Howl.Pat          (patRootSymbol)
+import Howl.PPrint       (PPrint (..))
 import Howl.Symbol       (Symbol)
 import Howl.ToBuiltin    (ToBuiltin (..), Variadic (..), builtinDecl)
 import Howl.Util         (pattern Pair, pattern Solo)
@@ -916,6 +918,11 @@ setAttributes sym (MkListOrSolo attrs) =
 
 ---------- Help ----------
 
+printDef :: Seq Expr -> Eval Expr
+printDef exprs = do
+  liftIO . putStrLn $ foldMap pPrint exprs
+  pure Null
+
 help :: Symbol -> Eval ()
 help sym = do
   maybeRecord <- lookupSymbolRecord sym
@@ -959,6 +966,7 @@ defStdLib = do
   def "SetAttributes" setAttributes
   def "Clear" clear
   def "ClearAll" clearAll
+  def "Print" (MkVariadic printDef)
   def "Help" help
   def "DefinedSymbols" getDefinedSymbols
 

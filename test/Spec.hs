@@ -3,18 +3,22 @@
 
 module Main (main) where
 
+import Control.Exception      (bracket)
 import Data.Sequence           qualified as Seq
 import Data.String             (fromString)
 import Data.Text               (Text)
 import Data.Text               qualified as Text
+import GHC.IO.Handle           (hDuplicate, hDuplicateTo)
 import Howl                     (defStdLib, eval, run, runEval)
-import Howl.Expr              (pattern Part)
+import Howl.Expr              (pattern Null, pattern Part)
 import Howl.Expr.Internal     (Expr (..), pattern ExprBigFloat,
                                 pattern ExprDouble, pattern ExprInteger)
 import Howl.Expr.PPrint        ()
 import Howl.Parser             (normalizeParsedExpr, parseExprText)
 import Howl.PPrint             (PPrint (..))
 import Numeric.Rounded.Simple qualified as Rounded
+import System.IO               (Handle, hClose, hFlush, openTempFile, stdout)
+import System.IO.Error         (catchIOError)
 import Test.Hspec
 import Test.Hspec.QuickCheck   (prop)
 import Test.QuickCheck
@@ -155,6 +159,26 @@ mkReplaceAll expr xVal yVal zVal =
         , ExprApp "Rule" (Seq.fromList ["z", ExprInteger zVal])
         ]
     ]
+
+captureStdout :: IO a -> IO (String, a)
+captureStdout action =
+  bracket (openTempFile "/tmp" "howl-stdout.txt") cleanup $ \(path, handle) -> do
+    originalStdout <- hDuplicate stdout
+    result <- bracket
+      (pure originalStdout)
+      hClose
+      (\savedStdout -> do
+        hDuplicateTo handle stdout
+        value <- action
+        hFlush stdout
+        hDuplicateTo savedStdout stdout
+        pure value)
+    hClose handle
+    output <- readFile path
+    pure (output, result)
+  where
+    cleanup :: (FilePath, Handle) -> IO ()
+    cleanup (_, handle) = hClose handle `catchIOError` \_ -> pure ()
 
 -- | Property: symbolic evaluation then substitution equals substitution then evaluation
 prop_symbolicNumericConsistency :: Property
@@ -589,6 +613,12 @@ main = hspec $ do
       it "expands power of binomial" $ do
         result <- eval' "Expand[(x + 1)^2]"
         pPrint result `shouldBe` "1 + x^2 + 2 x"
+
+    describe "Print" $ do
+      it "prints evaluated output and returns Null" $ do
+        (output, result) <- captureStdout $ eval' "Print[1 + 2, x^2]"
+        output `shouldBe` "3x^2\n"
+        result `shouldBe` Null
 
     describe "Symbolic/Numeric consistency" $ do
       prop "symbolic eval then substitute == substitute then eval" prop_symbolicNumericConsistency
