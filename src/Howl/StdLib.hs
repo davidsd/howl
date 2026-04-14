@@ -985,6 +985,19 @@ evalWithHistory expr = do
   incrLineNumber
   pure (inputCount, evalResult)
 
+prevLineDef :: Symbol -> Eval Expr
+prevLineDef sym = do
+  n <- getLineNumber
+  eval $ ExprApp (ExprSymbol sym) (Solo (ExprInteger (fromIntegral (n - 1))))
+
+negativeLineDef :: Symbol -> Integer -> Eval (Maybe Expr)
+negativeLineDef sym i
+  | i < 0 = do
+      n <- getLineNumber
+      fmap Just $ eval $
+        ExprApp (ExprSymbol sym) (Solo (ExprInteger (fromIntegral n + i)))
+  | otherwise = pure Nothing
+
 def :: ToBuiltin f => Symbol -> f -> Eval ()
 def sym f = addDecl $ builtinDecl sym f
 
@@ -1004,6 +1017,10 @@ defStdLib = do
   modifyAttributes "Hold" (setHoldType HoldAll)
   def "CompoundExpression" (MkVariadic compoundExpression)
   def "Get" (get . Text.unpack)
+  def "In" (prevLineDef "In")
+  def "In" (negativeLineDef "In")
+  def "Out" (prevLineDef "Out")
+  def "Out" (negativeLineDef "Out")
   def "SetAttributes" setAttributes
   def "Clear" clear
   def "ClearAll" clearAll

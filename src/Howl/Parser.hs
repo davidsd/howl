@@ -58,6 +58,7 @@ data Tok
   | TInt    Integer
   | TReal   Double
   | TBigFloat BigFloatTok
+  | TOut    Integer
   | TPatVar (Maybe Symbol) BlankType (Maybe Symbol)
   | TSlot   (Maybe Integer) SlotType
   | TString Text
@@ -322,6 +323,17 @@ parsePatVar = lexeme $ do
   headConstraint <- optional parseSymbol
   pure (TPatVar name patType headConstraint)
 
+parseOut :: TextParser Tok
+parseOut = lexeme $ do
+  percents <- some (char '%')
+  case length percents of
+    1 -> do
+      maybeIndex <- optional Lex.decimal
+      case maybeIndex of
+        Just i  -> pure (TOut i)
+        Nothing -> pure (TOut (-1))
+    k -> pure (TOut (negate (fromIntegral k)))
+
 parseSlot :: TextParser Tok
 parseSlot = lexeme $ do
   slotType <- choice $ map try
@@ -348,6 +360,7 @@ parseTok :: TextParser Tok
 parseTok = choice
   [ parseString
   , parseNumber
+  , try parseOut
   , try parsePatVar
   , parseIdent
   , parseSlot
@@ -429,6 +442,7 @@ canEndMult = \case
   TInt _     -> True
   TReal _    -> True
   TBigFloat _ -> True
+  TOut _     -> True
   TPatVar {} -> True
   TSlot {}   -> True
   TString _  -> True
@@ -447,6 +461,7 @@ canStartMult = \case
   TInt _     -> True
   TReal _    -> True
   TBigFloat _ -> True
+  TOut _     -> True
   TPatVar {} -> True
   TSlot {}   -> True
   TString _  -> True
@@ -487,6 +502,7 @@ parseTerm = choice
   [ tok (\case TInt n    -> Just (ExprInteger n); _ -> Nothing)
   , tok (\case TReal x   -> Just (ExprDouble x);  _ -> Nothing)
   , tok (\case TBigFloat (BigFloatTok x) -> Just (ExprBigFloat x); _ -> Nothing)
+  , tok (\case TOut n    -> Just (ExprApp "Out" (Seq.singleton (ExprInteger n))); _ -> Nothing)
   , tok (\case TString s -> Just (ExprString s);  _ -> Nothing)
   , surround (TLParen, TRParen) parseExpr
   , ExprApp Expr.List        <$> surroundExprs (TLBrace, TRBrace)
