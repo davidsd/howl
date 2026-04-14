@@ -20,6 +20,7 @@ import Data.Ratio                  (numerator, denominator)
 import Numeric.Rounded.Simple      (Rounded)
 import Numeric.Rounded.Simple qualified as Rounded
 import Howl.PPrint (PPrint(..))
+import Data.Bifunctor (second)
 
 type BigFloat = Rounded
 type BigFloatPrecision = Rounded.Precision
@@ -96,18 +97,39 @@ instance Show Numeric where
 f .# g = \x y -> f (g x y)
 
 instance Num Numeric where
-  (+) = binaryApply (fromInteger .# (+)) (fromRational .# (+)) (fromReal .# (+)) (fromBigFloat .# bigFloatAdd)
-  (*) = binaryApply (fromInteger .# (*)) (fromRational .# (*)) (fromReal .# (*)) (fromBigFloat .# bigFloatMul)
-  negate = unaryApply (fromInteger . negate) (fromRational . negate) (fromReal . negate) (fromBigFloat . bigFloatNegate)
-  abs    = unaryApply (fromInteger . abs)    (fromRational . abs)    (fromReal . abs)    (fromBigFloat . bigFloatAbs)
-  signum = unaryApply (fromInteger . signum) (fromRational . signum) (fromReal . signum) (fromBigFloat . bigFloatSignum)
+  (+) = binaryApply (fromInteger .# (+)) (fromRational .# (+)) (fromDouble .# (+)) (fromBigFloat .# bigFloatAdd)
+  (*) = binaryApply (fromInteger .# (*)) (fromRational .# (*)) (fromDouble .# (*)) (fromBigFloat .# bigFloatMul)
+  negate = unaryApply (fromInteger . negate) (fromRational . negate) (fromDouble . negate) (fromBigFloat . bigFloatNegate)
+  abs    = unaryApply (fromInteger . abs)    (fromRational . abs)    (fromDouble . abs)    (fromBigFloat . bigFloatAbs)
+  signum = unaryApply (fromInteger . signum) (fromRational . signum) (fromDouble . signum) (fromBigFloat . bigFloatSignum)
   fromInteger = NInteger
 
 instance Fractional Numeric where
-  recip = unaryApply (fromRational . recip . toRational) (fromRational . recip) (fromReal . recip) (fromBigFloat . bigFloatRecip)
+  recip = unaryApply (fromRational . recip . toRational) (fromRational . recip) (fromDouble . recip) (fromBigFloat . bigFloatRecip)
   fromRational r
     | denominator r == 1 = NInteger (numerator r)
     | otherwise          = NRational r
+
+instance Real Numeric where
+  toRational = unaryApply toRational id toRational (Rounded.toRational' Rounded.TowardNearest)
+
+instance RealFrac Numeric where
+  properFraction =
+    unaryApply
+    (\i -> (fromIntegral i, 0))
+    (second fromRational . properFraction)
+    (second fromDouble . properFraction)
+    (second fromBigFloat . Rounded.properFraction_)
+
+instance Enum Numeric where
+  toEnum = fromIntegral
+  fromEnum = fromInteger . truncate
+  enumFromThenTo x1 x2 xFinal = go x1
+    where
+      dx = x2 - x1
+      go x 
+        | x <= xFinal = x : go (x+dx)
+        | otherwise = []
 
 class FromNumeric a where
   fromNumeric :: Numeric -> Maybe a
@@ -132,8 +154,8 @@ instance FromNumeric Rational where
 instance FromNumeric Double where
   fromNumeric = Just . toDouble
 
-fromReal :: Double -> Numeric
-fromReal = NDouble
+fromDouble :: Double -> Numeric
+fromDouble = NDouble
 
 fromBigFloat :: BigFloat -> Numeric
 fromBigFloat = NBigFloat

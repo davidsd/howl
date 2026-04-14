@@ -236,8 +236,8 @@ multinomialCoeff xs = case xs of
 -- | OrderedQ[h[x1,...,xn]] tests whether the xi's are in the
 -- canonical order defined by the Haskell ordering on expressions
 -- TODO: Implement a general predicate
-orderedQ :: Expr -> Maybe Bool
-orderedQ = \case
+orderedQDef :: Expr -> Maybe Bool
+orderedQDef = \case
   _ :@ Empty      -> Just $ True
   _ :@ (x :<| xs) -> Just $ go x xs
   _               -> Nothing
@@ -249,8 +249,8 @@ orderedQ = \case
 
 ---------- SameQ ----------
 
-sameQ :: Seq Expr -> Bool
-sameQ = \case
+sameQDef :: Seq Expr -> Bool
+sameQDef = \case
   Empty      -> True
   x :<| rest -> all (== x) rest
 
@@ -526,8 +526,8 @@ mapApplyDef = \cases
   _ _ -> Nothing
 
 -- TODO: multiple indices
-mapAt :: Expr -> Expr -> Int -> Maybe Expr
-mapAt fExpr (ExprApp h cs) n
+mapAtDef :: Expr -> Expr -> Int -> Maybe Expr
+mapAtDef fExpr (ExprApp h cs) n
   | n == 0
   = Just $ ExprApp (Expr.unary fExpr h) cs
   | n > 0 && n <= Seq.length cs
@@ -535,7 +535,7 @@ mapAt fExpr (ExprApp h cs) n
   | n < 0 && -n <= Seq.length cs
   = Just $ ExprApp h $ Seq.adjust' (Expr.unary fExpr) (Seq.length cs + n) cs
   | otherwise = Nothing
-mapAt _ _ _ = Nothing
+mapAtDef _ _ _ = Nothing
 
 ---------- ReplaceAll ----------
 
@@ -624,9 +624,9 @@ lengthDef = \case
 -- | This matches Mathematica's behavior where it only returns a Part
 -- if all the arguments are integers in the correct range. For example
 -- f[g[h]][[1,foo]] does not simplify to g[h][[foo]].
-part :: Seq Expr -> Maybe Expr
-part Empty = Nothing
-part (expr :<| indices) = go expr indices
+partDef :: Seq Expr -> Maybe Expr
+partDef Empty = Nothing
+partDef (expr :<| indices) = go expr indices
   where
     go e Empty = Just e
     -- This rule leads to some funny behavior that nonetheless matches
@@ -664,8 +664,8 @@ exprHead _                = Nothing
 
 ---------- Table ----------
 
-table :: Expr -> TableRange -> Expr
-table body range = case range of
+tableDef :: Expr -> TableRange -> Expr
+tableDef body range = case range of
   RangeLength n -> List :@ Seq.replicate (fromIntegral n) body
   RangeIndices xVar i j k -> List :@ Seq.unfoldr go i
     where
@@ -680,7 +680,6 @@ table body range = case range of
   RangeList xVar xs -> List :@ fmap substX xs
     where
       substX x = applySubstitutionsWithShadowing (singletonSubstitutionSet xVar x) body
-
 
 ---------- Take/Drop ----------
 
@@ -703,6 +702,11 @@ dropDef :: AList Expr -> Int -> Maybe (AList Expr)
 dropDef (MkList xs) n
   | n <= Seq.length xs = Just $ MkList (Seq.drop n xs)
   | otherwise          = Nothing
+
+---------- Range ----------
+
+rangeDef :: Numeric -> Numeric -> Numeric -> AList Numeric
+rangeDef i j di = MkList $ Seq.fromList [i, i+di .. j]
 
 ---------- Accumulate ----------
 
@@ -734,15 +738,15 @@ reverseDef = \case
 
 ---------- Union ----------
 
-union :: Seq (AList Expr) -> AList Expr
-union = MkList . Seq.fromList . Set.toList . Set.unions . fmap toSet
+unionDef :: Seq (AList Expr) -> AList Expr
+unionDef = MkList . Seq.fromList . Set.toList . Set.unions . fmap toSet
   where
     toSet (MkList xs) = Set.fromList (Foldable.toList xs)
 
 ---------- Intersection ----------
 
-intersection :: Seq (AList Expr) -> AList Expr
-intersection = MkList . Seq.fromList . Set.toList . intersectAll . fmap toSet
+intersectionDef :: Seq (AList Expr) -> AList Expr
+intersectionDef = MkList . Seq.fromList . Set.toList . intersectAll . fmap toSet
   where
     toSet (MkList xs) = Set.fromList (Foldable.toList xs)
     intersectAll = \case
@@ -751,14 +755,14 @@ intersection = MkList . Seq.fromList . Set.toList . intersectAll . fmap toSet
 
 ---------- Ordering ----------
 
-ordering :: AList Expr -> AList Int
-ordering (MkList xs) = MkList $
+orderingDef :: AList Expr -> AList Int
+orderingDef (MkList xs) = MkList $
   fmap (succ . snd) $
   Seq.unstableSortOn fst $
   Seq.mapWithIndex (\i x -> (x,i)) xs
 
-orderingN :: AList Expr -> Int -> AList Int
-orderingN xs n = MkList . Seq.take n . (.unList) . ordering $ xs
+orderingNDef :: AList Expr -> Int -> AList Int
+orderingNDef xs n = MkList . Seq.take n . (.unList) . orderingDef $ xs
 
 ---------- Sort ----------
 
@@ -771,8 +775,8 @@ sortDef (MkList xs) = MkList $ Seq.unstableSort xs
 -- only certain arguments to be Held. Basically we need a HoldArgs
 -- (Set Int) constructor for HoldType. Then count and position would
 -- have hold type HoldArgs (Set.singleton 2).
-count :: Expr -> Expr -> Eval Int
-count expr patExpr = case expr of
+countDef :: Expr -> Expr -> Eval Int
+countDef expr patExpr = case expr of
   ExprApp _ xs -> do
     pat <- compilePat patExpr
     let
@@ -784,8 +788,8 @@ count expr patExpr = case expr of
     Foldable.foldrM go 0 xs
   _ -> pure 0
 
-position :: Expr -> Expr -> Eval (AList (AList Int))
-position expr patExpr = do
+positionDef :: Expr -> Expr -> Eval (AList (AList Int))
+positionDef expr patExpr = do
   pat <- compilePat patExpr
   case expr of
     ExprApp h xs -> do
@@ -809,8 +813,8 @@ position expr patExpr = do
 ---------- Flatten ----------
 
 -- TODO: Level specification
-flatten :: Expr -> Maybe Expr
-flatten = \case
+flattenDef :: Expr -> Maybe Expr
+flattenDef = \case
   ExprApp h cs -> Just $ ExprApp h (Expr.flattenWithHead h cs)
   _            -> Nothing
 
@@ -823,8 +827,8 @@ confirmPatternTest = \case
 
 ---------- NumericFunctionQ ----------
 
-numericFunctionQ :: Symbol -> Eval Bool
-numericFunctionQ = fmap (.numericFunction) . lookupAttributes
+numericFunctionQDef :: Symbol -> Eval Bool
+numericFunctionQDef = fmap (.numericFunction) . lookupAttributes
 
 -- | TODO: It is probably unnecessary to declare these all in this big
 -- block. Remove them from the block as we define them one-by-one.
@@ -932,8 +936,8 @@ printDef exprs = do
   liftIO . putStrLn $ foldMap pPrint exprs
   pure Null
 
-help :: Symbol -> Eval ()
-help sym = do
+helpDef :: Symbol -> Eval ()
+helpDef sym = do
   maybeRecord <- lookupSymbolRecord sym
   liftIO $ putStrLn $ show maybeRecord
 
@@ -976,7 +980,7 @@ defStdLib = do
   def "Clear" clear
   def "ClearAll" clearAll
   def "Print" (MkVariadic printDef)
-  def "Help" help
+  def "Help" helpDef
   def "DefinedSymbols" getDefinedSymbols
 
   modifyAttributes "Function" (setHoldType HoldAll)
@@ -1009,27 +1013,32 @@ defStdLib = do
 
   def "Map" mapDef
   def "MapApply" mapApplyDef
-  def "MapAt" mapAt
+  def "MapAt" mapAtDef
   def "Head" exprHead
-  def "Part" (MkVariadic part)
+  def "Part" (MkVariadic partDef)
   def "Length" lengthDef
-  def "Table" table
+  def "Table" tableDef
+
+  def "Range" rangeDef
+  def "Range" (\i j -> rangeDef i j 1)
+  def "Range" (\i -> rangeDef 1 i 1)
+
   def "Take" takeDef
   def "Drop" dropDef
   def "Accumulate" accumulateDef
   def "First" firstDef
   def "Rest" restDef
   def "Reverse" reverseDef
-  def "Union" (MkVariadic union)
-  def "Intersection" (MkVariadic intersection)
-  def "Ordering" ordering
-  def "Ordering" orderingN
+  def "Union" (MkVariadic unionDef)
+  def "Intersection" (MkVariadic intersectionDef)
+  def "Ordering" orderingDef
+  def "Ordering" orderingNDef
   def "Sort" sortDef
-  def "Flatten" flatten
+  def "Flatten" flattenDef
   modifyAttributes "Count" (setHoldType HoldRest)
-  def "Count" count
+  def "Count" countDef
   modifyAttributes "Position" (setHoldType HoldRest)
-  def "Position" position
+  def "Position" positionDef
 
   modifyAttributes "Plus" (setFlat . setOrderless)
   def "Plus" (MkVariadic normalizePlus)
@@ -1040,17 +1049,17 @@ defStdLib = do
   def "Power" normalizePower
   def "Sqrt" $ \e -> normalizePower e (ExprRational (1/2))
 
-  def "SameQ" (MkVariadic sameQ)
-  def "OrderedQ" orderedQ
+  def "SameQ" (MkVariadic sameQDef)
+  def "OrderedQ" orderedQDef
   def "EvenQ" (even @Integer)
   def "OddQ" (odd @Integer)
 
   sequence_ $ do
     numFn <- builtinNumericFunctions
     pure $ modifyAttributes numFn setNumericFunction
-  def "NumericFunctionQ" numericFunctionQ
+  def "NumericFunctionQ" numericFunctionQDef
 
-  def "NumericQ" $ \(_ :: Numeric) -> True
+  def "NumericQ" $ const @_ @Numeric True
   def "MultinomialPowerExpand" multinomialPowerExpand
 
   run_ stdLibWL
