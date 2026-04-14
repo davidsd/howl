@@ -16,21 +16,21 @@ stack build
 
 ## Usage
 
-The main executable is `howl-repl`.
+The main executable is `howl-exe`.
 
 Start the REPL with `stack`:
 ```bash
-stack run howl-repl
+stack run howl-exe
 ```
 
 Evaluate a single expression without entering the REPL:
 ```bash
-stack run howl-repl -- --expr 'Expand[(x + 1)^3]'
+stack run howl-exe -- --expr 'Expand[(x + 1)^3]'
 ```
 
 Load a file and (optionally) evaluate an expression:
 ```bash
-stack run howl-repl -- --file examples/wl/fib.wl --expr 'fib[10]'
+stack run howl-exe -- --file examples/wl/fib.wl --expr 'fib[10]'
 ```
 
 There are also some example executables in the repository:

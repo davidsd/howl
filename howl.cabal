@@ -108,7 +108,7 @@ executable fib
     , text-short
   default-language: GHC2021
 
-executable howl-repl
+executable howl-exe
   main-is: Main.hs
   other-modules:
       Paths_howl
