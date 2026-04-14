@@ -12,6 +12,7 @@ module Howl.Pat
   , patNames
   , mapNames
   , addNames
+  , matchesUniqueExpr
   , patRootSymbol
   , patFromExpr
   ) where
@@ -166,6 +167,35 @@ addNames xs = mapNames (xs++)
 
 addName :: Symbol -> Pat -> Pat
 addName xs = mapNames (xs:)
+
+-- Check if the given pattern matches a unique expression and introduces no
+-- bindings. For example Foo[12] matches a unique expression, but Foo[x_] does
+-- not. This function is conservative and just uses syntax information, so there
+-- may be cases where the pattern does match a unique expression but this
+-- function does not detect it, for example (x_/;SameQ[x,12]) matches only 12,
+-- but this function returns Nothing.
+--
+-- It is also important to reject patterns that introduce bindings because we
+-- are short-circuiting the pattern matching process, and so those bindings
+-- won't happen. TODO: We could pre-compute the bindings and store them.
+matchesUniqueExpr :: Pat -> Maybe Expr
+matchesUniqueExpr pat
+  | not (Set.null (patNames pat)) = Nothing
+  | otherwise = case pat of
+      PatSymbol _ sym -> Just (ExprSymbol sym)
+      PatLit _ lit -> Just (ExprLit lit)
+      PatVar {} -> Nothing
+      PatSeqVar {} -> Nothing
+      PatApp _ h _ args -> do
+        h' <- matchesUniqueExpr h
+        args' <- traverse matchesUniqueExpr args
+        pure $ ExprApp h' args'
+      PatAlt _ _ _ p1 p2 -> do
+        e1 <- matchesUniqueExpr p1
+        e2 <- matchesUniqueExpr p2
+        if e1 == e2 then Just e1 else Nothing
+      PatOptional {} -> Nothing
+      PatCondition {} -> Nothing
 
 pPrintNamed :: [Symbol] -> String -> String
 pPrintNamed [] s = s

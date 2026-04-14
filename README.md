@@ -130,12 +130,27 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
 
 - Howl does not evaluate patterns as if they were expressions. In other words, you can imagine that every pattern in Howl is wrapped in `HoldPattern`.
 
-- Howl does not currently attempt to sort user-defined rules in reverse order of specificity. It stores rules in the order that they are defined. For example:
+- With one exception (below), Howl does not currently attempt to sort user-defined rules in reverse order of specificity. By default, it stores rules in the order that they are defined. For example:
+  ```mathematica
+  Foo[_,_] := True;
+  Foo[3,_] := False;
+  (* Evaluates to False in Mathematica, but True in Howl *)
+  Foo[3,7]
+  ```
+  The exception is when the pattern on the left-hand side matches a unique expression (and does not bind any variables). In this case, Howl stores the rule in a Map which it queries first before trying other rules sequentially. For example
   ```mathematica
   Foo[_] := True;
   Foo[3] := False;
-  (* Evaluates to False in Mathematica, but True in Howl *)
+  (* Evaluates to False in Mathematica and Howl, because Foo[3] matches precisely 1 expression. *)
   Foo[3]
+  ```
+  As another example, this means that memoization works as expected:
+  ```mathematica
+  fib[n_]:=fib[n]=fib[n-1]+fib[n-2];
+  fib[0]:=0;
+  fib[1]:=1;
+  (* Evaluates to 453973694165307953197296969697410619233826 and does not hang forever. *)
+  fib[200]
   ```
 
 - Howl does not have `Block` or `With`. Instead, it defines `Let`, which implements shadowing, as is standard in most functional languages. For example:

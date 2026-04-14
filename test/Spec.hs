@@ -9,12 +9,13 @@ import Data.String             (fromString)
 import Data.Text               (Text)
 import Data.Text               qualified as Text
 import GHC.IO.Handle           (hDuplicate, hDuplicateTo)
-import Howl                     (defStdLib, eval, run, runEval)
+import Howl                     (compilePat, defStdLib, eval, run, runEval)
 import Howl.Expr              (pattern Null, pattern Part)
 import Howl.Expr.Internal     (Expr (..), pattern ExprBigFloat,
                                 pattern ExprDouble, pattern ExprInteger)
 import Howl.Expr.PPrint        ()
 import Howl.Parser             (normalizeParsedExpr, parseExprText)
+import Howl.Pat               (Pat, matchesUniqueExpr)
 import Howl.PPrint             (PPrint (..))
 import Numeric.Rounded.Simple qualified as Rounded
 import System.IO               (Handle, hClose, hFlush, openTempFile, stdout)
@@ -180,6 +181,13 @@ captureStdout action =
     cleanup :: (FilePath, Handle) -> IO ()
     cleanup (_, handle) = hClose handle `catchIOError` \_ -> pure ()
 
+compilePat' :: Text -> IO Pat
+compilePat' input = runEval $ do
+  defStdLib
+  case parseExprText input of
+    Left err   -> fail err
+    Right expr -> compilePat expr
+
 -- | Property: symbolic evaluation then substitution equals substitution then evaluation
 prop_symbolicNumericConsistency :: Property
 prop_symbolicNumericConsistency = forAll ((,) <$> sized genSymbolicExpr <*> genSubstitution) $
@@ -318,6 +326,36 @@ main = hspec $ do
 
     it "keeps short decimal as Double" $
       parseExprText "2.718281828459045" `shouldBe` Right (ExprDouble 2.718281828459045)
+
+  describe "matchesUniqueExpr" $ do
+    it "returns a literal expression for literal patterns" $ do
+      pat <- compilePat' "3"
+      matchesUniqueExpr pat `shouldBe` Just (ExprInteger 3)
+
+    it "returns a fully determined application when all subpatterns are unique" $ do
+      pat <- compilePat' "Foo[3, x]"
+      matchesUniqueExpr pat `shouldBe`
+        Just (ExprApp "Foo" (Seq.fromList [ExprInteger 3, "x"]))
+
+    it "returns the unique expression for equal alternatives" $ do
+      pat <- compilePat' "3 | 3"
+      matchesUniqueExpr pat `shouldBe` Just (ExprInteger 3)
+
+    it "returns Nothing for named patterns" $ do
+      pat <- compilePat' "x:3"
+      matchesUniqueExpr pat `shouldBe` Nothing
+
+    it "returns Nothing for blanks" $ do
+      pat <- compilePat' "x_"
+      matchesUniqueExpr pat `shouldBe` Nothing
+
+    it "returns Nothing for conditional patterns" $ do
+      pat <- compilePat' "x /; Positive[x]"
+      matchesUniqueExpr pat `shouldBe` Nothing
+
+    it "returns Nothing for optional patterns" $ do
+      pat <- compilePat' "Foo[Optional[x, 1]]"
+      matchesUniqueExpr pat `shouldBe` Nothing
 
   describe "Evaluator" $ do
     let eval' :: Text -> IO Expr

@@ -29,8 +29,8 @@ import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence          qualified as Seq
 import Data.Set               (Set)
 import Data.Set               qualified as Set
-import Howl.Eval.Context (Attributes (..), Eval (..), HoldType (..),
-                               Rule (..), SymbolRecord (..), addToEvalCache,
+import Howl.Eval.Context (Attributes (..), DownValues (..), Eval (..),
+                               HoldType (..), Rule (..), SymbolRecord (..), addToEvalCache,
                                emptyAttributes, lookupSymbolRecord,
                                returnIfInCache)
 import Howl.Eval.Equality (exprEqualFast)
@@ -713,13 +713,18 @@ eval expr = do
         tryDownValues = case Expr.rootSymbol h' of
           Nothing -> pure Nothing
           Just rootSym -> do
-            case maybeHeadRecord of
-              Just record -> tryRulesSeq record.downValues
-              Nothing -> do
-                maybeRecord <- lookupSymbolRecord rootSym
-                case maybeRecord of
-                  Nothing     -> pure Nothing
-                  Just record -> tryRulesSeq record.downValues
+            maybeRecord <- case maybeHeadRecord of
+              Just record -> pure (Just record)
+              Nothing     -> lookupSymbolRecord rootSym
+            case maybeRecord of
+              Nothing -> pure Nothing
+              Just record -> case Map.lookup expr' record.downValues.uniqueMatches of
+                -- Check first against rules that match precisely one
+                -- expression. Using Map.lookup, we can do this check in log(n)
+                -- time, as opposed to linear time for general rules.
+                Just rhs -> pure (Just rhs)
+                -- If the check fails, try the sequentialRules one by one
+                Nothing  -> tryRulesSeq record.downValues.sequentialRules
 
       tryUpValuesFromArgs Set.empty cs' >>= \case
         Just transformedExpr -> eval transformedExpr

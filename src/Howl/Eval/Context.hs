@@ -13,6 +13,7 @@ module Howl.Eval.Context
   , HoldType(..)
   , emptyAttributes
   , SymbolRecord(..)
+  , DownValues(..)
   , Eval(..)
   , runEvalWithContext
   , runEval
@@ -44,15 +45,19 @@ module Howl.Eval.Context
 import Control.Monad.Catch      (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.IO.Class   (MonadIO, liftIO)
 import Control.Monad.Reader     (MonadReader, ReaderT, ask, runReaderT)
+import Data.List                (intercalate)
 import Data.HashTable.IO        qualified as HT
 import Data.IORef               (IORef, atomicModifyIORef', newIORef)
+import Data.Map.Strict          (Map)
+import Data.Map.Strict          qualified as Map
 import Data.Sequence            (Seq, pattern Empty, (|>))
 import Data.Sequence            qualified as Seq
 import Data.Text.Short          qualified as ShortText
 import Howl.Expr           (Expr (..))
 import Howl.Eval.EvalCache (EvalCache, insertEvalCache, lookupEvalCache,
                                  newEvalCache)
-import Howl.Pat            (Pat (..), PatAppType(..), patFromExpr)
+import Howl.Pat            (Pat (..), PatAppType(..), matchesUniqueExpr,
+                                 patFromExpr)
 import Howl.PPrint         (PPrint (..))
 import Howl.Symbol         (Symbol, symbolFromShortText, symbolToShortText)
 
@@ -134,6 +139,29 @@ instance Show Rule where
 instance PPrint Rule where
   pPrint = show
 
+-- | For cases when a pattern matches a unique expression, we store that
+-- expression in the uniqueMatches Map for fast lookup. In the evaluator, we try
+-- these lookups first before moving through the sequentialRules.
+data DownValues = MkDownValues
+  { sequentialRules :: !(Seq Rule)
+  , uniqueMatches   :: !(Map Expr Expr)
+  }
+
+instance Show DownValues where
+  show downVals = concat
+    [ "MkDownValues { sequentialRules = "
+    , show downVals.sequentialRules
+    , ", uniqueMatches = fromList ["
+    , intercalate ", " $
+        map
+          (\(lhs, rhs) -> "(" ++ pPrint lhs ++ ", " ++ pPrint rhs ++ ")")
+          (Map.toList downVals.uniqueMatches)
+    , "] }"
+    ]
+
+emptyDownValues :: DownValues
+emptyDownValues = MkDownValues Seq.empty Map.empty
+
 -- | TODO: Add Protected, NumericFunction, OneIdentity
 data Attributes = MkAttributes
   { flat            :: !Bool
@@ -177,7 +205,7 @@ setHoldType ty attr = attr { holdType = Just ty }
 data SymbolRecord = MkSymbolRecord
   { -- symbol     :: Symbol
     ownValue   :: !(Maybe Expr)
-  , downValues :: !(Seq Rule) -- ^ A rule that matches expressions where
+  , downValues :: !DownValues -- ^ Rules that match expressions where
                               -- the given symbol is the head
   , upValues   :: !(Seq Rule) -- ^ A rule that matches expressions where
                               -- the given symbol is 1 level below the
@@ -187,12 +215,12 @@ data SymbolRecord = MkSymbolRecord
   deriving (Show)
 
 emptySymbolRecord :: Symbol -> SymbolRecord
-emptySymbolRecord _ = MkSymbolRecord Nothing Seq.empty Seq.empty EmptyAttributes
+emptySymbolRecord _ = MkSymbolRecord Nothing emptyDownValues Seq.empty EmptyAttributes
 
 modifyRecordOwnValue :: (Maybe Expr -> Maybe Expr) -> SymbolRecord -> SymbolRecord
 modifyRecordOwnValue f record = record { ownValue = f record.ownValue }
 
-modifyRecordDownValues :: (Seq Rule -> Seq Rule) -> SymbolRecord -> SymbolRecord
+modifyRecordDownValues :: (DownValues -> DownValues) -> SymbolRecord -> SymbolRecord
 modifyRecordDownValues f record = record { downValues = f record.downValues }
 
 modifyRecordUpValues :: (Seq Rule -> Seq Rule) -> SymbolRecord -> SymbolRecord
@@ -218,8 +246,11 @@ modifyRecord sym f = do
         else Just newRecord
   where
     --isEmpty (MkSymbolRecord _ Nothing Empty Empty EmptyAttributes) = True
-    isEmpty (MkSymbolRecord Nothing Empty Empty EmptyAttributes) = True
-    isEmpty _                                                    = False
+    isEmpty (MkSymbolRecord Nothing downVals Empty EmptyAttributes)
+      | Seq.null downVals.sequentialRules
+      , Map.null downVals.uniqueMatches
+      = True
+    isEmpty _ = False
 
 lookupSymbolRecord :: Symbol -> Eval (Maybe SymbolRecord)
 lookupSymbolRecord sym = do
@@ -236,14 +267,25 @@ lookupAttributes = fmap (.attributes) . lookupSymbolRecordDefault
 modifyOwnValue :: Symbol -> (Maybe Expr -> Maybe Expr) -> Eval ()
 modifyOwnValue sym f = modifyRecord sym (modifyRecordOwnValue f)
 
-modifyDownValues :: Symbol -> (Seq Rule -> Seq Rule) -> Eval ()
+modifyDownValues :: Symbol -> (DownValues -> DownValues) -> Eval ()
 modifyDownValues sym f = modifyRecord sym (modifyRecordDownValues f)
 
 modifyUpValues :: Symbol -> (Seq Rule -> Seq Rule) -> Eval ()
 modifyUpValues sym f = modifyRecord sym (modifyRecordUpValues f)
 
 addDownValue :: Symbol -> Rule -> Eval ()
-addDownValue sym rule = modifyDownValues sym (|> rule)
+addDownValue sym rule = modifyDownValues sym (addRule rule)
+  where
+    addRule :: Rule -> DownValues -> DownValues
+    addRule newRule downVals = downVals
+      { sequentialRules = downVals.sequentialRules |> newRule
+      , uniqueMatches =
+          case newRule of
+            PatRule pat rhs
+              | Just expr <- matchesUniqueExpr pat ->
+                  Map.insert expr rhs downVals.uniqueMatches
+            _ -> downVals.uniqueMatches
+      }
 
 addUpValue :: Symbol -> Rule -> Eval ()
 addUpValue sym rule = modifyUpValues sym (|> rule)
@@ -269,7 +311,7 @@ setAttributes sym attrs = modifyAttributes sym (const attrs)
 clear :: Symbol -> Eval ()
 clear sym = modifyRecord sym $
   modifyRecordOwnValue (const Nothing) .
-  modifyRecordDownValues (const Seq.empty) .
+  modifyRecordDownValues (const emptyDownValues) .
   modifyRecordUpValues (const Seq.empty)
 
 clearAll :: Symbol -> Eval ()
