@@ -82,9 +82,9 @@ In actuality, this example doesn't work in Mathematica because the symbol `Times
 
 ```
 Howl, version 0.1 :? for help
-> x_(y_+z_) := x y + x z;
-> 3 + a (b + c)
-3 + a b + a c
+In[1]:= x_(y_+z_) := x y + x z;
+In[2]:= 3 + a (b + c)
+Out[2]= 3 + a b + a c
 ```
 
 ## Interoperation with Haskell
@@ -159,13 +159,13 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
 
 - Howl does not have `Block` or `With`. Instead, it defines `Let`, which implements shadowing, as is standard in most functional languages. For example:
   ```
-  > Let[x=12,Let[x=9,x+3]+x]
-  24
+  In[1]:= Let[x=12,Let[x=9,x+3]+x]
+  Out[1]= 24
   ```
   Internally, `Let` is defined in terms of `Function`: `Let[x=a,expr] --> Function[x,expr][a]`. `Let` also lets you sanely define successive variables that depend on previous ones:
   ```
-  > Let[{x=1,y=x+2,z=x+y+3}, z+4]
-  11
+  In[1]:= Let[{x=1,y=x+2,z=x+y+3}, z+4]
+  Out[1]= 11
   ```
 
 - Howl implements the attributes `Flat`, `Orderless`, `HoldAll`, `HoldFirst`, and `HoldRest`. It does not (yet) have the attribute `OneIdentity`. It also does not yet implement `Evaluate` or `Unevaluated`. It also does not implement `Listable`, and hopefully it never will. Please use `Map` instead.
@@ -174,13 +174,13 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
 
 - Howl does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
   ```
-  > a b c /. {a c :> Foobar}
-  b Foobar
+  In[1]:= a b c /. {a c :> Foobar}
+  Out[1]= Foobar
   ```
   Howl does not recognize that `Times[a,b,c]` can be rewritten as `Times[Times[a,c],b]` which has `Times[a,c]` as a sub-expression that matches the pattern. However, you can do this:
   ```
-  > a b c /. {a c x___ :> Foobar x}
-  b Foobar
+  In[1]:= a b c /. {a c x___ :> Foobar x}
+  Out[1]= b Foobar
   ```
   This works because the left-hand side matches the whole expression `a b c`, taking into account commutativity of `Times` (which the Howl pattern matcher does).
   
