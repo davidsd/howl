@@ -701,12 +701,10 @@ parseExprTextWithPath path txt =
 parseExprText :: Text -> Either String Expr
 parseExprText = parseExprTextWithPath "<expr>"
 
-readExprFile :: MonadIO m => FilePath -> m Expr
+readExprFile :: MonadIO m => FilePath -> m (Either String Expr)
 readExprFile path = liftIO $ do
   contents <- Text.readFile path
-  case parseExprTextWithPath path contents of
-    Left err   -> putStrLn err >> pure Expr.Null
-    Right expr -> pure expr
+  pure $ parseExprTextWithPath path contents
 
 tokErrorBundlePretty :: ParseErrorBundle [Tok] Void -> String
 tokErrorBundlePretty bundle =

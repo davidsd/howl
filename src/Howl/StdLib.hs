@@ -11,7 +11,6 @@
 module Howl.StdLib where
 
 import Control.Monad          (guard, void)
-import Control.Monad.IO.Class (liftIO)
 import Data.FileEmbed         (embedFile, makeRelativeToProject)
 import Data.Foldable          qualified as Foldable
 import Data.Map.Strict        (Map)
@@ -31,7 +30,9 @@ import Howl.Eval              (MatchingEq (..), Substitution (..),
                                tryApplyRule)
 import Howl.Eval.Context      (Attributes (..), Decl (..), Eval (..),
                                HoldType (..), Rule (..), addDecl, clear,
-                               clearAll, compilePat, getDefinedSymbols,
+                               clearAll, compilePat, emitErrorLine,
+                               emitOutputLine,
+                               getDefinedSymbols,
                                lookupAttributes, lookupSymbolRecord,
                                modifyAttributes, newModuleSymbol, setFlat,
                                setHoldType, setNumericFunction, setOrderless)
@@ -878,17 +879,19 @@ instance FromExpr LHS where
     TagSetDelayed :@ (Pair (ExprSymbol sym) patExpr) -> Just $ LHSTaggedPat sym patExpr
     patExpr                                          -> Just $ LHSPat patExpr
 
-setPairToDecl :: LHS -> Expr -> Eval Decl
+setPairToDecl :: LHS -> Expr -> Eval (Maybe Decl)
 setPairToDecl lhs rhs = case lhs of
-  LHSSymbol sym -> pure $ OwnValue sym rhs
+  LHSSymbol sym -> pure $ Just $ OwnValue sym rhs
   LHSPat patExpr -> do
     pat <- compilePat patExpr
     case patRootSymbol pat of
-      Just sym -> pure $ DownValue sym (PatRule pat rhs)
-      Nothing  -> error "Pattern on the left-hand side has no root symbol"
+      Just sym -> pure $ Just $ DownValue sym (PatRule pat rhs)
+      Nothing  -> do
+        emitErrorLine "Pattern on the left-hand side has no root symbol"
+        pure Nothing
   LHSTaggedPat sym patExpr -> do
     pat <- compilePat patExpr
-    pure $ UpValue sym (PatRule pat rhs)
+    pure $ Just $ UpValue sym (PatRule pat rhs)
 
 -- | There are two differences between SetDelayed and Set. Firstly,
 -- SetDelayed has attribute HoldAll, so that the rhs is unevaluated
@@ -899,11 +902,16 @@ setPairToDecl lhs rhs = case lhs of
 --
 setDef :: LHS -> Expr -> Eval Expr
 setDef lhs rhs = do
-  setPairToDecl lhs rhs >>= addDecl
-  pure rhs
+  setPairToDecl lhs rhs >>= \case
+    Just decl -> do
+      addDecl decl
+      pure rhs
+    Nothing -> pure Null
 
 setDelayedDef :: LHS -> Expr -> Eval ()
-setDelayedDef lhs rhs = setPairToDecl lhs rhs >>= addDecl
+setDelayedDef lhs rhs = setPairToDecl lhs rhs >>= \case
+  Just decl -> addDecl decl
+  Nothing   -> pure ()
 
 ---------- CompoundExpression ----------
 
@@ -936,26 +944,28 @@ setAttributes sym (MkListOrSolo attrs) =
 
 printDef :: Seq Expr -> Eval Expr
 printDef exprs = do
-  liftIO . putStrLn $ foldMap pPrint exprs
+  emitOutputLine . Text.pack $ foldMap pPrint exprs
   pure Null
 
 helpDef :: Symbol -> Eval ()
 helpDef sym = do
   maybeRecord <- lookupSymbolRecord sym
-  liftIO $ putStrLn $ show maybeRecord
+  emitOutputLine . Text.pack $ show maybeRecord
 
 -- ========== Building Contexts ========== --
 
 run :: Text -> Eval Expr
 run input = case parseExprText input of
-  Left err   -> liftIO (putStrLn err) >> pure Expr.Null
+  Left err   -> emitErrorLine (Text.pack err) >> pure Expr.Null
   Right expr -> eval expr
 
 run_ :: Text -> Eval ()
 run_ = void . run
 
 get :: FilePath -> Eval Expr
-get path = readExprFile path >>= eval
+get path = readExprFile path >>= \case
+  Left err   -> emitErrorLine (Text.pack err) >> pure Expr.Null
+  Right expr -> eval expr
 
 get_ :: FilePath -> Eval ()
 get_ = void . get
@@ -978,7 +988,7 @@ defStdLib = do
 
   modifyAttributes "Hold" (setHoldType HoldAll)
   def "CompoundExpression" (MkVariadic compoundExpression)
-  def "Get" (readExprFile @Eval . Text.unpack)
+  def "Get" (get . Text.unpack)
   def "SetAttributes" setAttributes
   def "Clear" clear
   def "ClearAll" clearAll

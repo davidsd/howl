@@ -39,6 +39,27 @@ stack run fib
 stack run laplace
 ```
 
+### Jupyter
+
+Howl also has a Jupyter kernel executable, `howl-jupyter`. Install the kernelspec with:
+
+```bash
+stack exec howl-jupyter -- install
+```
+
+Then start Jupyter:
+```bash
+jupyter lab
+```
+
+or
+
+```bash
+jupyter notebook
+```
+
+and select the `Howl` kernel when creating a notebook.
+
 ## Prior art
 
 The core algorithm needed to implement the Wolfram Language is a procedure for matching patterns to expressions (see below for details). Howl implements the algorithm $M_\textrm{Mma}$ described in [Variadic equational matching in associative and commutative theories](https://www.sciencedirect.com/science/article/pii/S0747717121000079) by Besik Dundua, Temur Kutsia, and Mircea Marin

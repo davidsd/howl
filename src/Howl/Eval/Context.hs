@@ -20,8 +20,14 @@ module Howl.Eval.Context
   , getContext
   , returnIfInCache
   , addToEvalCache
+  , emitErrorLine
+  , emitOutputLine
   , Decl(..)
   , newContext
+  , getLineNumber
+  , incrLineNumber
+  , setErrorLineHandler
+  , setOutputLineHandler
   , lookupSymbolRecord
   , lookupAttributes
   , addDownValue
@@ -46,12 +52,14 @@ import Control.Monad.Catch    (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader   (MonadReader, ReaderT, ask, runReaderT)
 import Data.HashTable.IO      qualified as HT
-import Data.IORef             (IORef, atomicModifyIORef', newIORef)
+import Data.IORef             (IORef, atomicModifyIORef', newIORef, readIORef,
+                               writeIORef)
 import Data.List              (intercalate)
 import Data.Map.Strict        (Map)
 import Data.Map.Strict        qualified as Map
 import Data.Sequence          (Seq, pattern Empty, (|>))
 import Data.Sequence          qualified as Seq
+import Data.Text              (Text)
 import Data.Text.Short        qualified as ShortText
 import Howl.Eval.EvalCache    (EvalCache, insertEvalCache, lookupEvalCache,
                                newEvalCache)
@@ -67,6 +75,9 @@ type HashTable k v = HT.BasicHashTable k v
 data Context = MkContext
   { symbolRecordTable      :: !(HashTable Symbol SymbolRecord)
   , moduleNumberRef        :: !(IORef Int)
+  , lineNumberRef          :: !(IORef Int)
+  , errorLineHandlerRef    :: !(IORef (Text -> IO ()))
+  , outputLineHandlerRef   :: !(IORef (Text -> IO ()))
   , addToEvalCacheHandler  :: Expr -> Eval ()
   , returnIfInCacheHandler :: Expr -> Eval Expr -> Eval Expr
   }
@@ -78,10 +89,16 @@ newContext :: IO Context
 newContext = do
   symbolRecordTable <- HT.new
   moduleNumberRef <- newIORef 0
+  lineNumberRef <- newIORef 1
+  errorLineHandlerRef <- newIORef (putStrLn . show)
+  outputLineHandlerRef <- newIORef (putStrLn . show)
   evalCache <- newEvalCache
   pure $ MkContext
     { symbolRecordTable      = symbolRecordTable
     , moduleNumberRef        = moduleNumberRef
+    , lineNumberRef          = lineNumberRef
+    , errorLineHandlerRef    = errorLineHandlerRef
+    , outputLineHandlerRef   = outputLineHandlerRef
     , addToEvalCacheHandler  = defaultAddToEvalCache evalCache
     , returnIfInCacheHandler = defaultReturnIfInCache evalCache
     -- , addToEvalCacheHandler  = dummyAddToEvalCache evalCache
@@ -98,6 +115,16 @@ runEval go = do
 
 getContext :: Eval Context
 getContext = ask
+
+getLineNumber :: Eval Int
+getLineNumber = do
+  ctx <- getContext
+  liftIO $ readIORef ctx.lineNumberRef
+
+incrLineNumber :: Eval ()
+incrLineNumber = do
+  ctx <- getContext
+  liftIO $ atomicModifyIORef' ctx.lineNumberRef $ \n -> (n + 1, ())
 
 -- To Turn off the eval cache, replace defaultAddToEvalCache with
 -- dummyAddToEvalCache and defaultReturnIfInCache with
@@ -127,6 +154,26 @@ addToEvalCache :: Expr -> Eval ()
 addToEvalCache expr = do
   ctx <- getContext
   ctx.addToEvalCacheHandler expr
+
+emitErrorLine :: Text -> Eval ()
+emitErrorLine line = do
+  ctx <- getContext
+  errorHandler <- liftIO $ readIORef ctx.errorLineHandlerRef
+  liftIO $ errorHandler line
+
+emitOutputLine :: Text -> Eval ()
+emitOutputLine line = do
+  ctx <- getContext
+  outputHandler <- liftIO $ readIORef ctx.outputLineHandlerRef
+  liftIO $ outputHandler line
+
+setErrorLineHandler :: Context -> (Text -> IO ()) -> IO ()
+setErrorLineHandler ctx =
+  writeIORef ctx.errorLineHandlerRef
+
+setOutputLineHandler :: Context -> (Text -> IO ()) -> IO ()
+setOutputLineHandler ctx =
+  writeIORef ctx.outputLineHandlerRef
 
 data Rule
   = PatRule Pat Expr

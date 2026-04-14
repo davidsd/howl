@@ -58,8 +58,10 @@ library
     , combinat
     , containers
     , deepseq
+    , directory
     , exceptions
     , file-embed
+    , filepath
     , hashable
     , hashtables
     , megaparsec
@@ -67,6 +69,7 @@ library
     , optparse-applicative
     , parser-combinators
     , primitive
+    , process
     , rounded
     , scientific
     , symbolize
@@ -90,8 +93,10 @@ executable fib
     , combinat
     , containers
     , deepseq
+    , directory
     , exceptions
     , file-embed
+    , filepath
     , hashable
     , hashtables
     , howl
@@ -100,6 +105,7 @@ executable fib
     , optparse-applicative
     , parser-combinators
     , primitive
+    , process
     , rounded
     , scientific
     , symbolize
@@ -123,8 +129,10 @@ executable howl-exe
     , combinat
     , containers
     , deepseq
+    , directory
     , exceptions
     , file-embed
+    , filepath
     , hashable
     , hashtables
     , haskeline
@@ -134,6 +142,44 @@ executable howl-exe
     , optparse-applicative
     , parser-combinators
     , primitive
+    , process
+    , rounded
+    , scientific
+    , symbolize
+    , template-haskell
+    , text
+    , text-short
+  default-language: GHC2021
+
+executable howl-jupyter
+  main-is: Main.hs
+  other-modules:
+      Paths_howl
+  autogen-modules:
+      Paths_howl
+  hs-source-dirs:
+      app-jupyter
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , combinat
+    , containers
+    , deepseq
+    , directory
+    , exceptions
+    , file-embed
+    , filepath
+    , hashable
+    , hashtables
+    , howl
+    , ipython-kernel
+    , megaparsec
+    , mtl
+    , optparse-applicative
+    , parser-combinators
+    , primitive
+    , process
     , rounded
     , scientific
     , symbolize
@@ -157,8 +203,10 @@ executable laplace
     , combinat
     , containers
     , deepseq
+    , directory
     , exceptions
     , file-embed
+    , filepath
     , hashable
     , hashtables
     , howl
@@ -167,6 +215,7 @@ executable laplace
     , optparse-applicative
     , parser-combinators
     , primitive
+    , process
     , rounded
     , scientific
     , symbolize
@@ -191,8 +240,10 @@ executable susyO2
     , combinat
     , containers
     , deepseq
+    , directory
     , exceptions
     , file-embed
+    , filepath
     , hashable
     , hashtables
     , howl
@@ -202,6 +253,7 @@ executable susyO2
     , optparse-applicative
     , parser-combinators
     , primitive
+    , process
     , rounded
     , scientific
     , symbolize
@@ -227,8 +279,10 @@ test-suite howl-test
     , combinat
     , containers
     , deepseq
+    , directory
     , exceptions
     , file-embed
+    , filepath
     , hashable
     , hashtables
     , howl
@@ -238,6 +292,7 @@ test-suite howl-test
     , optparse-applicative
     , parser-combinators
     , primitive
+    , process
     , rounded
     , scientific
     , symbolize

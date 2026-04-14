@@ -34,6 +34,9 @@ dependencies:
 - rounded
 - bytestring
 - file-embed
+- directory
+- filepath
+- process
 
 ghc-options:
 - -Wall
@@ -62,6 +65,22 @@ executables:
     - howl
     - haskeline
     - text
+
+  howl-jupyter:
+    main:                Main.hs
+    source-dirs:         app-jupyter
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -O2
+    dependencies:
+    - howl
+    - ipython-kernel
+    - text
+    - directory
+    - filepath
+    - process
 
   fib:
     main:                Main.hs
