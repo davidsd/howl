@@ -15,6 +15,7 @@ description:         An implementation of a small subset of the Wolfram language
 
 dependencies:
 - base >= 4.7 && < 5
+- aeson
 - containers
 - text
 - mtl
@@ -76,6 +77,7 @@ executables:
     - -O2
     dependencies:
     - howl
+    - aeson
     - ipython-kernel
     - text
     - directory

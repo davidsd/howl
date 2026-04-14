@@ -6,9 +6,10 @@
 
 module Main (main) where
 
+import Data.Aeson                  (ToJSON (..), encode, object, (.=))
+import Data.ByteString.Lazy        qualified as BSL
 import Data.Text                   (Text)
 import Data.Text                   qualified as Text
-import Data.Text.IO                qualified as Text
 import Howl                        (Context, Expr, PPrint (..), defStdLib, eval,
                                     incrLineNumber, newContext, parseExprText,
                                     pattern Null,
@@ -59,31 +60,30 @@ installKernelSpec :: FilePath -> IO ()
 installKernelSpec exePath = do
   let kernelDir = ".stack-work" </> "howl-jupyter-kernelspec"
   createDirectoryIfMissing True kernelDir
-  Text.writeFile (kernelDir </> "kernel.json") (kernelJson exePath)
+  BSL.writeFile (kernelDir </> "kernel.json") (encode (kernelSpecFile exePath))
   callProcess "jupyter" ["kernelspec", "install", "--user", "--name", "howl", "--replace", kernelDir]
 
-kernelJson :: FilePath -> Text
-kernelJson exePath = Text.unlines
-  [ "{"
-  , "  \"argv\": ["
-  , "    " <> jsonString exePath <> ","
-  , "    \"{connection_file}\""
-  , "  ],"
-  , "  \"display_name\": \"Howl\","
-  , "  \"language\": \"howl\""
-  , "}"
-  ]
+data KernelSpecFile = KernelSpecFile
+  { argv        :: [String]
+  , displayName :: Text
+  , language    :: Text
+  }
 
-jsonString :: String -> Text
-jsonString s =
-  "\"" <> Text.concatMap escapeChar (Text.pack s) <> "\""
-  where
-    escapeChar '"'  = "\\\""
-    escapeChar '\\' = "\\\\"
-    escapeChar '\n' = "\\n"
-    escapeChar '\r' = "\\r"
-    escapeChar '\t' = "\\t"
-    escapeChar c    = Text.singleton c
+instance ToJSON KernelSpecFile where
+  toJSON spec =
+    object
+      [ "argv" .= spec.argv
+      , "display_name" .= spec.displayName
+      , "language" .= spec.language
+      ]
+
+kernelSpecFile :: FilePath -> KernelSpecFile
+kernelSpecFile exePath =
+  KernelSpecFile
+    { argv        = [exePath, "{connection_file}"]
+    , displayName = "Howl"
+    , language    = "howl"
+    }
 
 howlKernelConfig :: FilePath -> KernelState -> KernelConfig IO HowlOutput HowlResult
 howlKernelConfig exePath kernelState =

@@ -944,8 +944,12 @@ setAttributes sym (MkListOrSolo attrs) =
 
 printDef :: Seq Expr -> Eval Expr
 printDef exprs = do
-  emitOutputLine . Text.pack $ foldMap pPrint exprs
+  emitOutputLine . Text.concat . Foldable.toList $ fmap renderPrintExpr exprs
   pure Null
+  where
+    renderPrintExpr = \case
+      ExprString s -> s
+      expr         -> Text.pack (pPrint expr)
 
 helpDef :: Symbol -> Eval ()
 helpDef sym = do
