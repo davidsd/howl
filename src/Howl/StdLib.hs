@@ -516,6 +516,15 @@ mapDef = \cases
   f (h :@ xs) -> Just $ h :@ (fmap (Expr.unary f) xs)
   _ _ -> Nothing
 
+mapApplyDef :: Expr -> Expr -> Maybe Expr
+mapApplyDef = \cases
+  f (h :@ xs) -> Just $ h :@ fmap replaceHead xs
+    where
+      replaceHead = \case
+        _ :@ ys -> f :@ ys
+        expr    -> expr
+  _ _ -> Nothing
+
 -- TODO: multiple indices
 mapAt :: Expr -> Expr -> Int -> Maybe Expr
 mapAt fExpr (ExprApp h cs) n
@@ -999,6 +1008,7 @@ defStdLib = do
   def "ConfirmPatternTest" (MkVariadic confirmPatternTest)
 
   def "Map" mapDef
+  def "MapApply" mapApplyDef
   def "MapAt" mapAt
   def "Head" exprHead
   def "Part" (MkVariadic part)

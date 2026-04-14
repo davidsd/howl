@@ -553,6 +553,14 @@ main = hspec $ do
         result <- eval' "Map[f, {1, 2, 3}]"
         pPrint result `shouldBe` "{f[1], f[2], f[3]}"
 
+      it "map-applies over level-1 parts" $ do
+        result <- eval' "MapApply[f, {{1, 2}, {3, 4}}]"
+        pPrint result `shouldBe` "{f[1, 2], f[3, 4]}"
+
+      it "map-applies over nested expressions" $ do
+        result <- eval' "MapApply[f, g[h[a], i[b, c]]]"
+        pPrint result `shouldBe` "g[f[a], f[b, c]]"
+
       it "applies function to list" $ do
         result <- eval' "Apply[Plus, {1, 2, 3}]"
         pPrint result `shouldBe` "6"
