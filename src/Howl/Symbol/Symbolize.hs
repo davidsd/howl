@@ -6,10 +6,10 @@ module Howl.Symbol.Symbolize
   , symbolFromShortText
   ) where
 
-import Data.Text.Short  (ShortText)
-import Howl.PPrint (PPrint (..))
-import Symbolize        (Symbol)
-import Symbolize        qualified as Symbolize
+import Data.Text.Short (ShortText)
+import Howl.PPrint     (PPrint (..))
+import Symbolize       (Symbol)
+import Symbolize       qualified as Symbolize
 
 instance PPrint Symbol where
   pPrint = Symbolize.unintern

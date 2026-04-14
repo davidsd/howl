@@ -26,14 +26,14 @@ module Howl.Expr.Internal
   , rootSymbol
   ) where
 
-import Data.Foldable          qualified as Foldable
-import Data.List              (intercalate)
-import Data.Ratio             (denominator, numerator)
-import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence          qualified as Seq
-import Data.String            (IsString (..))
-import Data.Text              (Text)
-import Howl.Expr.Numeric (Numeric (..), BigFloat)
+import Data.Foldable     qualified as Foldable
+import Data.List         (intercalate)
+import Data.Ratio        (denominator, numerator)
+import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence     qualified as Seq
+import Data.String       (IsString (..))
+import Data.Text         (Text)
+import Howl.Expr.Numeric (BigFloat, Numeric (..))
 import Howl.PPrint       (PPrint (..))
 import Howl.Symbol       (Symbol)
 

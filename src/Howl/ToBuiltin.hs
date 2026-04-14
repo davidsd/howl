@@ -9,10 +9,9 @@ module Howl.ToBuiltin
   , builtinDecl
   ) where
 
-import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
 import Howl.Eval.Context (Decl (..), Eval (..), Rule (..))
-import Howl.Expr         (Expr (..), FromExpr (..), ToExpr (..),
-                               pattern (:@))
+import Howl.Expr         (Expr (..), FromExpr (..), ToExpr (..), pattern (:@))
 import Howl.Symbol       (Symbol)
 
 -- | Given a function type f, turn it into an operation on a 'Seq
@@ -51,7 +50,7 @@ instance {-# OVERLAPPABLE #-} ToExpr a => ToBuiltin a where
 -- | Provide instances for variadic functions with these return types,
 -- i.e. functions that take a 'Seq Expr' with arbitrary length as an
 -- argument.
-newtype Variadic a b = MkVariadic (Seq a -> b) 
+newtype Variadic a b = MkVariadic (Seq a -> b)
 
 instance {-# OVERLAPPABLE #-} (FromExpr a, ToExpr b) => ToBuiltin (Variadic a (Eval (Maybe b))) where
   toBuiltin (MkVariadic f) xs = case mapM fromExpr xs of

@@ -4,11 +4,11 @@ module Howl.Eval.Equality
   ( exprEqualFast
   ) where
 
-import Data.Sequence           (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence qualified as Seq
-import GHC.StableName          (makeStableName)
+import Data.Sequence      (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence      qualified as Seq
+import GHC.StableName     (makeStableName)
 import Howl.Expr.Internal (Expr (..))
-import System.IO.Unsafe        (unsafePerformIO)
+import System.IO.Unsafe   (unsafePerformIO)
 
 -- | Fast equality check for evaluator rewrite detection.
 --   Uses StableName pointer equality at the root and shallowly on

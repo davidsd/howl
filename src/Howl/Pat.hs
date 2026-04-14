@@ -17,23 +17,23 @@ module Howl.Pat
   , patFromExpr
   ) where
 
-import Control.Monad.State   (StateT, evalStateT, lift, state)
-import Data.Foldable         qualified as Foldable
-import Data.List             (intercalate)
-import Data.Sequence         (Seq, pattern (:<|), pattern Empty)
-import Data.String           (IsString (..))
-import Data.Set              (Set)
-import Data.Set              qualified as Set
-import Howl.Expr        (Expr (..), Literal, binary, pattern (:@),
-                              pattern Alternatives, pattern Blank,
-                              pattern BlankNullSequence, pattern BlankSequence,
-                              pattern ConfirmPatternTest, pattern Default,
-                              pattern Optional, pattern Pattern,
-                              pattern PatternTest, pattern Test)
-import Howl.Expr.PPrint ()
-import Howl.PPrint      (PPrint (..))
-import Howl.Symbol      (Symbol)
-import Howl.Util        (pattern Pair, pattern Solo)
+import Control.Monad.State (StateT, evalStateT, lift, state)
+import Data.Foldable       qualified as Foldable
+import Data.List           (intercalate)
+import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
+import Data.Set            (Set)
+import Data.Set            qualified as Set
+import Data.String         (IsString (..))
+import Howl.Expr           (Expr (..), Literal, binary, pattern (:@),
+                            pattern Alternatives, pattern Blank,
+                            pattern BlankNullSequence, pattern BlankSequence,
+                            pattern ConfirmPatternTest, pattern Default,
+                            pattern Optional, pattern Pattern,
+                            pattern PatternTest, pattern Test)
+import Howl.Expr.PPrint    ()
+import Howl.PPrint         (PPrint (..))
+import Howl.Symbol         (Symbol)
+import Howl.Util           (pattern Pair, pattern Solo)
 
 {- | TODO:
 

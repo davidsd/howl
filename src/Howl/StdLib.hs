@@ -23,20 +23,19 @@ import Data.String            (fromString)
 import Data.Text              (Text)
 import Data.Text              qualified as Text
 import Data.Text.Encoding     qualified as TE
-import Math.Combinat          (binomial, multinomial)
-import Howl.Eval         (MatchingEq (..), Substitution (..),
+import Howl.Eval              (MatchingEq (..), Substitution (..),
                                SubstitutionSet, emptySubstitutionSet, eval,
                                insertSubstitution, insertSubstitutions,
                                lookupBinding, removeBindings,
                                singletonSubstitutionSet, solveMatchMaybe,
                                tryApplyRule)
-import Howl.Eval.Context (Attributes (..), Decl (..), Eval (..),
+import Howl.Eval.Context      (Attributes (..), Decl (..), Eval (..),
                                HoldType (..), Rule (..), addDecl, clear,
                                clearAll, compilePat, getDefinedSymbols,
                                lookupAttributes, lookupSymbolRecord,
                                modifyAttributes, newModuleSymbol, setFlat,
                                setHoldType, setNumericFunction, setOrderless)
-import Howl.Expr         (Expr (..), FromExpr (..), Numeric (..),
+import Howl.Expr              (Expr (..), FromExpr (..), Numeric (..),
                                ToExpr (..), bigFloatPrecision, pattern (:@),
                                pattern And, pattern ExprBigFloat,
                                pattern ExprDouble, pattern ExprInteger,
@@ -44,17 +43,19 @@ import Howl.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                pattern ExprString, pattern ExprView,
                                pattern List, pattern Null, pattern Or,
                                pattern Plus, pattern Power, pattern Set,
-                               pattern Slot, pattern TagSetDelayed,
-                               pattern Times, toBigFloat, toDouble, pattern SlotSequence)
-import Howl.Expr.PPrint  ()
-import Howl.Expr         qualified as Expr
-import Howl.Expr.TH      (declareBuiltins)
-import Howl.Parser       (parseExprText, readExprFile)
-import Howl.Pat          (patRootSymbol)
-import Howl.PPrint       (PPrint (..))
-import Howl.Symbol       (Symbol)
-import Howl.ToBuiltin    (ToBuiltin (..), Variadic (..), builtinDecl)
-import Howl.Util         (pattern Pair, pattern Solo)
+                               pattern Slot, pattern SlotSequence,
+                               pattern TagSetDelayed, pattern Times, toBigFloat,
+                               toDouble)
+import Howl.Expr              qualified as Expr
+import Howl.Expr.PPrint       ()
+import Howl.Expr.TH           (declareBuiltins)
+import Howl.Parser            (parseExprText, readExprFile)
+import Howl.Pat               (patRootSymbol)
+import Howl.PPrint            (PPrint (..))
+import Howl.Symbol            (Symbol)
+import Howl.ToBuiltin         (ToBuiltin (..), Variadic (..), builtinDecl)
+import Howl.Util              (pattern Pair, pattern Solo)
+import Math.Combinat          (binomial, multinomial)
 import Numeric.Rounded.Simple qualified as Rounded
 
 ---------- Plus ----------

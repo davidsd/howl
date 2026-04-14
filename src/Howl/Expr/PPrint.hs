@@ -8,21 +8,19 @@ module Howl.Expr.PPrint
   , pPrintLit
   ) where
 
-import Data.Foldable             qualified as Foldable
-import Data.List                 (intercalate)
-import Data.Sequence             qualified as Seq
-import Howl.Expr.Internal   (Expr (..), Literal (..), pattern ExprNumeric)
-import Howl.Expr.Numeric    (Numeric (..))
-import Howl.Expr.Syntax     (pattern Plus, pattern Times, pattern Power,
-                                  pattern List, pattern Rule, pattern RuleDelayed,
-                                  pattern Set, pattern SetDelayed,
-                                  pattern Equal, pattern Unequal,
-                                  pattern Less, pattern Greater,
-                                  pattern LessEqual, pattern GreaterEqual,
-                                  pattern SameQ, pattern UnsameQ,
-                                  pattern And, pattern Or,
-                                  pattern Alternatives)
-import Howl.PPrint          (PPrint (..))
+import Data.Foldable          qualified as Foldable
+import Data.List              (intercalate)
+import Data.Sequence          qualified as Seq
+import Howl.Expr.Internal     (Expr (..), Literal (..), pattern ExprNumeric)
+import Howl.Expr.Numeric      (Numeric (..))
+import Howl.Expr.Syntax       (pattern Alternatives, pattern And, pattern Equal,
+                               pattern Greater, pattern GreaterEqual,
+                               pattern Less, pattern LessEqual, pattern List,
+                               pattern Or, pattern Plus, pattern Power,
+                               pattern Rule, pattern RuleDelayed, pattern SameQ,
+                               pattern Set, pattern SetDelayed, pattern Times,
+                               pattern Unequal, pattern UnsameQ)
+import Howl.PPrint            (PPrint (..))
 import Numeric.Rounded.Simple qualified as Rounded
 
 -- | Precedence levels for pretty printing (higher = binds tighter)
@@ -166,7 +164,7 @@ pPrintPrec ctx (ExprApp f args) = case (f, Foldable.toList args) of
     pPrintTimes (x:xs) = pPrintPrec PrecTimes x <> pPrintTimesRest xs
 
     -- Print remaining factors, adding space before each
-    pPrintTimesRest [] = ""
+    pPrintTimesRest []     = ""
     pPrintTimesRest (x:xs) = " " <> pPrintPrec PrecTimes x <> pPrintTimesRest xs
 
 -- | Pretty print a literal (defined here to avoid import cycle)

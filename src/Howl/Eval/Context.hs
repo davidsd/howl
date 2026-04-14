@@ -42,24 +42,24 @@ module Howl.Eval.Context
   , dummyReturnIfInCache
   ) where
 
-import Control.Monad.Catch      (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.IO.Class   (MonadIO, liftIO)
-import Control.Monad.Reader     (MonadReader, ReaderT, ask, runReaderT)
-import Data.List                (intercalate)
-import Data.HashTable.IO        qualified as HT
-import Data.IORef               (IORef, atomicModifyIORef', newIORef)
-import Data.Map.Strict          (Map)
-import Data.Map.Strict          qualified as Map
-import Data.Sequence            (Seq, pattern Empty, (|>))
-import Data.Sequence            qualified as Seq
-import Data.Text.Short          qualified as ShortText
-import Howl.Expr           (Expr (..))
-import Howl.Eval.EvalCache (EvalCache, insertEvalCache, lookupEvalCache,
-                                 newEvalCache)
-import Howl.Pat            (Pat (..), PatAppType(..), matchesUniqueExpr,
-                                 patFromExpr)
-import Howl.PPrint         (PPrint (..))
-import Howl.Symbol         (Symbol, symbolFromShortText, symbolToShortText)
+import Control.Monad.Catch    (MonadCatch, MonadMask, MonadThrow)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader   (MonadReader, ReaderT, ask, runReaderT)
+import Data.HashTable.IO      qualified as HT
+import Data.IORef             (IORef, atomicModifyIORef', newIORef)
+import Data.List              (intercalate)
+import Data.Map.Strict        (Map)
+import Data.Map.Strict        qualified as Map
+import Data.Sequence          (Seq, pattern Empty, (|>))
+import Data.Sequence          qualified as Seq
+import Data.Text.Short        qualified as ShortText
+import Howl.Eval.EvalCache    (EvalCache, insertEvalCache, lookupEvalCache,
+                               newEvalCache)
+import Howl.Expr              (Expr (..))
+import Howl.Pat               (Pat (..), PatAppType (..), matchesUniqueExpr,
+                               patFromExpr)
+import Howl.PPrint            (PPrint (..))
+import Howl.Symbol            (Symbol, symbolFromShortText, symbolToShortText)
 
 
 type HashTable k v = HT.BasicHashTable k v
@@ -324,7 +324,7 @@ newModuleSymbol x = do
 getDefinedSymbols :: Eval [Symbol]
 getDefinedSymbols = do
   ctx <- ask
-  liftIO $ 
+  liftIO $
     fmap (map fst) $ HT.toList ctx.symbolRecordTable
 
 patAppTypeFromAttributes :: Symbol -> Attributes -> PatAppType

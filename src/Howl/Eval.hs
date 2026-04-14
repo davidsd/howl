@@ -22,27 +22,27 @@ module Howl.Eval
   , eval
   ) where
 
-import Control.Monad          (foldM)
-import Data.Map.Lazy          (Map)
-import Data.Map.Lazy          qualified as Map
-import Data.Sequence          (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence          qualified as Seq
-import Data.Set               (Set)
-import Data.Set               qualified as Set
-import Howl.Eval.Context (Attributes (..), DownValues (..), Eval (..),
-                               HoldType (..), Rule (..), SymbolRecord (..), addToEvalCache,
-                               emptyAttributes, lookupSymbolRecord,
-                               returnIfInCache)
+import Control.Monad      (foldM)
+import Data.Map.Lazy      (Map)
+import Data.Map.Lazy      qualified as Map
+import Data.Sequence      (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence      qualified as Seq
+import Data.Set           (Set)
+import Data.Set           qualified as Set
+import Howl.Eval.Context  (Attributes (..), DownValues (..), Eval (..),
+                           HoldType (..), Rule (..), SymbolRecord (..),
+                           addToEvalCache, emptyAttributes, lookupSymbolRecord,
+                           returnIfInCache)
 import Howl.Eval.Equality (exprEqualFast)
-import Howl.Expr         (Expr (..), flattenWithHead, mapSymbols,
-                               pattern ExprBigFloat, pattern ExprDouble,
-                               pattern ExprInteger, pattern ExprRational,
-                               pattern ExprString)
-import Howl.Expr         qualified as Expr
-import Howl.Pat          (Pat (..), PatAppType (..), SeqType (..),
-                               addNames, outerNames)
-import Howl.Symbol       (Symbol)
-import Howl.Util         (splits1K, splitsK, subSequencesK)
+import Howl.Expr          (Expr (..), flattenWithHead, mapSymbols,
+                           pattern ExprBigFloat, pattern ExprDouble,
+                           pattern ExprInteger, pattern ExprRational,
+                           pattern ExprString)
+import Howl.Expr          qualified as Expr
+import Howl.Pat           (Pat (..), PatAppType (..), SeqType (..), addNames,
+                           outerNames)
+import Howl.Symbol        (Symbol)
+import Howl.Util          (splits1K, splitsK, subSequencesK)
 
 {- ============== Pattern Matching ================
 
@@ -450,18 +450,18 @@ transformMatchK eq k z = case eq of
                   -- PatVar. In this case, the only solution is to bind
                   -- the PatVar to the remaining terms ts.
                   case ts of
-                    Empty -> rest
+                    Empty             -> rest
                     _ | shouldSkip ts -> rest
-                    _ -> emitBind ts Empty rest
+                    _                 -> emitBind ts Empty rest
                 _ ->
                   let
                     -- General case: we have to search subsequences
                     goSubs :: Seq Expr -> Seq Expr -> r -> r
                     goSubs subSeq restSeq more =
                       case subSeq of
-                        Empty -> more
+                        Empty                 -> more
                         _ | shouldSkip subSeq -> more
-                        _ -> emitBind subSeq restSeq more
+                        _                     -> emitBind subSeq restSeq more
                   in
                     subSequencesK ts goSubs rest
           _ -> rest

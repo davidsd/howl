@@ -6,11 +6,11 @@ module Howl.Symbol.Simple
   , symbolFromShortText
   ) where
 
-import Data.Hashable    (Hashable)
-import Data.String      (IsString (..))
-import Data.Text.Short  (ShortText)
-import Data.Text.Short  qualified as ShortText
-import Howl.PPrint (PPrint (..))
+import Data.Hashable   (Hashable)
+import Data.String     (IsString (..))
+import Data.Text.Short (ShortText)
+import Data.Text.Short qualified as ShortText
+import Howl.PPrint     (PPrint (..))
 
 newtype Symbol = MkSymbol ShortText
   deriving (Eq, Ord, Show, Hashable)

@@ -52,12 +52,12 @@ module Howl.Expr.Syntax
   , pattern Null
   ) where
 
-import Data.Foldable           qualified as Foldable
-import Data.Sequence           qualified as Seq
-import Data.String             (fromString)
+import Data.Foldable      qualified as Foldable
+import Data.Sequence      qualified as Seq
+import Data.String        (fromString)
 import Howl.Expr.Internal (Expr (..), FromExpr (..), ToExpr (..))
 import Howl.Expr.TH       (declareBuiltins)
-import Prelude                 hiding (False, True)
+import Prelude            hiding (False, True)
 import Prelude qualified
 
 -- | declareBuiltins creates bidirectional pattern synonyms Sequence,

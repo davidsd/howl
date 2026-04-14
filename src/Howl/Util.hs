@@ -1,5 +1,5 @@
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE PatternSynonyms    #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Howl.Util
@@ -11,7 +11,7 @@ module Howl.Util
   , mapMaybeSeq
   ) where
 
-import Data.Sequence (Seq, ViewL (..), (|>), pattern (:<|), pattern Empty)
+import Data.Sequence (Seq, ViewL (..), pattern (:<|), pattern Empty, (|>))
 import Data.Sequence qualified as Seq
 
 -- | Stream splits of xs into (t1,t2) where xs == t1++t2.

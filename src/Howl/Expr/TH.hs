@@ -6,8 +6,8 @@ module Howl.Expr.TH
   , declareBuiltins
   ) where
 
+import Data.Char           (toLower)
 import Language.Haskell.TH
-import Data.Char (toLower)
 
 -- | Generate a cached symbol CAF + a bidirectional pattern
 -- synonym. These are convenient for pattern matching, and they also
@@ -28,7 +28,7 @@ import Data.Char (toLower)
 --   isPlus :: Expr -> Bool
 --   isPlus s = s == plusExpr
 --
---   {-# INLINE Plus #-}  
+--   {-# INLINE Plus #-}
 --   pattern Plus :: Expr
 --   pattern Plus <- (isPlus -> True) where
 --     Plus = plusExpr

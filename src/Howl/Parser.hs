@@ -1,6 +1,6 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Howl.Parser
@@ -14,7 +14,8 @@ import Control.Monad                  (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Control.Monad.IO.Class         (MonadIO, liftIO)
 import Data.Char                      (isAlphaNum, isDigit)
-import Data.List                      (sortOn)
+import Data.List                      (intercalate, sortOn)
+import Data.List.NonEmpty             (toList)
 import Data.Ord                       (Down (..))
 import Data.Scientific                (Scientific, base10Exponent, coefficient)
 import Data.Sequence                  (Seq, pattern (:<|), pattern Empty)
@@ -25,22 +26,20 @@ import Data.Text                      (Text)
 import Data.Text                      qualified as Text
 import Data.Text.IO                   qualified as Text
 import Data.Void                      (Void)
-import Howl.Expr                 (BigFloat, Expr (..), pattern (:@),
-                                       pattern And, pattern Divide,
-                                       pattern ExprBigFloat, pattern ExprDouble,
-                                       pattern ExprInteger, pattern ExprNumeric,
-                                       pattern ExprString, pattern ExprSymbol,
-                                       pattern Optional, pattern Or,
-                                       pattern Part, pattern Pattern,
-                                       pattern CompoundExpression,
-                                       pattern Plus, pattern Sequence,
-                                       pattern Subtract, pattern Times)
-import Howl.Expr                 qualified as Expr
-import Howl.Symbol               (Symbol)
-import Howl.Util                 (pattern Pair)
+import Howl.Expr                      (BigFloat, Expr (..), pattern (:@),
+                                       pattern And, pattern CompoundExpression,
+                                       pattern Divide, pattern ExprBigFloat,
+                                       pattern ExprDouble, pattern ExprInteger,
+                                       pattern ExprNumeric, pattern ExprString,
+                                       pattern ExprSymbol, pattern Optional,
+                                       pattern Or, pattern Part,
+                                       pattern Pattern, pattern Plus,
+                                       pattern Sequence, pattern Subtract,
+                                       pattern Times)
+import Howl.Expr                      qualified as Expr
+import Howl.Symbol                    (Symbol)
+import Howl.Util                      (pattern Pair)
 import Numeric.Rounded.Simple         qualified as Rounded
-import Data.List                    (intercalate)
-import Data.List.NonEmpty           (toList)
 import Text.Megaparsec                (Parsec, Stream, Token, bundleErrors,
                                        bundlePosState, choice, empty, eof,
                                        errorBundlePretty, many, manyTill, match,
@@ -49,8 +48,8 @@ import Text.Megaparsec                (Parsec, Stream, Token, bundleErrors,
                                        token, try, (<|>))
 import Text.Megaparsec.Char           (char, letterChar, space1, string)
 import Text.Megaparsec.Char.Lexer     qualified as Lex
-import Text.Megaparsec.Error         (ParseError, ParseErrorBundle,
-                                      errorOffset)
+import Text.Megaparsec.Error          (ParseError, ParseErrorBundle,
+                                       errorOffset)
 
 -- | Parse in two steps. First we parse Text into a stream of
 -- Tok's. Then later parse a stream of Tok's into an Expr.
@@ -306,7 +305,7 @@ parseSymbol = lexeme $ do
       name <- some letterChar
       _ <- char ']'
       case lookup name specialCharMap of
-        Just c -> pure c
+        Just c  -> pure c
         Nothing -> fail ("unknown special character: " <> name)
 
 parseIdent :: TextParser Tok

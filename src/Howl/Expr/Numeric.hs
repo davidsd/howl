@@ -16,11 +16,11 @@ module Howl.Expr.Numeric
 -- to/from Integer, Rational, BigFloat, and Double as needed for
 -- the computation.
 
-import Data.Ratio                  (numerator, denominator)
-import Numeric.Rounded.Simple      (Rounded)
+import Data.Bifunctor         (second)
+import Data.Ratio             (denominator, numerator)
+import Howl.PPrint            (PPrint (..))
+import Numeric.Rounded.Simple (Rounded)
 import Numeric.Rounded.Simple qualified as Rounded
-import Howl.PPrint (PPrint(..))
-import Data.Bifunctor (second)
 
 type BigFloat = Rounded
 type BigFloatPrecision = Rounded.Precision
@@ -39,11 +39,11 @@ binaryApply
   -> (BigFloat -> BigFloat -> a)
   -> Numeric -> Numeric -> a
 binaryApply fi fr fd fbf n1 n2 = case (n1, n2) of
-  (NDouble x, _)            -> fd x (toDouble n2)
-  (_, NDouble y)            -> fd (toDouble n1) y
+  (NDouble x, _)             -> fd x (toDouble n2)
+  (_, NDouble y)             -> fd (toDouble n1) y
   (NBigFloat x, NBigFloat y) -> fbf x y
-  (NBigFloat x, _)          -> fbf x (toBigFloat (bigFloatPrecision x) n2)
-  (_, NBigFloat y)          -> fbf (toBigFloat (bigFloatPrecision y) n1) y
+  (NBigFloat x, _)           -> fbf x (toBigFloat (bigFloatPrecision x) n2)
+  (_, NBigFloat y)           -> fbf (toBigFloat (bigFloatPrecision y) n1) y
   (NInteger x,  NInteger y ) -> fi x y
   (NRational x, NInteger y ) -> fr x (fromIntegral y)
   (NInteger x,  NRational y) -> fr (fromIntegral x) y
@@ -127,7 +127,7 @@ instance Enum Numeric where
   enumFromThenTo x1 x2 xFinal = go x1
     where
       dx = x2 - x1
-      go x 
+      go x
         | x <= xFinal = x : go (x+dx)
         | otherwise = []
 
