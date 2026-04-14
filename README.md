@@ -41,7 +41,7 @@ stack run laplace
 
 ### Jupyter
 
-Howl can be used as a kernel for a Jupyter notebook. To install the kernel, run
+Howl can be used as a kernel for a [Jupyter](https://jupyter.org/) notebook. To install the kernel, first install Jupyter, then run
 
 ```bash
 stack exec howl-jupyter -- install
