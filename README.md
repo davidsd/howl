@@ -150,9 +150,9 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
   ```
   As another example, this means that memoization works as expected:
   ```mathematica
-  fib[n_]:=fib[n]=fib[n-1]+fib[n-2];
-  fib[0]:=0;
-  fib[1]:=1;
+  fib[0] := 0;
+  fib[1] := 1;
+  fib[n_] := fib[n] = fib[n-1] + fib[n-2];
   (* Evaluates to 280571172992510140037611932413038677189525 and does not hang forever. *)
   fib[200]
   ```
