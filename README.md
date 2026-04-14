@@ -196,7 +196,7 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
 - Howl does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
   ```
   In[1]:= a b c /. {a c :> Foobar}
-  Out[1]= Foobar
+  Out[1]= b Foobar
   ```
   Howl does not recognize that `Times[a,b,c]` can be rewritten as `Times[Times[a,c],b]` which has `Times[a,c]` as a sub-expression that matches the pattern. However, you can do this:
   ```
