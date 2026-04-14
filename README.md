@@ -153,7 +153,7 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
   fib[n_]:=fib[n]=fib[n-1]+fib[n-2];
   fib[0]:=0;
   fib[1]:=1;
-  (* Evaluates to 453973694165307953197296969697410619233826 and does not hang forever. *)
+  (* Evaluates to 280571172992510140037611932413038677189525 and does not hang forever. *)
   fib[200]
   ```
 
