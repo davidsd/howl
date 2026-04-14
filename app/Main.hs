@@ -11,10 +11,12 @@ import Data.List                qualified as List
 import Data.Text                (Text)
 import Data.Text                qualified as Text
 import Howl                     (Eval, Expr (..), PPrint (..), compilePat,
-                                 defStdLib, eval, fullForm, get, pattern Null,
-                                 run, runEval)
+                                 defStdLib, eval, fullForm, get,
+                                 pattern ExprInteger, pattern Null, run,
+                                 runEval)
 import Howl.Parser              (parseExprText)
-import Howl.Util                (pattern Solo)
+import Howl.StdLib              (LHS (..), setDelayedDef)
+import Howl.Util                (pattern Pair, pattern Solo)
 import Options.Applicative
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine,
                                  outputStrLn, runInputT)
@@ -84,16 +86,16 @@ evalRepl :: InputT Eval ()
 evalRepl = do
   outputStrLn "Howl, version 0.1 :? for help"
   lift defStdLib
-  loop
+  loop 1
   where
-    loop :: InputT Eval ()
-    loop = do
-      maybeInput <- getInputLine "> "
+    loop :: Int -> InputT Eval ()
+    loop inputCount = do
+      maybeInput <- getInputLine ("In[" <> show inputCount <> "]:= ")
       case maybeInput of
         Nothing -> pure ()
         Just ":?" -> do
           showHelp
-          loop
+          loop inputCount
         Just ":quit" -> pure ()
         Just input | ":showPat " `List.isPrefixOf` input -> do
           let patText = Text.pack (drop 9 input)
@@ -102,7 +104,7 @@ evalRepl = do
             Right expr -> do
               pat <- lift $ compilePat expr
               outputStrLn (show pat)
-          loop
+          loop inputCount
         Just input | ":pat " `List.isPrefixOf` input -> do
           let patText = Text.pack (drop 5 input)
           case parseExprText patText of
@@ -110,11 +112,21 @@ evalRepl = do
             Right expr -> do
               pat <- lift $ compilePat expr
               outputStrLn (pPrint pat)
-          loop
+          loop inputCount
         Just input -> do
-          result <- lift $ run (Text.pack input)
-          unlessNull result $ outputStrLn . formatOutput
-          loop
+          case parseExprText (Text.pack input) of
+            Left err -> do
+              outputStrLn err
+              loop inputCount
+            Right expr -> do
+              result <- lift $ do
+                let inputIndexExpr = ExprApp "In" (Solo (ExprInteger (fromIntegral inputCount)))
+                let outputIndexExpr = ExprApp "Out" (Solo (ExprInteger (fromIntegral inputCount)))
+                setDelayedDef (LHSPat inputIndexExpr) expr
+                eval (ExprApp "Set" (Pair outputIndexExpr expr))
+              unlessNull result $ \expr' ->
+                outputStrLn ("Out[" <> show inputCount <> "]= " <> formatOutput expr')
+              loop (inputCount + 1)
 
 showHelp :: InputT Eval ()
 showHelp = outputStrLn $ unlines
