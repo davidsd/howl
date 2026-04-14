@@ -45,7 +45,7 @@ import Howl.Expr         (Expr (..), FromExpr (..), Numeric (..),
                                pattern List, pattern Null, pattern Or,
                                pattern Plus, pattern Power, pattern Set,
                                pattern Slot, pattern TagSetDelayed,
-                               pattern Times, toBigFloat, toDouble)
+                               pattern Times, toBigFloat, toDouble, pattern SlotSequence)
 import Howl.Expr.PPrint  ()
 import Howl.Expr         qualified as Expr
 import Howl.Expr.TH      (declareBuiltins)
@@ -444,9 +444,11 @@ functionDef = \case
     replaceSlots :: Seq Expr -> Expr -> Expr
     replaceSlots vals = go
       where
-        go (Slot :@ Solo (ExprInteger i))
+        go slotExpr@(Slot :@ Solo (ExprInteger i))
           | Just val <- Seq.lookup (fromInteger i - 1) vals = val
-          | otherwise = error $ "Slot[" <> show i <> "] not bound to anything"
+          | otherwise = slotExpr
+        go (SlotSequence :@ Solo (ExprInteger i)) =
+          Expr.Sequence :@ Seq.drop (fromIntegral i - 1) vals
         -- Important: do not replace inside an anonymous function!
         go expr@(Function :@ Solo _)      = expr
         go (h :@ args)                    = go h :@ fmap go args
