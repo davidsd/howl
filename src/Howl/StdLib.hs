@@ -32,7 +32,8 @@ import Howl.Eval.Context      (Attributes (..), Decl (..), Eval (..),
                                HoldType (..), Rule (..), addDecl, clear,
                                clearAll, compilePat, emitErrorLine,
                                emitOutputLine,
-                               getDefinedSymbols,
+                               getDefinedSymbols, getLineNumber,
+                               incrLineNumber,
                                lookupAttributes, lookupSymbolRecord,
                                modifyAttributes, newModuleSymbol, setFlat,
                                setHoldType, setNumericFunction, setOrderless)
@@ -973,6 +974,16 @@ get path = readExprFile path >>= \case
 
 get_ :: FilePath -> Eval ()
 get_ = void . get
+
+evalWithHistory :: Expr -> Eval (Int, Expr)
+evalWithHistory expr = do
+  inputCount <- getLineNumber
+  let inputIndexExpr = ExprApp "In" (Solo (ExprInteger (fromIntegral inputCount)))
+  let outputIndexExpr = ExprApp "Out" (Solo (ExprInteger (fromIntegral inputCount)))
+  setDelayedDef (LHSPat inputIndexExpr) expr
+  evalResult <- eval (ExprApp "Set" (Pair outputIndexExpr expr))
+  incrLineNumber
+  pure (inputCount, evalResult)
 
 def :: ToBuiltin f => Symbol -> f -> Eval ()
 def sym f = addDecl $ builtinDecl sym f

@@ -11,13 +11,11 @@ import Data.List                qualified as List
 import Data.Text                (Text)
 import Data.Text                qualified as Text
 import Howl                     (Eval, Expr (..), PPrint (..), compilePat,
-                                 defStdLib, eval, fullForm, get, getLineNumber,
-                                 incrLineNumber,
-                                 pattern ExprInteger, pattern Null,
+                                 defStdLib, eval, evalWithHistory, fullForm, get,
+                                 getLineNumber, pattern Null,
                                  run, runEval)
 import Howl.Parser              (parseExprText)
-import Howl.StdLib              (LHS (..), setDelayedDef)
-import Howl.Util                (pattern Pair, pattern Solo)
+import Howl.Util                (pattern Solo)
 import Options.Applicative
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine,
                                  outputStrLn, runInputT)
@@ -121,13 +119,7 @@ evalRepl = do
               outputStrLn err
               loop
             Right expr -> do
-              result <- lift $ do
-                let inputIndexExpr = ExprApp "In" (Solo (ExprInteger (fromIntegral inputCount)))
-                let outputIndexExpr = ExprApp "Out" (Solo (ExprInteger (fromIntegral inputCount)))
-                setDelayedDef (LHSPat inputIndexExpr) expr
-                evalResult <- eval (ExprApp "Set" (Pair outputIndexExpr expr))
-                incrLineNumber
-                pure evalResult
+              (_, result) <- lift $ evalWithHistory expr
               unlessNull result $ \expr' ->
                 outputStrLn ("Out[" <> show inputCount <> "]= " <> formatOutput expr')
               loop

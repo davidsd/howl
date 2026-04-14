@@ -10,8 +10,8 @@ import Data.Aeson                  (ToJSON (..), encode, object, (.=))
 import Data.ByteString.Lazy        qualified as BSL
 import Data.Text                   (Text)
 import Data.Text                   qualified as Text
-import Howl                        (Context, Expr, PPrint (..), defStdLib, eval,
-                                    incrLineNumber, newContext, parseExprText,
+import Howl                        (Context, Expr, PPrint (..), defStdLib,
+                                    evalWithHistory, newContext, parseExprText,
                                     pattern Null,
                                     runEvalWithContext)
 import Howl.Eval.Context           (setErrorLineHandler,
@@ -143,9 +143,8 @@ runHowlCell kernelState input clearOutput sendOutput =
       setOutputLineHandler
         kernelState.kernelContext
         (sendOutput . HowlOutput)
-      result <- runEvalWithContext kernelState.kernelContext $ do
-        incrLineNumber
-        eval expr
+      (_, result) <- runEvalWithContext kernelState.kernelContext $
+        evalWithHistory expr
       pure
         ( if result == Null
           then HowlNoResult
