@@ -277,15 +277,11 @@ addDownValue :: Symbol -> Rule -> Eval ()
 addDownValue sym rule = modifyDownValues sym (addRule rule)
   where
     addRule :: Rule -> DownValues -> DownValues
-    addRule newRule downVals = downVals
-      { sequentialRules = downVals.sequentialRules |> newRule
-      , uniqueMatches =
-          case newRule of
-            PatRule pat rhs
-              | Just expr <- matchesUniqueExpr pat ->
-                  Map.insert expr rhs downVals.uniqueMatches
-            _ -> downVals.uniqueMatches
-      }
+    addRule newRule downVals = case newRule of
+      PatRule pat rhs
+        | Just expr <- matchesUniqueExpr pat ->
+          downVals { uniqueMatches = Map.insert expr rhs downVals.uniqueMatches }
+      _ -> downVals { sequentialRules = downVals.sequentialRules |> newRule }
 
 addUpValue :: Symbol -> Rule -> Eval ()
 addUpValue sym rule = modifyUpValues sym (|> rule)
