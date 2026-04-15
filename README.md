@@ -115,14 +115,14 @@ import Howl
 fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
 
-myProgram :: Eval ()
+myProgram :: Eval Expr
 myProgram = do
   def "Fib" (fibs !!)
-  run_ "Print[Expand[(x + Fib[100])^Fib[3]]]"
+  run "Expand[(x + Fib[100])^Fib[3]]"
 
 -- Prints: 125475243067621153271396401396356512255625 + x^2 + 708449696358523830150 x
 main :: IO ()
-main = runEval myProgram
+main = runEval myProgram >>= putStrLn . pPrint
 ```
 The type `(fibs !!) :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal. For example, `Fib["hi"]` doesn't match the rule we defined, and will remain unevaluated. The typeclasses `ToExpr`/`FromExpr` are used to automatically convert `Expr`s to and from Haskell data.
 
