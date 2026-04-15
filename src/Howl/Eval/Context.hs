@@ -16,7 +16,7 @@ module Howl.Eval.Context
   , DownValues(..)
   , Eval(..)
   , runEvalWithContext
-  , runEval
+  , runEvalNewContext
   , getContext
   , returnIfInCache
   , addToEvalCache
@@ -109,8 +109,8 @@ newContext = do
 runEvalWithContext :: Context -> Eval a -> IO a
 runEvalWithContext ctx (Eval f) = runReaderT f ctx
 
-runEval :: Eval a -> IO a
-runEval go = do
+runEvalNewContext :: Eval a -> IO a
+runEvalNewContext go = do
   ctx <- newContext
   runEvalWithContext ctx go
 

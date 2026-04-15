@@ -10,9 +10,9 @@ import Control.Monad.Trans      (lift)
 import Data.List                qualified as List
 import Data.Text                (Text)
 import Data.Text                qualified as Text
-import Howl                     (Eval, Expr (..), PPrint (..), addBuiltins,
-                                 compilePat, eval, evalWithHistory, fullForm,
-                                 get, getLineNumber, pattern Null, run, runEval)
+import Howl                     (Eval, Expr (..), PPrint (..), compilePat, eval,
+                                 evalWithHistory, fullForm, get,
+                                 getLineNumber, pattern Null, run, runEval)
 import Howl.Parser              (parseExprText)
 import Howl.Util                (pattern Solo)
 import Options.Applicative
@@ -62,7 +62,6 @@ main = do
 
 runBatch :: Options -> Eval ()
 runBatch opts = do
-  addBuiltins
   maybe (pure ()) runFileContent opts.file
   maybe (pure ()) runExprContent opts.expr
   where
@@ -83,7 +82,6 @@ runRepl = runInputT defaultSettings evalRepl
 evalRepl :: InputT Eval ()
 evalRepl = do
   outputStrLn "Howl, version 0.1 :? for help"
-  lift addBuiltins
   loop
   where
     loop :: InputT Eval ()

@@ -4,7 +4,8 @@ module Howl
   ( module Exports
   ) where
 
-import Howl.Builtins           as Exports (addBuiltins)
+import Howl.Builtins           as Exports (addBuiltins, newContextWithBuiltins,
+                                           runEval)
 import Howl.Builtins.Context   as Exports (LHS (..), evalWithHistory, get, get_,
                                            run, run_, setDef, setDelayedDef)
 import Howl.Builtins.ToBuiltin as Exports (def)

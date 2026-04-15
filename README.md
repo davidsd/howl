@@ -115,20 +115,16 @@ import Howl
 fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
 
-fib :: Int -> Integer
-fib n = fibs !! n
-
-myProgram :: Eval Expr
+myProgram :: Eval ()
 myProgram = do
-  addBuiltins
-  def "Fib" fib
-  run "Expand[(x + Fib[100])^Fib[3]]"
+  def "Fib" (fibs !!)
+  run_ "Print[Expand[(x + Fib[100])^Fib[3]]]"
 
 -- Prints: 125475243067621153271396401396356512255625 + x^2 + 708449696358523830150 x
 main :: IO ()
-main = runEval myProgram >>= putStrLn . pPrint
+main = runEval myProgram
 ```
-The type of the function `fib :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal, and returns an integer literal. For example, `Fib[x]` (where x is a symbol) doesn't match the rule we defined, and remains `Fib[x]`. The typeclasses `ToExpr`/`FromExpr` are used to automatically convert `Expr`s to and from Haskell data, and define rules that only match `Expr`s of the appropriate form.
+The type `(fibs !!) :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal. For example, `Fib["hi"]` doesn't match the rule we defined, and will remain unevaluated. The typeclasses `ToExpr`/`FromExpr` are used to automatically convert `Expr`s to and from Haskell data.
 
 Why would you want to do this? Well, it is generally horrible to write actual programs in Mathematica. It does not have a type system, it is slow, lists are the only conveniently available data structure, editing interfaces are bad. So instead, you can write your programs in Haskell. But Haskell does not have much in the way of computer algebra. So if you need mathematical expressions and simplification using replacement rules, you could use a `Howl` `Expr`.
 

@@ -10,9 +10,10 @@ import Data.Aeson                  (ToJSON (..), encode, object, (.=))
 import Data.ByteString.Lazy        qualified as BSL
 import Data.Text                   (Text)
 import Data.Text                   qualified as Text
-import Howl                        (Context, Expr, PPrint (..), addBuiltins,
-                                    evalWithHistory, newContext, parseExprText,
-                                    pattern Null, runEvalWithContext)
+import Howl                        (Context, Expr, PPrint (..),
+                                    evalWithHistory, newContextWithBuiltins,
+                                    parseExprText, pattern Null,
+                                    runEvalWithContext)
 import Howl.Eval.Context           (setErrorLineHandler, setOutputLineHandler)
 import IHaskell.IPython.EasyKernel (KernelConfig (..), easyKernel)
 import IHaskell.IPython.Types      (DisplayData (..), ExecuteReplyStatus (..),
@@ -48,10 +49,8 @@ main = do
     _                -> putStrLn "usage: howl-jupyter install | howl-jupyter <connection-file>"
 
 initKernelState :: IO KernelState
-initKernelState = do
-  ctx <- newContext
-  runEvalWithContext ctx addBuiltins
-  pure $ MkKernelState ctx
+initKernelState =
+  MkKernelState <$> newContextWithBuiltins
 
 installKernelSpec :: FilePath -> IO ()
 installKernelSpec exePath = do

@@ -12,7 +12,8 @@ import Howl.Builtins.Logic   (addLogicBuiltins)
 import Howl.Builtins.Numeric (addNumericBuiltins)
 import Howl.Builtins.Rules   (addRulesBuiltins)
 import Howl.Builtins.Scoped  (addScopedBuiltins)
-import Howl.Eval.Context     (Eval)
+import Howl.Eval.Context     (Context, Eval, newContext, runEvalNewContext,
+                              runEvalWithContext)
 
 preludeWL :: Text
 preludeWL =
@@ -29,3 +30,15 @@ addBuiltins = do
   addAlgebraBuiltins
   addNumericBuiltins
   run_ preludeWL
+
+newContextWithBuiltins :: IO Context
+newContextWithBuiltins = do
+  ctx <- newContext
+  runEvalWithContext ctx addBuiltins
+  pure ctx
+
+runEval :: Eval a -> IO a
+runEval go =
+  runEvalNewContext $ do
+    addBuiltins
+    go

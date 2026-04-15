@@ -221,7 +221,6 @@ myProgram :: Eval
   , Matrix (FreeVect (Monomial Tr Int) Rational)
   )
 myProgram = do
-  addBuiltins
   get_ susyO2WL
   xs <- kineticEqs 5
   ys <- gaugeEqs 5
