@@ -40,6 +40,14 @@ library
       Howl.Pat
       Howl.PPrint
       Howl.StdLib
+      Howl.StdLib.Algebra
+      Howl.StdLib.Context
+      Howl.StdLib.Data
+      Howl.StdLib.Logic
+      Howl.StdLib.Numeric
+      Howl.StdLib.Rules
+      Howl.StdLib.Scoped
+      Howl.StdLib.Types
       Howl.Symbol
       Howl.Symbol.Simple
       Howl.Symbol.Symbolize

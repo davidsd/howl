@@ -6,11 +6,12 @@
 module Howl.ToBuiltin
   ( ToBuiltin(..)
   , Variadic(..)
+  , def
   , builtinDecl
   ) where
 
 import Data.Sequence     (Seq, pattern (:<|), pattern Empty)
-import Howl.Eval.Context (Decl (..), Eval (..), Rule (..))
+import Howl.Eval.Context (Decl (..), Eval (..), Rule (..), addDecl)
 import Howl.Expr         (Expr (..), FromExpr (..), ToExpr (..), pattern (:@))
 import Howl.Symbol       (Symbol)
 
@@ -96,6 +97,9 @@ withHeadMaybeM h f = \case
 
 builtinFunctionMaybeM :: Symbol -> (Seq Expr -> Eval (Maybe Expr)) -> Decl
 builtinFunctionMaybeM sym f = DownValue sym $ BuiltinRule $ withHeadMaybeM (ExprSymbol sym) f
+
+def :: ToBuiltin f => Symbol -> f -> Eval ()
+def sym f = addDecl $ builtinDecl sym f
 
 builtinDecl :: ToBuiltin f => Symbol -> f -> Decl
 builtinDecl sym f = builtinFunctionMaybeM sym (toBuiltin f)

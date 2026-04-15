@@ -11,7 +11,10 @@ import Howl.Expr.PPrint  as Exports ()
 import Howl.Parser       as Exports (parseExprText, readExprFile)
 import Howl.Pat          as Exports
 import Howl.PPrint       as Exports
-import Howl.StdLib       as Exports (AList (..), def, defStdLib, evalWithHistory, get, get_, run,
-                                     run_)
+import Howl.StdLib       as Exports (defStdLib)
+import Howl.StdLib.Context as Exports (LHS (..), evalWithHistory, get, get_, run, run_,
+                                       setDef, setDelayedDef)
+import Howl.StdLib.Types as Exports (AList (..))
 import Howl.Symbol       as Exports
+import Howl.ToBuiltin    as Exports (def)
 import Howl.Util         as Exports (pattern Pair, pattern Solo)

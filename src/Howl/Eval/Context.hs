@@ -60,6 +60,7 @@ import Data.Map.Strict        qualified as Map
 import Data.Sequence          (Seq, pattern Empty, (|>))
 import Data.Sequence          qualified as Seq
 import Data.Text              (Text)
+import Data.Text              qualified as Text
 import Data.Text.Short        qualified as ShortText
 import Howl.Eval.EvalCache    (EvalCache, insertEvalCache, lookupEvalCache,
                                newEvalCache)
@@ -90,8 +91,8 @@ newContext = do
   symbolRecordTable <- HT.new
   moduleNumberRef <- newIORef 0
   lineNumberRef <- newIORef 1
-  errorLineHandlerRef <- newIORef (putStrLn . show)
-  outputLineHandlerRef <- newIORef (putStrLn . show)
+  errorLineHandlerRef <- newIORef (putStrLn . Text.unpack)
+  outputLineHandlerRef <- newIORef (putStrLn . Text.unpack)
   evalCache <- newEvalCache
   pure $ MkContext
     { symbolRecordTable      = symbolRecordTable
