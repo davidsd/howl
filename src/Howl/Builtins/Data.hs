@@ -23,7 +23,7 @@ import Howl.Expr           (Expr (..), Numeric (..), pattern (:@),
 import Howl.Expr           qualified as Expr
 import Howl.Builtins.Algebra (normalizePlus)
 import Howl.Builtins.Types   (AList (..))
-import Howl.ToBuiltin      (Variadic (..), def)
+import Howl.Builtins.ToBuiltin (Variadic (..), def)
 import Howl.Util           (pattern Pair, pattern Solo)
 
 ---------- Map ----------

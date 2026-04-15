@@ -16,14 +16,14 @@ import Howl.Eval.Context    (Eval, HoldType (..), Rule (..), compilePat,
 import Howl.Expr            (Expr (..), FromExpr (..), pattern (:@),
                              pattern And)
 import Howl.Expr            qualified as Expr
-import Howl.Expr.TH         (declareBuiltins)
+import Howl.Expr.TH         (declareExprPatterns)
 import Howl.Builtins.Types  (ListOrSolo (..))
-import Howl.ToBuiltin       (Variadic (..), def)
+import Howl.Builtins.ToBuiltin (Variadic (..), def)
 import Howl.Util            (pattern Pair)
 
 ---------- ReplaceAll ----------
 
-$(declareBuiltins ''Expr 'fromString
+$(declareExprPatterns ''Expr 'fromString
   [ "RuleDelayed"
   , "Rule"
   ])

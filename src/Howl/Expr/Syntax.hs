@@ -56,11 +56,11 @@ import Data.Foldable      qualified as Foldable
 import Data.Sequence      qualified as Seq
 import Data.String        (fromString)
 import Howl.Expr.Internal (Expr (..), FromExpr (..), ToExpr (..))
-import Howl.Expr.TH       (declareBuiltins)
+import Howl.Expr.TH       (declareExprPatterns)
 import Prelude            hiding (False, True)
 import Prelude qualified
 
--- | declareBuiltins creates bidirectional pattern synonyms Sequence,
+-- | declareExprPatterns creates bidirectional pattern synonyms Sequence,
 -- List, etc. The main advantage of these over using the IsString
 -- instance for Expr and writing "Sequence", "List", etc, is that for
 -- the pattern synonyms we call mkSymbol at top level precisely once,
@@ -68,7 +68,7 @@ import Prelude qualified
 -- use 'mkSymbol' which hashes the given text and looks it up in the
 -- symbol table.
 --
-$(declareBuiltins ''Expr 'fromString
+$(declareExprPatterns ''Expr 'fromString
    [ "Sequence"
    , "List"
    , "Apply"

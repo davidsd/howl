@@ -3,7 +3,7 @@
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Howl.ToBuiltin
+module Howl.Builtins.ToBuiltin
   ( ToBuiltin(..)
   , Variadic(..)
   , def

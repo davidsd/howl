@@ -2,8 +2,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Howl.Expr.TH
-  ( declareBuiltin
-  , declareBuiltins
+  ( declareExprPattern
+  , declareExprPatterns
   ) where
 
 import Data.Char           (toLower)
@@ -15,7 +15,7 @@ import Language.Haskell.TH
 -- matching a pattern, which would obviate the advantage of having
 -- O(1) equality checks for Symbols.
 --
--- It is recommended to use declareBuiltin instead of fromString
+-- It is recommended to use declareExprPattern instead of fromString
 -- whenever a symbol will be involved in evaluation, either in pattern
 -- matching, or returned from a function.
 --
@@ -35,13 +35,13 @@ import Language.Haskell.TH
 --
 --   {-# COMPLETE Plus #-}
 --
-declareBuiltin
+declareExprPattern
   :: Name   -- ^ Expr type, e.g. ''Expr
   -> Name   -- ^ mkExpr function, e.g. 'mkExpr
   -> String -- ^ pattern name, e.g. "Plus"
   -> String -- ^ interned text, e.g. "Plus"
   -> Q [Dec]
-declareBuiltin symTy mkExpr patStr txt = do
+declareExprPattern symTy mkExpr patStr txt = do
   let patN     = mkName patStr
       varBase  = lowerFirst patStr
       symN     = mkName (varBase <> "Expr")    -- plusExpr
@@ -100,11 +100,11 @@ lowerFirst :: String -> String
 lowerFirst []     = []
 lowerFirst (c:cs) = toLower c : cs
 
--- | Generate many builtins
-declareBuiltins
+-- | Generate many expression patterns.
+declareExprPatterns
   :: Name       -- ^ ''Expr
   -> Name       -- ^ 'mkExpr
   -> [String]   -- ^ ["Plus","Times","power",...]
   -> Q [Dec]
-declareBuiltins exprTy mkExpr =
-  fmap concat . mapM (\s -> declareBuiltin exprTy mkExpr s s)
+declareExprPatterns exprTy mkExpr =
+  fmap concat . mapM (\s -> declareExprPattern exprTy mkExpr s s)

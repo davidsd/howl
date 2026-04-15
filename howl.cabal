@@ -34,6 +34,7 @@ library
       Howl.Builtins.Numeric
       Howl.Builtins.Rules
       Howl.Builtins.Scoped
+      Howl.Builtins.ToBuiltin
       Howl.Builtins.Types
       Howl.Eval
       Howl.Eval.Context
@@ -51,7 +52,6 @@ library
       Howl.Symbol
       Howl.Symbol.Simple
       Howl.Symbol.Symbolize
-      Howl.ToBuiltin
       Howl.Util
   other-modules:
       Paths_howl

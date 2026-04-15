@@ -11,7 +11,7 @@ import Howl.Eval.Context (Eval, modifyAttributes, setFlat)
 import Howl.Expr     (Expr (..), pattern (:@), pattern And, pattern ExprNumeric,
                       pattern Or)
 import Howl.Expr     qualified as Expr
-import Howl.ToBuiltin (Variadic (..), def)
+import Howl.Builtins.ToBuiltin (Variadic (..), def)
 import Howl.Util     (pattern Solo)
 
 ---------- OrderedQ ----------

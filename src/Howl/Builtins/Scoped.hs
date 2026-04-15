@@ -25,15 +25,15 @@ import Howl.Expr           (Expr (..), FromExpr (..), Numeric (..),
                             pattern ExprView, pattern List, pattern Set,
                             pattern Slot, pattern SlotSequence)
 import Howl.Expr           qualified as Expr
-import Howl.Expr.TH        (declareBuiltins)
+import Howl.Expr.TH        (declareExprPatterns)
 import Howl.Builtins.Types (ListOrSolo (..))
 import Howl.Symbol         (Symbol)
-import Howl.ToBuiltin      (def)
+import Howl.Builtins.ToBuiltin (def)
 import Howl.Util           (pattern Pair, pattern Solo)
 
 -- ========== Scoped constructs ========== --
 
-$(declareBuiltins ''Expr 'fromString
+$(declareExprPatterns ''Expr 'fromString
   [ "Function"
   , "Let"
   , "Module"

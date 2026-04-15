@@ -9,15 +9,13 @@ module Howl.Builtins.Numeric
   ( addNumericBuiltins
   ) where
 
-import Data.String       (fromString)
 import Howl.Eval.Context (Attributes (..), Eval, lookupAttributes,
                           modifyAttributes, setNumericFunction)
-import Howl.Expr         (Expr, Numeric)
+import Howl.Expr         (Numeric)
 import Howl.Expr.Numeric (BigFloat, BigFloatPrecision, bigFloatPrecision,
                           fromBigFloat)
-import Howl.Expr.TH      (declareBuiltins)
 import Howl.Symbol       (Symbol)
-import Howl.ToBuiltin    (def)
+import Howl.Builtins.ToBuiltin (def)
 import Numeric.Rounded.Simple qualified as Rounded
 
 ---------- NumericFunctionQ ----------

@@ -25,7 +25,7 @@ import Howl.Expr              qualified as Expr
 import Howl.Eval.Context      (Eval, modifyAttributes, setFlat,
                                setNumericFunction,
                                setOrderless)
-import Howl.ToBuiltin         (Variadic (..), def)
+import Howl.Builtins.ToBuiltin (Variadic (..), def)
 import Howl.Util              (pattern Pair, pattern Solo)
 import Math.Combinat          (binomial, multinomial)
 import Numeric.Rounded.Simple qualified as Rounded

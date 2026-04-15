@@ -39,7 +39,7 @@ import Howl.Pat          (patRootSymbol)
 import Howl.PPrint       (PPrint (..))
 import Howl.Builtins.Types (ListOrSolo (..))
 import Howl.Symbol       (Symbol)
-import Howl.ToBuiltin    (Variadic (..), def)
+import Howl.Builtins.ToBuiltin (Variadic (..), def)
 import Howl.Util         (pattern Pair, pattern Solo)
 
 ---------- SetDelayed and Set ----------

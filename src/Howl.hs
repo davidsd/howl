@@ -16,5 +16,5 @@ import Howl.Builtins.Context as Exports (LHS (..), evalWithHistory, get, get_, r
                                          setDef, setDelayedDef)
 import Howl.Builtins.Types as Exports (AList (..))
 import Howl.Symbol       as Exports
-import Howl.ToBuiltin    as Exports (def)
+import Howl.Builtins.ToBuiltin as Exports (def)
 import Howl.Util         as Exports (pattern Pair, pattern Solo)
