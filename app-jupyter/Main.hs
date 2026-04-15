@@ -10,7 +10,7 @@ import Data.Aeson                  (ToJSON (..), encode, object, (.=))
 import Data.ByteString.Lazy        qualified as BSL
 import Data.Text                   (Text)
 import Data.Text                   qualified as Text
-import Howl                        (Context, Expr, PPrint (..), defStdLib,
+import Howl                        (Context, Expr, PPrint (..), addBuiltins,
                                     evalWithHistory, newContext, parseExprText,
                                     pattern Null,
                                     runEvalWithContext)
@@ -53,7 +53,7 @@ main = do
 initKernelState :: IO KernelState
 initKernelState = do
   ctx <- newContext
-  runEvalWithContext ctx defStdLib
+  runEvalWithContext ctx addBuiltins
   pure $ MkKernelState ctx
 
 installKernelSpec :: FilePath -> IO ()

@@ -15,7 +15,7 @@ vectorCalculusSrc = $(makeRelativeToProject "examples/wl/vector_calculus.wl" >>=
 -- Laplace's equation.
 checkLaplace :: Eval Expr
 checkLaplace = do
-  defStdLib
+  addBuiltins
   get_ vectorCalculusSrc
   run "Expand[laplacian[x][CenterDot[x,x]^((2-dim)/2)]] == 0"
 

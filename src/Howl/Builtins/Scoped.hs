@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
-module Howl.StdLib.Scoped
+module Howl.Builtins.Scoped
   ( addScopedBuiltins
   ) where
 
@@ -26,7 +26,7 @@ import Howl.Expr           (Expr (..), FromExpr (..), Numeric (..),
                             pattern Slot, pattern SlotSequence)
 import Howl.Expr           qualified as Expr
 import Howl.Expr.TH        (declareBuiltins)
-import Howl.StdLib.Types   (ListOrSolo (..))
+import Howl.Builtins.Types (ListOrSolo (..))
 import Howl.Symbol         (Symbol)
 import Howl.ToBuiltin      (def)
 import Howl.Util           (pattern Pair, pattern Solo)

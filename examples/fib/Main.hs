@@ -12,7 +12,7 @@ fib n = fibs !! n
 
 myProgram :: Eval Expr
 myProgram = do
-  defStdLib
+  addBuiltins
   def "Fib" fib
   run "Expand[(x + Fib[100])^Fib[3]]"
 

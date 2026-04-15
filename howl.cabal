@@ -17,7 +17,7 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
-    wl/StdLib.wl
+    wl/Prelude.wl
 
 source-repository head
   type: git
@@ -26,6 +26,15 @@ source-repository head
 library
   exposed-modules:
       Howl
+      Howl.Builtins
+      Howl.Builtins.Algebra
+      Howl.Builtins.Context
+      Howl.Builtins.Data
+      Howl.Builtins.Logic
+      Howl.Builtins.Numeric
+      Howl.Builtins.Rules
+      Howl.Builtins.Scoped
+      Howl.Builtins.Types
       Howl.Eval
       Howl.Eval.Context
       Howl.Eval.Equality
@@ -39,15 +48,6 @@ library
       Howl.Parser
       Howl.Pat
       Howl.PPrint
-      Howl.StdLib
-      Howl.StdLib.Algebra
-      Howl.StdLib.Context
-      Howl.StdLib.Data
-      Howl.StdLib.Logic
-      Howl.StdLib.Numeric
-      Howl.StdLib.Rules
-      Howl.StdLib.Scoped
-      Howl.StdLib.Types
       Howl.Symbol
       Howl.Symbol.Simple
       Howl.Symbol.Symbolize

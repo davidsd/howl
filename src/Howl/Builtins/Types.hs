@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-module Howl.StdLib.Types
+module Howl.Builtins.Types
   ( ListOrSolo (..)
   , AList (..)
   ) where

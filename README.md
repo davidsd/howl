@@ -1,6 +1,6 @@
 # Howl
 
-Howl (**H**askell **O**pen **W**olfram **L**anguage interpreter) is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica), in Haskell. It is both a Haskell library and executable. As a Haskell library, Howl makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions. One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages, see [StdLib.hs](https://github.com/davidsd/howl/blob/main/src/Howl/StdLib.hs) as an example.
+Howl (**H**askell **O**pen **W**olfram **L**anguage interpreter) is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica), in Haskell. It is both a Haskell library and executable. As a Haskell library, Howl makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions. One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages, see [Builtins.hs](https://github.com/davidsd/howl/blob/main/src/Howl/Builtins.hs) as an example.
 
 Mathematica is a registered trademark of Wolfram Research, Inc., and Wolfram Language is a trademark of Wolfram Research, Inc.; this project is independent and not affiliated with, endorsed by, or sponsored by Wolfram Research.
 
@@ -120,7 +120,7 @@ fib n = fibs !! n
 
 myProgram :: Eval Expr
 myProgram = do
-  defStdLib
+  addBuiltins
   def "Fib" fib
   run "Expand[(x + Fib[100])^Fib[3]]"
 

@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PatternSynonyms       #-}
 
-module Howl.StdLib.Algebra
+module Howl.Builtins.Algebra
   ( addAlgebraBuiltins
   , normalizePlus
   ) where

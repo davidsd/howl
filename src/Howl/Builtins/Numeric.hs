@@ -5,7 +5,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Howl.StdLib.Numeric
+module Howl.Builtins.Numeric
   ( addNumericBuiltins
   ) where
 

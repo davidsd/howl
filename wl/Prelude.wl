@@ -1,12 +1,12 @@
 (*******
 
-StdLib.wl: This file contains definitions included in the defStdLib
+Prelude.wl: This file contains definitions included in the addBuiltins
 command that can be formulated purely in the Wolfram Language. Several
-builtin routines are defined in Haskell in StdLib.hs.
+builtin routines are defined in Haskell in Builtins.hs.
 
 ********)
 
-(* NumericFunctionQ is defined in StdLib.hs *)
+(* NumericFunctionQ is defined in Builtins.hs *)
 NumericQ[Pi] := True;
 NumericQ[E] := True;
 NumericQ[f_[xs___]] := NumericFunctionQ[f] && And @@ Map[NumericQ, {xs}];

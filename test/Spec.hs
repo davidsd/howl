@@ -9,7 +9,7 @@ import Data.String             (fromString)
 import Data.Text               (Text)
 import Data.Text               qualified as Text
 import GHC.IO.Handle           (hDuplicate, hDuplicateTo)
-import Howl                     (compilePat, defStdLib, eval, run, runEval)
+import Howl                     (addBuiltins, compilePat, eval, run, runEval)
 import Howl.Expr              (pattern Null, pattern Part)
 import Howl.Expr.Internal     (Expr (..), pattern ExprBigFloat,
                                 pattern ExprDouble, pattern ExprInteger)
@@ -183,7 +183,7 @@ captureStdout action =
 
 compilePat' :: Text -> IO Pat
 compilePat' input = runEval $ do
-  defStdLib
+  addBuiltins
   case parseExprText input of
     Left err   -> fail err
     Right expr -> compilePat expr
@@ -194,13 +194,13 @@ prop_symbolicNumericConsistency = forAll ((,) <$> sized genSymbolicExpr <*> genS
   \(expr, (xVal, yVal, zVal)) -> ioProperty $ do
     -- Method 1: Evaluate symbolically first, then substitute
     symbolicThenSubst <- runEval $ do
-      defStdLib
+      addBuiltins
       symbolic <- eval expr
       eval $ mkReplaceAll symbolic xVal yVal zVal
 
     -- Method 2: Substitute first (into original), then evaluate
     substThenEval <- runEval $ do
-      defStdLib
+      addBuiltins
       eval $ mkReplaceAll expr xVal yVal zVal
 
     pure $ counterexample ("Expression: " ++ pPrint expr) $
@@ -359,7 +359,7 @@ main = hspec $ do
 
   describe "Evaluator" $ do
     let eval' :: Text -> IO Expr
-        eval' input = runEval (defStdLib >> run input)
+        eval' input = runEval (addBuiltins >> run input)
 
     describe "Arithmetic" $ do
       it "adds integers" $

@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
-module Howl.StdLib.Rules
+module Howl.Builtins.Rules
   ( addRulesBuiltins
   ) where
 
@@ -17,7 +17,7 @@ import Howl.Expr            (Expr (..), FromExpr (..), pattern (:@),
                              pattern And)
 import Howl.Expr            qualified as Expr
 import Howl.Expr.TH         (declareBuiltins)
-import Howl.StdLib.Types    (ListOrSolo (..))
+import Howl.Builtins.Types  (ListOrSolo (..))
 import Howl.ToBuiltin       (Variadic (..), def)
 import Howl.Util            (pattern Pair)
 

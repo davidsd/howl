@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 
-module Howl.StdLib.Logic
+module Howl.Builtins.Logic
   ( addLogicBuiltins
   ) where
 

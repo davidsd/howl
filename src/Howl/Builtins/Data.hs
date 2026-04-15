@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
-module Howl.StdLib.Data
+module Howl.Builtins.Data
   ( addDataBuiltins
   ) where
 
@@ -21,8 +21,8 @@ import Howl.Expr           (Expr (..), Numeric (..), pattern (:@),
                             pattern ExprRational, pattern ExprString,
                             pattern ExprSymbol, pattern List)
 import Howl.Expr           qualified as Expr
-import Howl.StdLib.Algebra (normalizePlus)
-import Howl.StdLib.Types   (AList (..))
+import Howl.Builtins.Algebra (normalizePlus)
+import Howl.Builtins.Types   (AList (..))
 import Howl.ToBuiltin      (Variadic (..), def)
 import Howl.Util           (pattern Pair, pattern Solo)
 

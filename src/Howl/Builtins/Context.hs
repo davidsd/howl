@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
-module Howl.StdLib.Context
+module Howl.Builtins.Context
   ( LHS (..)
   , addContextBuiltins
   , setDef
@@ -37,7 +37,7 @@ import Howl.Expr         qualified as Expr
 import Howl.Parser       (parseExprText, readExprFile)
 import Howl.Pat          (patRootSymbol)
 import Howl.PPrint       (PPrint (..))
-import Howl.StdLib.Types (ListOrSolo (..))
+import Howl.Builtins.Types (ListOrSolo (..))
 import Howl.Symbol       (Symbol)
 import Howl.ToBuiltin    (Variadic (..), def)
 import Howl.Util         (pattern Pair, pattern Solo)

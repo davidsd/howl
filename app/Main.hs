@@ -11,7 +11,7 @@ import Data.List                qualified as List
 import Data.Text                (Text)
 import Data.Text                qualified as Text
 import Howl                     (Eval, Expr (..), PPrint (..), compilePat,
-                                 defStdLib, eval, evalWithHistory, fullForm, get,
+                                 addBuiltins, eval, evalWithHistory, fullForm, get,
                                  getLineNumber, pattern Null,
                                  run, runEval)
 import Howl.Parser              (parseExprText)
@@ -63,7 +63,7 @@ main = do
 
 runBatch :: Options -> Eval ()
 runBatch opts = do
-  defStdLib
+  addBuiltins
   maybe (pure ()) runFileContent opts.file
   maybe (pure ()) runExprContent opts.expr
   where
@@ -84,7 +84,7 @@ runRepl = runInputT defaultSettings evalRepl
 evalRepl :: InputT Eval ()
 evalRepl = do
   outputStrLn "Howl, version 0.1 :? for help"
-  lift defStdLib
+  lift addBuiltins
   loop
   where
     loop :: InputT Eval ()
