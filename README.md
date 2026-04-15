@@ -124,7 +124,7 @@ myProgram = do
 main :: IO ()
 main = runEval myProgram >>= putStrLn . pPrint
 ```
-The type `(fibs !!) :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal. For example, `Fib["hi"]` doesn't match the rule we defined, and will remain unevaluated. The typeclasses `ToExpr`/`FromExpr` are used to automatically convert `Expr`s to and from Haskell data.
+The type `(fibs !!) :: Int -> Integer` is used to define a rule that only matches expressions of the form `Fib[n]` where `n` is an integer literal. For example, `Fib["hi"]` doesn't match the rule we defined, and will remain unevaluated. The typeclasses `ToExpr`/`FromExpr` are used to automatically convert `Expr`s from and to Haskell data.
 
 Why would you want to do this? Well, it is generally horrible to write actual programs in Mathematica. It does not have a type system, it is slow, lists are the only conveniently available data structure, editing interfaces are bad. So instead, you can write your programs in Haskell. But Haskell does not have much in the way of computer algebra. So if you need mathematical expressions and simplification using replacement rules, you could use a `Howl` `Expr`.
 
