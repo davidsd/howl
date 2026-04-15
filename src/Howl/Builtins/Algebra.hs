@@ -23,6 +23,7 @@ import Howl.Expr              (Expr (..), FromExpr (..), Numeric (..),
                                toDouble)
 import Howl.Expr              qualified as Expr
 import Howl.Eval.Context      (Eval, modifyAttributes, setFlat,
+                               setNumericFunction,
                                setOrderless)
 import Howl.ToBuiltin         (Variadic (..), def)
 import Howl.Util              (pattern Pair, pattern Solo)
@@ -207,12 +208,13 @@ multinomialCoeff xs = case xs of
 
 addAlgebraBuiltins :: Eval ()
 addAlgebraBuiltins = do
-  modifyAttributes "Plus" (setFlat . setOrderless)
+  modifyAttributes "Plus" (setNumericFunction . setFlat . setOrderless)
   def "Plus" (MkVariadic normalizePlus)
 
-  modifyAttributes "Times" (setFlat . setOrderless)
+  modifyAttributes "Times" (setNumericFunction . setFlat . setOrderless)
   def "Times" (MkVariadic normalizeTimes)
 
+  modifyAttributes "Power" setNumericFunction
   def "Power" normalizePower
   def "Sqrt" $ \e -> normalizePower e (ExprRational (1 / 2))
   def "MultinomialPowerExpand" multinomialPowerExpand
