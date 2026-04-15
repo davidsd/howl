@@ -9,26 +9,26 @@ module Howl.Builtins.Algebra
   , normalizePlus
   ) where
 
-import Control.Monad          (guard)
-import Data.Foldable          qualified as Foldable
-import Data.Map.Strict        (Map)
-import Data.Map.Strict        qualified as Map
-import Data.Sequence          (Seq, pattern (:<|), pattern (:|>), pattern Empty)
-import Data.Sequence          qualified as Seq
-import Howl.Expr              (Expr (..), FromExpr (..), Numeric (..),
-                               ToExpr (..), bigFloatPrecision, pattern (:@),
-                               pattern ExprInteger, pattern ExprNumeric,
-                               pattern ExprRational, pattern Plus,
-                               pattern Power, pattern Times, toBigFloat,
-                               toDouble)
-import Howl.Expr              qualified as Expr
-import Howl.Eval.Context      (Eval, modifyAttributes, setFlat,
-                               setNumericFunction,
-                               setOrderless)
+import Control.Monad           (guard)
+import Data.Foldable           qualified as Foldable
+import Data.Map.Strict         (Map)
+import Data.Map.Strict         qualified as Map
+import Data.Sequence           (Seq, pattern (:<|), pattern (:|>),
+                                pattern Empty)
+import Data.Sequence           qualified as Seq
 import Howl.Builtins.ToBuiltin (Variadic (..), def)
-import Howl.Util              (pattern Pair, pattern Solo)
-import Math.Combinat          (binomial, multinomial)
-import Numeric.Rounded.Simple qualified as Rounded
+import Howl.Eval.Context       (Eval, modifyAttributes, setFlat,
+                                setNumericFunction, setOrderless)
+import Howl.Expr               (Expr (..), FromExpr (..), Numeric (..),
+                                ToExpr (..), bigFloatPrecision, pattern (:@),
+                                pattern ExprInteger, pattern ExprNumeric,
+                                pattern ExprRational, pattern Plus,
+                                pattern Power, pattern Times, toBigFloat,
+                                toDouble)
+import Howl.Expr               qualified as Expr
+import Howl.Util               (pattern Pair, pattern Solo)
+import Math.Combinat           (binomial, multinomial)
+import Numeric.Rounded.Simple  qualified as Rounded
 
 ---------- Plus ----------
 

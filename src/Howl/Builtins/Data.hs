@@ -8,23 +8,24 @@ module Howl.Builtins.Data
   ( addDataBuiltins
   ) where
 
-import Data.Foldable       qualified as Foldable
-import Data.Sequence       (Seq, pattern (:<|), pattern (:|>), pattern Empty)
-import Data.Sequence       qualified as Seq
-import Data.Set            qualified as Set
-import Howl.Eval           (MatchingEq (..), solveMatchMaybe)
-import Howl.Eval.Context   (Eval, HoldType (..), compilePat,
-                            modifyAttributes, setHoldType)
-import Howl.Expr           (Expr (..), Numeric (..), pattern (:@),
-                            pattern ExprBigFloat, pattern ExprDouble,
-                            pattern ExprInteger,
-                            pattern ExprRational, pattern ExprString,
-                            pattern ExprSymbol, pattern List)
-import Howl.Expr           qualified as Expr
-import Howl.Builtins.Algebra (normalizePlus)
-import Howl.Builtins.Types   (AList (..))
+import Data.Foldable           qualified as Foldable
+import Data.Sequence           (Seq, pattern (:<|), pattern (:|>),
+                                pattern Empty)
+import Data.Sequence           qualified as Seq
+import Data.Set                qualified as Set
+import Howl.Builtins.Algebra   (normalizePlus)
 import Howl.Builtins.ToBuiltin (Variadic (..), def)
-import Howl.Util           (pattern Pair, pattern Solo)
+import Howl.Builtins.Types     (AList (..))
+import Howl.Eval               (MatchingEq (..), solveMatchMaybe)
+import Howl.Eval.Context       (Eval, HoldType (..), compilePat,
+                                modifyAttributes, setHoldType)
+import Howl.Expr               (Expr (..), Numeric (..), pattern (:@),
+                                pattern ExprBigFloat, pattern ExprDouble,
+                                pattern ExprInteger, pattern ExprRational,
+                                pattern ExprString, pattern ExprSymbol,
+                                pattern List)
+import Howl.Expr               qualified as Expr
+import Howl.Util               (pattern Pair, pattern Solo)
 
 ---------- Map ----------
 

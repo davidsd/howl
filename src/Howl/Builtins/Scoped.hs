@@ -8,28 +8,28 @@ module Howl.Builtins.Scoped
   ( addScopedBuiltins
   ) where
 
-import Data.Foldable       qualified as Foldable
-import Data.Sequence       (Seq, pattern (:<|), pattern Empty)
-import Data.Sequence       qualified as Seq
-import Data.String         (fromString)
-import Howl.Eval           (Substitution (..), SubstitutionSet,
-                            emptySubstitutionSet, insertSubstitution,
-                            insertSubstitutions, lookupBinding,
-                            removeBindings, singletonSubstitutionSet)
-import Howl.Eval.Context   (Decl (..), Eval, HoldType (..), Rule (..),
-                            addDecl, modifyAttributes, newModuleSymbol,
-                            setHoldType)
-import Howl.Expr           (Expr (..), FromExpr (..), Numeric (..),
-                            pattern (:@), pattern ExprInteger,
-                            pattern ExprNumeric, pattern ExprSymbol,
-                            pattern ExprView, pattern List, pattern Set,
-                            pattern Slot, pattern SlotSequence)
-import Howl.Expr           qualified as Expr
-import Howl.Expr.TH        (declareExprPatterns)
-import Howl.Builtins.Types (ListOrSolo (..))
-import Howl.Symbol         (Symbol)
+import Data.Foldable           qualified as Foldable
+import Data.Sequence           (Seq, pattern (:<|), pattern Empty)
+import Data.Sequence           qualified as Seq
+import Data.String             (fromString)
 import Howl.Builtins.ToBuiltin (def)
-import Howl.Util           (pattern Pair, pattern Solo)
+import Howl.Builtins.Types     (ListOrSolo (..))
+import Howl.Eval               (Substitution (..), SubstitutionSet,
+                                emptySubstitutionSet, insertSubstitution,
+                                insertSubstitutions, lookupBinding,
+                                removeBindings, singletonSubstitutionSet)
+import Howl.Eval.Context       (Decl (..), Eval, HoldType (..), Rule (..),
+                                addDecl, modifyAttributes, newModuleSymbol,
+                                setHoldType)
+import Howl.Expr               (Expr (..), FromExpr (..), Numeric (..),
+                                pattern (:@), pattern ExprInteger,
+                                pattern ExprNumeric, pattern ExprSymbol,
+                                pattern ExprView, pattern List, pattern Set,
+                                pattern Slot, pattern SlotSequence)
+import Howl.Expr               qualified as Expr
+import Howl.Expr.TH            (declareExprPatterns)
+import Howl.Symbol             (Symbol)
+import Howl.Util               (pattern Pair, pattern Solo)
 
 -- ========== Scoped constructs ========== --
 

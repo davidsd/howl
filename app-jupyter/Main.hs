@@ -1,8 +1,8 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE NoFieldSelectors  #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE NoFieldSelectors    #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PatternSynonyms     #-}
 
 module Main (main) where
 
@@ -12,16 +12,13 @@ import Data.Text                   (Text)
 import Data.Text                   qualified as Text
 import Howl                        (Context, Expr, PPrint (..), addBuiltins,
                                     evalWithHistory, newContext, parseExprText,
-                                    pattern Null,
-                                    runEvalWithContext)
-import Howl.Eval.Context           (setErrorLineHandler,
-                                    setOutputLineHandler)
+                                    pattern Null, runEvalWithContext)
+import Howl.Eval.Context           (setErrorLineHandler, setOutputLineHandler)
 import IHaskell.IPython.EasyKernel (KernelConfig (..), easyKernel)
 import IHaskell.IPython.Types      (DisplayData (..), ExecuteReplyStatus (..),
                                     KernelSpec (..), LanguageInfo (..),
                                     MimeType (..))
-import System.Directory            (createDirectoryIfMissing,
-                                    )
+import System.Directory            (createDirectoryIfMissing)
 import System.Environment          (getArgs, getExecutablePath)
 import System.FilePath             ((</>))
 import System.Process              (callProcess)

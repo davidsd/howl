@@ -5,17 +5,17 @@
 
 module Main where
 
-import Data.Matrix qualified as Matrix
-import Data.Matrix (Matrix)
 import Data.Containers.ListUtils (nubOrd)
 import Data.FileEmbed            (makeRelativeToProject, strToExp)
 import Data.Foldable             qualified as Foldable
+import Data.Matrix               (Matrix)
+import Data.Matrix               qualified as Matrix
 import Data.Sequence             (Seq, pattern (:<|), pattern Empty)
 import Data.Sequence             qualified as Seq
 import Data.Set                  (Set)
 import Data.Set                  qualified as Set
-import ExprTypes                 (FreeVect (..), Monomial (..), freeVectTerms, vec,
-                                  mkMonic, zeroFreeVect)
+import ExprTypes                 (FreeVect (..), Monomial (..), freeVectTerms,
+                                  mkMonic, vec, zeroFreeVect)
 import Howl
 
 data Letter = P | Pb | Z | Zb | Psi | Psib
@@ -195,7 +195,7 @@ innerMatrix level rep = do
   ops <- Set.toList <$> irrepsUpToLevel level rep
   Matrix.fromLists <$>
     sequence [ sequence [ inner2 o1 o2 | o1 <- ops] | o2 <- ops ]
-    
+
 {-
 irrepsUpToLevel :: Rational -> Eval (Map O2Rep (Set (FreeVect Tr Rational)))
 irrepsUpToLevel level = do

@@ -10,10 +10,9 @@ import Control.Monad.Trans      (lift)
 import Data.List                qualified as List
 import Data.Text                (Text)
 import Data.Text                qualified as Text
-import Howl                     (Eval, Expr (..), PPrint (..), compilePat,
-                                 addBuiltins, eval, evalWithHistory, fullForm, get,
-                                 getLineNumber, pattern Null,
-                                 run, runEval)
+import Howl                     (Eval, Expr (..), PPrint (..), addBuiltins,
+                                 compilePat, eval, evalWithHistory, fullForm,
+                                 get, getLineNumber, pattern Null, run, runEval)
 import Howl.Parser              (parseExprText)
 import Howl.Util                (pattern Solo)
 import Options.Applicative

@@ -8,18 +8,18 @@ module Howl.Builtins.Rules
   ( addRulesBuiltins
   ) where
 
-import Data.Sequence        (Seq, pattern (:<|), pattern Empty)
-import Data.String          (fromString)
-import Howl.Eval            (eval, tryApplyRule)
-import Howl.Eval.Context    (Eval, HoldType (..), Rule (..), compilePat,
-                             modifyAttributes, setHoldType)
-import Howl.Expr            (Expr (..), FromExpr (..), pattern (:@),
-                             pattern And)
-import Howl.Expr            qualified as Expr
-import Howl.Expr.TH         (declareExprPatterns)
-import Howl.Builtins.Types  (ListOrSolo (..))
+import Data.Sequence           (Seq, pattern (:<|), pattern Empty)
+import Data.String             (fromString)
 import Howl.Builtins.ToBuiltin (Variadic (..), def)
-import Howl.Util            (pattern Pair)
+import Howl.Builtins.Types     (ListOrSolo (..))
+import Howl.Eval               (eval, tryApplyRule)
+import Howl.Eval.Context       (Eval, HoldType (..), Rule (..), compilePat,
+                                modifyAttributes, setHoldType)
+import Howl.Expr               (Expr (..), FromExpr (..), pattern (:@),
+                                pattern And)
+import Howl.Expr               qualified as Expr
+import Howl.Expr.TH            (declareExprPatterns)
+import Howl.Util               (pattern Pair)
 
 ---------- ReplaceAll ----------
 

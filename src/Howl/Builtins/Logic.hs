@@ -6,13 +6,13 @@ module Howl.Builtins.Logic
   ( addLogicBuiltins
   ) where
 
-import Data.Sequence (Seq, pattern (:<|), pattern Empty)
-import Howl.Eval.Context (Eval, modifyAttributes, setFlat)
-import Howl.Expr     (Expr (..), pattern (:@), pattern And, pattern ExprNumeric,
-                      pattern Or)
-import Howl.Expr     qualified as Expr
+import Data.Sequence           (Seq, pattern (:<|), pattern Empty)
 import Howl.Builtins.ToBuiltin (Variadic (..), def)
-import Howl.Util     (pattern Solo)
+import Howl.Eval.Context       (Eval, modifyAttributes, setFlat)
+import Howl.Expr               (Expr (..), pattern (:@), pattern And,
+                                pattern ExprNumeric, pattern Or)
+import Howl.Expr               qualified as Expr
+import Howl.Util               (pattern Solo)
 
 ---------- OrderedQ ----------
 

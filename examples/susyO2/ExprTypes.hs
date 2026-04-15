@@ -5,12 +5,12 @@
 
 module ExprTypes where
 
-import Data.Foldable             qualified as Foldable
-import Data.Map.Strict           (Map)
-import Data.Map.Strict           qualified as Map
-import Data.Sequence             (pattern (:<|))
-import Data.Sequence             qualified as Seq
-import Data.Set                  (Set)
+import Data.Foldable   qualified as Foldable
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
+import Data.Sequence   (pattern (:<|))
+import Data.Sequence   qualified as Seq
+import Data.Set        (Set)
 import Howl
 
 data Power a n = MkPower a n

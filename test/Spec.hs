@@ -4,24 +4,24 @@
 module Main (main) where
 
 import Control.Exception      (bracket)
-import Data.Sequence           qualified as Seq
-import Data.String             (fromString)
-import Data.Text               (Text)
-import Data.Text               qualified as Text
-import GHC.IO.Handle           (hDuplicate, hDuplicateTo)
-import Howl                     (addBuiltins, compilePat, eval, run, runEval)
+import Data.Sequence          qualified as Seq
+import Data.String            (fromString)
+import Data.Text              (Text)
+import Data.Text              qualified as Text
+import GHC.IO.Handle          (hDuplicate, hDuplicateTo)
+import Howl                   (addBuiltins, compilePat, eval, run, runEval)
 import Howl.Expr              (pattern Null, pattern Part)
 import Howl.Expr.Internal     (Expr (..), pattern ExprBigFloat,
-                                pattern ExprDouble, pattern ExprInteger)
-import Howl.Expr.PPrint        ()
-import Howl.Parser             (normalizeParsedExpr, parseExprText)
+                               pattern ExprDouble, pattern ExprInteger)
+import Howl.Expr.PPrint       ()
+import Howl.Parser            (normalizeParsedExpr, parseExprText)
 import Howl.Pat               (Pat, matchesUniqueExpr)
-import Howl.PPrint             (PPrint (..))
+import Howl.PPrint            (PPrint (..))
 import Numeric.Rounded.Simple qualified as Rounded
-import System.IO               (Handle, hClose, hFlush, openTempFile, stdout)
-import System.IO.Error         (catchIOError)
+import System.IO              (Handle, hClose, hFlush, openTempFile, stdout)
+import System.IO.Error        (catchIOError)
 import Test.Hspec
-import Test.Hspec.QuickCheck   (prop)
+import Test.Hspec.QuickCheck  (prop)
 import Test.QuickCheck
 
 -- | Fixed set of symbol names to avoid GC issues with interned symbols

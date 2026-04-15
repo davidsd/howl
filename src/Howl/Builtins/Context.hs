@@ -16,31 +16,31 @@ module Howl.Builtins.Context
   , evalWithHistory
   ) where
 
-import Control.Monad     (void)
-import Data.Foldable     qualified as Foldable
-import Data.Sequence     (Seq, pattern (:|>), pattern Empty)
-import Data.Text         (Text)
-import Data.Text         qualified as Text
-import Howl.Eval         (eval)
-import Howl.Eval.Context (Attributes (..), Decl (..), Eval, HoldType (..),
-                          Rule (..), addDecl, compilePat,
-                          emitErrorLine, emitOutputLine, getLineNumber,
-                          incrLineNumber, lookupSymbolRecord,
-                          modifyAttributes, clear, clearAll,
-                          getDefinedSymbols, setFlat, setHoldType,
-                          setOrderless)
-import Howl.Expr         (Expr (..), FromExpr (..), pattern (:@),
-                          pattern ExprInteger, pattern ExprString,
-                          pattern ExprSymbol, pattern Null,
-                          pattern TagSetDelayed)
-import Howl.Expr         qualified as Expr
-import Howl.Parser       (parseExprText, readExprFile)
-import Howl.Pat          (patRootSymbol)
-import Howl.PPrint       (PPrint (..))
-import Howl.Builtins.Types (ListOrSolo (..))
-import Howl.Symbol       (Symbol)
+import Control.Monad           (void)
+import Data.Foldable           qualified as Foldable
+import Data.Sequence           (Seq, pattern (:|>), pattern Empty)
+import Data.Text               (Text)
+import Data.Text               qualified as Text
 import Howl.Builtins.ToBuiltin (Variadic (..), def)
-import Howl.Util         (pattern Pair, pattern Solo)
+import Howl.Builtins.Types     (ListOrSolo (..))
+import Howl.Eval               (eval)
+import Howl.Eval.Context       (Attributes (..), Decl (..), Eval, HoldType (..),
+                                Rule (..), addDecl, clear, clearAll, compilePat,
+                                emitErrorLine, emitOutputLine,
+                                getDefinedSymbols, getLineNumber,
+                                incrLineNumber, lookupSymbolRecord,
+                                modifyAttributes, setFlat, setHoldType,
+                                setOrderless)
+import Howl.Expr               (Expr (..), FromExpr (..), pattern (:@),
+                                pattern ExprInteger, pattern ExprString,
+                                pattern ExprSymbol, pattern Null,
+                                pattern TagSetDelayed)
+import Howl.Expr               qualified as Expr
+import Howl.Parser             (parseExprText, readExprFile)
+import Howl.Pat                (patRootSymbol)
+import Howl.PPrint             (PPrint (..))
+import Howl.Symbol             (Symbol)
+import Howl.Util               (pattern Pair, pattern Solo)
 
 ---------- SetDelayed and Set ----------
 

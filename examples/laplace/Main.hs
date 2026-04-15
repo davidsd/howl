@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Main where
 
-import Howl
 import Data.FileEmbed (makeRelativeToProject, strToExp)
+import Howl
 
 vectorCalculusSrc :: FilePath
 vectorCalculusSrc = $(makeRelativeToProject "examples/wl/vector_calculus.wl" >>= strToExp)
