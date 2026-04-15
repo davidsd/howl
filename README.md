@@ -41,21 +41,15 @@ stack run laplace
 
 ### Jupyter
 
-Howl also has a Jupyter kernel executable, `howl-jupyter`. Install the kernelspec with:
+Howl can be used as a kernel for a [Jupyter](https://jupyter.org/) notebook. To install the kernel, first install Jupyter, then run
 
 ```bash
 stack exec howl-jupyter -- install
 ```
 
-Then start Jupyter:
+To use it, start Jupyter:
 ```bash
 jupyter lab
-```
-
-or
-
-```bash
-jupyter notebook
 ```
 
 and select the `Howl` kernel when creating a notebook.
@@ -196,7 +190,7 @@ Here is a woefully incomplete list of differences between Howl and Mathematica
 - Howl does not match subexpressions under a `Flat` `Orderless` in the same way as Mathematica. For example, in Mathematica, you can do
   ```
   In[1]:= a b c /. {a c :> Foobar}
-  Out[1]= Foobar
+  Out[1]= b Foobar
   ```
   Howl does not recognize that `Times[a,b,c]` can be rewritten as `Times[Times[a,c],b]` which has `Times[a,c]` as a sub-expression that matches the pattern. However, you can do this:
   ```
