@@ -71,7 +71,7 @@ The core algorithm needed to implement the Wolfram Language is a procedure for m
 
 Mathematica is essentially an engine for repeatedly applying replacement rules to trees of data. A mathematical expression is represented as a tree. For example, the expression `3+a(b+c)` can be written `Plus[3,Times[a,Plus[b,c]]]`, which as a tree looks like this:
 
-<img width="200" alt="Tree for Plus[3,Times[a,Plus[b,c]]]" src="docs/images/tree-before.svg" />
+<img width="200" alt="Tree for Plus[3,Times[a,Plus[b,c]]]" src="https://raw.githubusercontent.com/davidsd/howl/main/docs/images/tree-before.svg" />
 
 `Plus`, `Times`, `a`,`b`, and `c` are all symbols, while 3 is an integer literal.
 
@@ -91,7 +91,7 @@ x_(y_+z_) := x y + x z;
 
 If we add this to the global rules, then Mathematica will recognize that part of the tree above matches the left-hand side of this rule with the substitutions `{x -> a, y -> b, z -> c}`. It will then replace that part of the tree with the right-hand side of the rule, with the given substitutions, giving in this case `3+(a b+a c)`. Mathematica also knows that `Plus` is "Flat", i.e. associative, so it will further simplify this expression to `3 + a b + a c`, which as a tree looks like this
 
-<img width="310" alt="Tree for Plus[3,Times[a,b],Times[a,c]]" src="docs/images/tree-after.svg" />
+<img width="310" alt="Tree for Plus[3,Times[a,b],Times[a,c]]" src="https://raw.githubusercontent.com/davidsd/howl/main/docs/images/tree-after.svg" />
 
 In actuality, this example doesn't work in Mathematica because the symbol `Times` is protected and you are not allowed to define new rules for it. But you can do it in Howl:
 

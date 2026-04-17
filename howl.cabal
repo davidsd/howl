@@ -18,8 +18,10 @@ license:        BSD-3-Clause
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
-    README.md
     wl/Prelude.wl
+extra-doc-files:
+    README.md
+    CHANGELOG.md
     docs/images/tree-before.svg
     docs/images/tree-after.svg
 
@@ -78,7 +80,7 @@ library
     , rounded ==1.1.*
     , scientific ==0.3.*
     , symbolize ==1.0.*
-    , template-haskell >=2.19 && <2.22
+    , template-haskell >=2.19 && <2.25
     , text >=2.0 && <2.2
     , text-short ==0.1.*
   default-language: GHC2021

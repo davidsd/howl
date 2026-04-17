@@ -9,10 +9,11 @@ import Data.String            (fromString)
 import Data.Text              (Text)
 import Data.Text              qualified as Text
 import GHC.IO.Handle          (hDuplicate, hDuplicateTo)
-import Howl                   (compilePat, eval, run, runEval)
+import Howl                   (eval, run, runEval)
 import Howl.Expr              (pattern Null, pattern Part)
 import Howl.Expr.Internal     (Expr (..), pattern ExprBigFloat,
                                pattern ExprDouble, pattern ExprInteger)
+import Howl.Eval.Context      (compilePat)                              
 import Howl.Expr.PPrint       ()
 import Howl.Parser            (normalizeParsedExpr, parseExprText)
 import Howl.Pat               (Pat, matchesUniqueExpr)
