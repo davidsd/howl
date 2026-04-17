@@ -3,10 +3,15 @@
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | Parse Wolfram Language expressions.
+--
+-- The parsed expression may be a compound expression, e.g. a sequence
+-- of semicolon-separated subexpressions.
+--
 module Howl.Parser
-  ( normalizeParsedExpr
-  , parseExprText
+  ( parseExprText
   , readExprFile
+  , normalizeParsedExpr
   ) where
 
 import Control.Applicative            (some)
@@ -368,17 +373,17 @@ parseTok = choice
   , parseOp
   ]
 
--- | [Note: Application] How do we handle application f[x] using an
--- expression parser. Conceptually, this is a binary
+-- | [Note: Application] How do we handle application @f[x]@ using an
+-- expression parser? Conceptually, this is a binary
 -- operator. However, it has a closing token. We handle it as follows:
 --
--- 1) First replace each '[' with '@', '['. In other words, we stick a
+-- 1) First replace each @[@ with @'@'@, @[@. In other words, we stick a
 --    (left-associative) prefix apply operator before every left
 --    bracket.
--- 2) Parse [e1,...,en] as Sequence[e1,...,en].
+-- 2) Parse @[e1,...,en]@ as @Sequence[e1,...,en]@.
 --
--- The end result is that, e.g. f[x,y] gets parsed as f@Sequence[x,y],
--- which is correct, though a bit verbose.
+-- The end result is that, for example, @f[x,y]@ gets parsed as
+-- @f \:\@ Sequence[x,y]@, which is correct, though a bit verbose.
 
 -- | Insert OpPrefixApply before each left bracket, and OpPrefixPart
 -- before each double left bracket.
@@ -675,10 +680,17 @@ normalizePatternChains expr = case expr of
         tailExpr <- buildOptionalChain p rest
         pure (Expr.binary Optional h tailExpr)
 
--- | Do some basic normalization to deal with quirks of the expression
--- parser. Replace (-) and (/) with their definitions in terms of
--- times and power. Flatten out Plus and Times and remove 0's and 1's,
--- respectively. Remove redundant Sequence's.
+-- | Normalize an expression into the canonical form used by Howl.
+--
+-- This is used for parser internals and tests. Users
+-- should prefer 'parseExprText', which already applies this
+-- normalization.
+--
+-- The normalization pass rewrites some surface syntax into more
+-- uniform expression forms. For example, it replaces @-@ and @/@ with
+-- expressions built from @Plus@, @Times@, and @Power@, flattens
+-- associative heads such as @Plus@ and @Times@, and removes redundant
+-- @Sequence@ wrappers.
 normalizeParsedExpr :: Expr -> Expr
 normalizeParsedExpr expr = case expr of
   ExprLit _ -> expr
@@ -714,9 +726,11 @@ parseExprTextWithPath path txt =
         Left bundle -> Left $ tokErrorBundlePretty bundle
         Right expr  -> Right expr
 
+-- | Parse an expression from 'Text'.
 parseExprText :: Text -> Either String Expr
 parseExprText = parseExprTextWithPath "<expr>"
 
+-- | Read and parse an expression from a file.
 readExprFile :: MonadIO m => FilePath -> m (Either String Expr)
 readExprFile path = liftIO $ do
   contents <- Text.readFile path

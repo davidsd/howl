@@ -6,7 +6,9 @@ cabal-version: 2.2
 
 name:           howl
 version:        0.1.0.0
+synopsis:       A small Wolfram Language interpreter and symbolic rewriting library
 description:    An implementation of a small subset of the Wolfram language in Haskell
+category:       Language, Computer Algebra
 homepage:       https://github.com/davidsd/howl#readme
 bug-reports:    https://github.com/davidsd/howl/issues
 author:         David Simmons-Duffin
@@ -18,6 +20,8 @@ build-type:     Simple
 extra-source-files:
     README.md
     wl/Prelude.wl
+    docs/images/tree-before.svg
+    docs/images/tree-after.svg
 
 source-repository head
   type: git
@@ -59,32 +63,24 @@ library
       Paths_howl
   hs-source-dirs:
       src
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wunused-packages -Wredundant-constraints
   build-depends:
-      aeson
-    , base >=4.7 && <5
-    , bytestring
-    , combinat
-    , containers
-    , deepseq
-    , directory
-    , exceptions
-    , file-embed
-    , filepath
-    , hashable
-    , hashtables
-    , megaparsec
-    , mtl
-    , optparse-applicative
-    , parser-combinators
-    , primitive
-    , process
-    , rounded
-    , scientific
-    , symbolize
-    , template-haskell
-    , text
-    , text-short
+      base >=4.7 && <5
+    , combinat ==0.2.*
+    , containers >=0.6 && <0.9
+    , exceptions ==0.10.*
+    , file-embed >=0.0.15 && <0.1
+    , hashable >=1.4 && <1.6
+    , hashtables >=1.3 && <1.5
+    , megaparsec >=9.0 && <10
+    , mtl >=2.2 && <2.4
+    , parser-combinators ==1.3.*
+    , rounded ==1.1.*
+    , scientific ==0.3.*
+    , symbolize ==1.0.*
+    , template-haskell >=2.19 && <2.22
+    , text >=2.0 && <2.2
+    , text-short ==0.1.*
   default-language: GHC2021
 
 executable fib
@@ -95,33 +91,10 @@ executable fib
       Paths_howl
   hs-source-dirs:
       examples/fib
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wunused-packages -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
-    , base >=4.7 && <5
-    , bytestring
-    , combinat
-    , containers
-    , deepseq
-    , directory
-    , exceptions
-    , file-embed
-    , filepath
-    , hashable
-    , hashtables
+      base
     , howl
-    , megaparsec
-    , mtl
-    , optparse-applicative
-    , parser-combinators
-    , primitive
-    , process
-    , rounded
-    , scientific
-    , symbolize
-    , template-haskell
-    , text
-    , text-short
   default-language: GHC2021
 
 executable howl-exe
@@ -132,34 +105,14 @@ executable howl-exe
       Paths_howl
   hs-source-dirs:
       app
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wunused-packages -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
-    , base >=4.7 && <5
-    , bytestring
-    , combinat
-    , containers
-    , deepseq
-    , directory
-    , exceptions
-    , file-embed
-    , filepath
-    , hashable
-    , hashtables
-    , haskeline
+      base
+    , haskeline ==0.8.*
     , howl
-    , megaparsec
     , mtl
-    , optparse-applicative
-    , parser-combinators
-    , primitive
-    , process
-    , rounded
-    , scientific
-    , symbolize
-    , template-haskell
+    , optparse-applicative >=0.18 && <0.20
     , text
-    , text-short
   default-language: GHC2021
 
 executable howl-jupyter
@@ -170,34 +123,17 @@ executable howl-jupyter
       Paths_howl
   hs-source-dirs:
       app-jupyter
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wunused-packages -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
-    , base >=4.7 && <5
-    , bytestring
-    , combinat
-    , containers
-    , deepseq
-    , directory
-    , exceptions
-    , file-embed
-    , filepath
-    , hashable
-    , hashtables
+      aeson ==2.2.*
+    , base
+    , bytestring >=0.11 && <0.13
+    , directory ==1.3.*
+    , filepath >=1.4 && <1.6
     , howl
-    , ipython-kernel
-    , megaparsec
-    , mtl
-    , optparse-applicative
-    , parser-combinators
-    , primitive
-    , process
-    , rounded
-    , scientific
-    , symbolize
-    , template-haskell
+    , ipython-kernel ==0.12.*
+    , process ==1.6.*
     , text
-    , text-short
   default-language: GHC2021
 
 executable laplace
@@ -208,33 +144,11 @@ executable laplace
       Paths_howl
   hs-source-dirs:
       examples/laplace
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wunused-packages -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
-    , base >=4.7 && <5
-    , bytestring
-    , combinat
-    , containers
-    , deepseq
-    , directory
-    , exceptions
+      base
     , file-embed
-    , filepath
-    , hashable
-    , hashtables
     , howl
-    , megaparsec
-    , mtl
-    , optparse-applicative
-    , parser-combinators
-    , primitive
-    , process
-    , rounded
-    , scientific
-    , symbolize
-    , template-haskell
-    , text
-    , text-short
   default-language: GHC2021
 
 executable susyO2
@@ -246,34 +160,13 @@ executable susyO2
       Paths_howl
   hs-source-dirs:
       examples/susyO2
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wunused-packages -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
-    , base >=4.7 && <5
-    , bytestring
-    , combinat
+      base
     , containers
-    , deepseq
-    , directory
-    , exceptions
     , file-embed
-    , filepath
-    , hashable
-    , hashtables
     , howl
-    , matrix
-    , megaparsec
-    , mtl
-    , optparse-applicative
-    , parser-combinators
-    , primitive
-    , process
-    , rounded
-    , scientific
-    , symbolize
-    , template-haskell
-    , text
-    , text-short
+    , matrix ==0.3.*
   default-language: GHC2021
 
 test-suite howl-test
@@ -285,33 +178,13 @@ test-suite howl-test
       Paths_howl
   hs-source-dirs:
       test
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wunused-packages -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
-    , aeson
-    , base >=4.7 && <5
-    , bytestring
-    , combinat
+    , base
     , containers
-    , deepseq
-    , directory
-    , exceptions
-    , file-embed
-    , filepath
-    , hashable
-    , hashtables
     , howl
     , hspec
-    , megaparsec
-    , mtl
-    , optparse-applicative
-    , parser-combinators
-    , primitive
-    , process
-    , rounded
-    , scientific
-    , symbolize
-    , template-haskell
+    , rounded >=1.1.1 && <1.2
     , text
-    , text-short
   default-language: GHC2021

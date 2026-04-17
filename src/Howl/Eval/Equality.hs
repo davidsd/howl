@@ -1,5 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 
+-- | Fast expression equality checks used by the evaluator.
 module Howl.Eval.Equality
   ( exprEqualFast
   ) where

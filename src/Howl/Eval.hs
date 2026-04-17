@@ -6,6 +6,83 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
+-- | Pattern matching and evaluation.
+--
+-- This module implements the matcher used by rewrite rules together
+-- with the main expression evaluator.
+--
+-- == Pattern Matching
+--
+-- The pattern matching algorithm implemented here is described in:
+--
+-- - <https://www.sciencedirect.com/science/article/pii/S0747717121000079>
+-- - PDF:
+--   <https://www3.risc.jku.at/publications/download/risc_6260/variadic-equational-matching-jsc-final-with-mma-versions.pdf>
+--
+-- Specifically, Howl implements algorithm @M_{Mma}@, which is an
+-- incomplete, strict variant of the algorithm described in that paper.
+--
+-- == Evaluation
+--
+-- The Wolfram Language evaluation sequence is described here:
+-- <https://reference.wolfram.com/language/tutorial/Evaluation.html>
+--
+-- The list below summarizes the intended evaluation order together with
+-- the current Howl status.
+--
+-- - If the expression is a raw object such as @Integer@ or @String@,
+--   leave it unchanged. Howl: done.
+--
+-- - Evaluate the head @h@ of the expression. Howl: done.
+--
+-- - Evaluate each element @e_i@ of the expression in turn. If @h@ is a
+--   symbol with attributes @HoldFirst@, @HoldRest@, @HoldAll@, or
+--   @HoldAllComplete@, then skip evaluation of certain elements. Howl:
+--   @HoldAllComplete@ not implemented.
+--
+-- - Unless @h@ has attributes @SequenceHold@ or @HoldAllComplete@,
+--   flatten out all @Sequence@ objects that appear among the @e_i@.
+--   Howl: @SequenceHold@ and @HoldAllComplete@ not implemented.
+--
+-- - Unless @h@ has attribute @HoldAllComplete@, strip the outermost
+--   @Unevaluated@ wrappers that appear among the @e_i@. Howl: not
+--   implemented.
+--
+-- - If @h@ has attribute @Flat@, flatten out all nested expressions with
+--   head @h@. Howl: done.
+--
+-- - If @h@ has attribute @Listable@, thread through any @e_i@ that are
+--   lists. Howl: @Listable@ not implemented.
+--
+-- - If @h@ has attribute @Orderless@, sort the @e_i@. Howl: done.
+--
+-- - Unless @h@ has attribute @HoldAllComplete@, use any user-defined
+--   upvalues of symbols @f@ appearing in expressions of the form
+--   @h[f[e1,...], ...]@. Howl does not look for upvalues inside the
+--   head. For example, the following is not supported:
+--
+--   @g /: f[g[x_]][1] := foo;@
+--
+--   because @g@ appears inside the head of the expression rather than in
+--   the top-level argument sequence.
+--
+-- - Use any builtin upvalues. Howl lets the user choose the ordering and
+--   gives no special privilege to builtin versus user-defined upvalues.
+--
+-- - Use any user-defined downvalues associated to @h@ in expressions of
+--   the form @h[...]@ or @h[...][...]@, including repeated curried
+--   application such as @h[...][...][...]@. Wolfram Language
+--   distinguishes between downvalues and subvalues; Howl currently does
+--   not and instead associates downvalues to the root symbol.
+--
+-- - Use any builtin transformation rules for @h[...]@ or
+--   @h[...][...]@. Howl again does not distinguish between builtin and
+--   user-defined downvalues.
+--
+-- Conceptually, we would like to try every rule in the @Context@ when
+-- evaluating expressions. In practice this would perform poorly for
+-- large contexts, so the upvalue/downvalue machinery serves as a set of
+-- heuristics for pre-selecting rules that may have a chance of matching.
 module Howl.Eval
   ( SubstitutionSet(..)
   , Substitution(..)
@@ -44,24 +121,15 @@ import Howl.Pat           (Pat (..), PatAppType (..), SeqType (..), addNames,
 import Howl.Symbol        (Symbol)
 import Howl.Util          (splits1K, splitsK, subSequencesK)
 
-{- ============== Pattern Matching ================
-
-The pattern matchign algorithm implemented here is described in
-https://www.sciencedirect.com/science/article/pii/S0747717121000079
-(pdf here:
-https://www3.risc.jku.at/publications/download/risc_6260/variadic-equational-matching-jsc-final-with-mma-versions.pdf)
-
-Specifically, we implement algorithm M_{Mma}, which is an incomplete,
-strict variant of the algorithm described in that paper.
-
--}
-
 data Marking
   = Mark0
   | Mark1
   deriving (Eq, Ord, Show)
 
--- | For an associative head, we store the symbol inside the AppType
+-- | Application type information used by the matcher.
+--
+-- For associative and associative-commutative heads, we store the
+-- repeated head symbol here.
 data AppType
   = AppFree
   | AppC
@@ -76,6 +144,7 @@ patAppTypeToAppType = \case
   PatAppA sym  -> AppA sym Nothing
   PatAppAC sym -> AppAC sym Nothing
 
+-- | A binding of a pattern variable to an expression.
 data Substitution = MkSubstitution Symbol Expr
   deriving (Eq, Ord, Show)
 
@@ -84,9 +153,11 @@ data Substitution = MkSubstitution Symbol Expr
 newtype SubstitutionSet = MkSubstitutionSet (Map Symbol Expr)
   deriving (Eq, Ord, Show)
 
+-- | The empty substitution set.
 emptySubstitutionSet :: SubstitutionSet
 emptySubstitutionSet = MkSubstitutionSet Map.empty
 
+-- | A substitution set containing a single binding.
 singletonSubstitutionSet :: Symbol -> Expr -> SubstitutionSet
 singletonSubstitutionSet x expr = MkSubstitutionSet $ Map.singleton x expr
 
@@ -108,6 +179,7 @@ insertSubstitutions :: Foldable f => f Substitution -> SubstitutionSet -> Maybe 
 insertSubstitutions subs set =
   foldM (flip insertSubstitution) set subs
 
+-- | Remove the given bindings from a substitution set.
 removeBindings :: Seq Symbol -> SubstitutionSet -> SubstitutionSet
 removeBindings symbols (MkSubstitutionSet ss) =
   MkSubstitutionSet (deleteAll symbols ss)
@@ -115,13 +187,13 @@ removeBindings symbols (MkSubstitutionSet ss) =
     deleteAll Empty    m = m
     deleteAll (x:<|xs) m = deleteAll xs (Map.delete x m)
 
--- | Lookup the Binding corresponding to a Symbol in the given
--- SubstitutionSet
+-- | Look up the binding corresponding to a symbol in the given
+-- substitution set.
 lookupBinding :: Symbol -> SubstitutionSet -> Maybe Expr
 lookupBinding s (MkSubstitutionSet m) = Map.lookup s m
 
--- | Replace the Symbols in the given Expr with their corresponding
--- Bindings in 'substSet'.
+-- | Replace the symbols in the given expression with their
+-- corresponding bindings in the given substitution set.
 applySubstitutions :: SubstitutionSet -> Expr -> Expr
 applySubstitutions substSet = mapSymbols $ \s ->
   case lookupBinding s substSet of
@@ -134,13 +206,20 @@ bindVars xs t = [MkSubstitution x t | x <- xs]
 bindSeqVars :: [Symbol] -> Seq Expr -> [Substitution]
 bindSeqVars xs ts = [MkSubstitution x (ExprApp Expr.Sequence ts) | x <- xs]
 
+-- | A matching equation produced by the matcher.
+--
+-- A 'SingleEq' matches one pattern against one expression, while a
+-- 'SeqEq' matches a sequence of patterns against a sequence of
+-- expressions under the given application type.
 data MatchingEq
   = SingleEq !Pat !Expr
   | SeqEq !AppType !(Seq Pat) !(Seq Expr)
   deriving (Eq, Ord, Show)
 
--- | The DList's are transformations to the list of matching
--- equations: in practice, they are consing on 0,1, or 2 elements.
+-- | Difference lists of matching equations.
+--
+-- In practice these transformations prepend zero, one, or two
+-- equations.
 data MatchStep
   = MatchBranch [Substitution] !(DList MatchingEq)
   | MatchCondition MatchingEq !Expr
@@ -183,8 +262,11 @@ matchesHeadSymbol :: Maybe Symbol -> Symbol -> Bool
 matchesHeadSymbol Nothing  _  = True
 matchesHeadSymbol (Just s) s' = s == s'
 
--- | Produce MatchSteps lazily via CPS (no intermediate [MatchStep] list).
---   'k' is called once per MatchStep; the 'rest' action continues enumeration.
+-- | Produce 'MatchStep's lazily using continuation-passing style,
+-- without constructing an intermediate list.
+--
+-- The continuation @k@ is called once per 'MatchStep', and the
+-- continuation @rest@ continues enumeration.
 transformMatchK
   :: forall r .
      MatchingEq
@@ -271,10 +353,10 @@ transformMatchK eq k z = case eq of
 
   -- | Optional pattern in a sequence. The behavior here seems to be
   -- different from Mathematica. In Mathematica, you cannot name an
-  -- Optional pattern and have its variable name bound:
-  -- a:Optional[_,def] does not seem to bind a to anything. Meanwhile,
-  -- here a will be bound to whatever _ matches if it matches, or def
-  -- if it doesn't.
+  -- optional pattern and have its variable name bound:
+  -- @a:Optional[_,def]@ does not seem to bind @a@ to anything.
+  -- Here, however, @a@ is bound to whatever @_@ matches if it
+  -- matches, or to @def@ if it does not.
   SeqEq appTy (PatOptional xs p defExpr :<| ss) ts ->
     let
       p' = addNames xs p
@@ -285,7 +367,7 @@ transformMatchK eq k z = case eq of
 
   -- | SVE: Sequence variable elimination (applies under any head)
   SeqEq appTy (PatSeqVar x seqTy :<| ss) ts ->
-    -- enumerate splits ts = (ts1,ts2)
+    -- Enumerate splits of @ts@ into pairs @(ts1, ts2)@.
     let
       step ts1 ts2 rest =
         case seqTy of
@@ -470,6 +552,8 @@ transformMatchK eq k z = case eq of
 
   _ -> z
 
+-- | Solve a matching equation, returning a consistent substitution set
+-- if the match succeeds.
 {-# INLINE solveMatchMaybe #-}
 solveMatchMaybe :: MatchingEq -> Eval (Maybe SubstitutionSet)
 solveMatchMaybe initialMatchEq =
@@ -508,72 +592,6 @@ solveMatchMaybe initialMatchEq =
 
 checkTrue :: Expr -> Eval Bool
 checkTrue = fmap (== Expr.True) . eval
-
-{- ============== Evaluation ================
-
-Mathematica's standard evaluation sequence is described here
-(https://reference.wolfram.com/language/tutorial/Evaluation.html). Unfortunately,
-it contains some typos, which I'll try to fix below. I also added
-implementation comments for the current status in Howl.
-
-- If the expression is a raw object (e.g., Integer, String, etc.),
-  leave it unchanged. Howl: Done.
-
-- Evaluate the head h of the expression. Howl: Done.
-
-- Evaluate each element ei of the expression in turn. If h is a symbol
-  with attributes HoldFirst, HoldRest, HoldAll, or HoldAllComplete,
-  then skip evaluation of certain elements. Howl: HoldAllComplete
-  not implemented.
-
-- Unless h has attributes SequenceHold or HoldAllComplete, flatten out
-  all Sequence objects that appear among the ei. Howl:
-  SequenceHold/HoldAllComplete not implemented.
-
-- Unless h has attribute HoldAllComplete, strip the outermost of any
-  Unevaluated wrappers that appear among the ei. Howl: Not
-  implemented.
-
-- If h has attribute Flat, then flatten out all nested expressions
-  with head h. Howl: Done.
-
-- If h has attribute Listable, then thread through any ei that are
-  lists. Howl: Listable not implemented.
-
-- If h has attribute Orderless, then sort the ei into
-  order. Howl: Done.
-
-- Unless h has attribute HoldAllComplete, use any user-defined
-  upvalues of symbols f appearing in the form h[f[e1,...],...]. NB: We
-  do not look for upvalues inside the head. So for exampe, we cannot
-  define an upvalue of the following form:
-
-  g /: f[g[x_]][1] := foo; (BAD)
-
-  Because g appears inside the head of the expression and not in the
-  sequence of arguments, it is not considered to be at "level 1".
-
-- Use any builtin upvalues. Howl: We allow the user to choose the
-  ordering, and there is no special privilege given to
-  builtin/user-defined UpValues.
-
-- Use any user-defined down-values associated to h in the form
-  h[...] or for h[...][...]. Presumably this also means repeated
-  curried application h[...][...][...]. Howl: Mathematica
-  distinguishes between down-values and sub-values. For now, we don't
-  distinguish --- down values are associated to the root symbol.
-
-- Use any built‐in transformation rules for h[...] or
-  h[...][...]. Howl: Again, we don't distinguish between
-  built-in/user-defined downvalues.
-
-Note that, conceptually, we would like to try every rule in the
-Context when evaluating expressions. However, if the Context is large,
-this would have poor performance. This business of up-values and
-down-values is essentially a set of heuristics to pre-sort rules in
-such a way that we know whether they have a chance of matching or not.
-
--}
 
 {- [Note: Avoiding an infinite loop]
 
@@ -614,9 +632,11 @@ traverseWithHoldType (Just HoldRest)  f (x :<| xs) = do
   y <- f x
   pure $ y :<| xs
 
--- | Flatten any occurrences of Sequence[...] in the given list of
--- expressions. Note that this works with nested Sequence as well,
--- e.g.  flattenSequences [Sequence[Sequence[a]],b] -> [a,b]
+-- | Flatten any occurrences of @Sequence[...]@ in the given list of
+-- expressions.
+--
+-- This also works with nested @Sequence@s, e.g.
+-- @flattenSequences [Sequence[Sequence[a]], b] -> [a, b]@.
 flattenSequences :: Seq Expr -> Seq Expr
 flattenSequences = flattenWithHead Expr.Sequence
 
@@ -629,7 +649,8 @@ flattenWithHeadAndSequence h exprs = do
         -> flattenWithHeadAndSequence h args
     _ -> pure expr
 
--- | Extract the symbol g from expressions that are pure g or of the form g[...]
+-- | Extract the symbol @g@ from expressions that are either exactly
+-- @g@ or of the form @g[...]@.
 {-# INLINE level0Symbol #-}
 level0Symbol :: Expr -> Maybe Symbol
 level0Symbol = \case
@@ -637,6 +658,7 @@ level0Symbol = \case
   ExprApp (ExprSymbol s) _ -> Just s
   _                        -> Nothing
 
+-- | Evaluate an expression using the current context.
 eval :: Expr -> Eval Expr
 eval expr = do
   case expr of

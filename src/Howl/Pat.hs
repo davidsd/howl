@@ -4,6 +4,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 
+-- | Internal pattern representation used by the evaluator.
+--
+-- These patterns are compiled from Wolfram Language pattern expressions
+-- and then used during matching.
 module Howl.Pat
   ( Pat(..)
   , PatAppType(..)
@@ -52,10 +56,12 @@ Default - predefined default arguments for a function
 
 -}
 
--- | Pat: A pattern. Each constructor takes a [Symbol] argument, which
--- is a list of variables, each of which should be bound to the result
--- of the pattern match. We need a list because we can have something
--- like x:(y:(z:_)). If the list is empty, the pattern is unnamed.
+-- | A compiled pattern.
+--
+-- Each constructor takes a list of variable names to bind to the
+-- result of the match. We need a list because we can have nested
+-- named patterns such as @x:(y:(z:_))@. If the list is empty, the
+-- pattern is unnamed.
 data Pat
   -- | A literal symbol pattern.
   = PatSymbol
@@ -72,7 +78,7 @@ data Pat
       { names          :: ![Symbol]
       , headConstraint :: !(Maybe Symbol)
       }
-  -- | A sequence blank ('__' or '___').
+  -- | A sequence blank (@__@ or @___@).
   | PatSeqVar
       { names   :: ![Symbol]
       , seqType :: !SeqType
@@ -108,6 +114,10 @@ data Pat
       }
   deriving (Eq, Ord, Show)
 
+-- | Application-type information attached to a compiled head pattern.
+--
+-- This records whether the matched head should be treated as free,
+-- commutative, associative, or associative-commutative.
 data PatAppType
   = PatAppFree
   | PatAppC
@@ -115,6 +125,7 @@ data PatAppType
   | PatAppAC !Symbol
   deriving (Eq, Ord, Show)
 
+-- | The multiplicity of a sequence pattern.
 data SeqType = ZeroOrMore | OneOrMore
   deriving (Eq, Ord, Show)
 
@@ -162,22 +173,27 @@ patNames = \case
   PatCondition names p _ ->
     Set.union (Set.fromList names) (patNames p)
 
+-- | Add the given names to the outermost constructor of a pattern.
 addNames :: [Symbol] -> Pat -> Pat
 addNames xs = mapNames (xs++)
 
 addName :: Symbol -> Pat -> Pat
 addName xs = mapNames (xs:)
 
--- Check if the given pattern matches a unique expression and introduces no
--- bindings. For example Foo[12] matches a unique expression, but Foo[x_] does
--- not. This function is conservative and just uses syntax information, so there
--- may be cases where the pattern does match a unique expression but this
--- function does not detect it, for example (x_/;SameQ[x,12]) matches only 12,
--- but this function returns Nothing.
+-- | Check whether a pattern matches a unique expression and introduces
+-- no bindings.
 --
--- It is also important to reject patterns that introduce bindings because we
--- are short-circuiting the pattern matching process, and so those bindings
--- won't happen. TODO: We could pre-compute the bindings and store them.
+-- For example, @Foo[12]@ matches a unique expression, but @Foo[x_]@
+-- does not. This function is conservative and only uses syntax
+-- information, so there may be cases where the pattern does match a
+-- unique expression but this function does not detect it. For example,
+-- @(x_/;SameQ[x,12])@ matches only @12@, but this function returns
+-- 'Nothing'.
+--
+-- It is also important to reject patterns that introduce bindings
+-- because we are short-circuiting the pattern matching process, and so
+-- those bindings would not happen. TODO: we could pre-compute the
+-- bindings and store them.
 matchesUniqueExpr :: Pat -> Maybe Expr
 matchesUniqueExpr pat
   | not (Set.null (patNames pat)) = Nothing
@@ -238,9 +254,10 @@ instance PPrint Pat where
   pPrint (PatCondition names p t) = pPrintNamed names $
     pPrint p ++ "/;" ++ pPrint t
 
--- | The patRootSymbol is the repeated head. If the patRootSymbol is a Symbol,
--- return it, otherwise return nothing. This function is needed for
--- automatically deducing which symbol to associate a rule to.
+-- | Return the repeated head symbol of a pattern, if there is one.
+--
+-- This is used to deduce which symbol a rule should be associated
+-- with.
 patRootSymbol :: Pat -> Maybe Symbol
 patRootSymbol = \case
   PatSymbol _ s      -> Just s
@@ -248,10 +265,14 @@ patRootSymbol = \case
   PatCondition _ p _ -> patRootSymbol p
   _                  -> Nothing
 
--- | An infinite (lazy) list of symbols to be used as anonymous pattern variables
+-- | An infinite lazy list of symbols used as anonymous pattern variables.
 anonVars :: [Symbol]
 anonVars = [ fromString ("$$PatVar" <> show i) | i <- [0 :: Int ..] ]
 
+-- | Compile a Wolfram Language pattern expression into a 'Pat'.
+--
+-- The callback is used to determine the application type of head
+-- symbols while compiling application patterns.
 patFromExpr :: forall m . MonadFail m => (Symbol -> m PatAppType) -> Expr -> m Pat
 patFromExpr lookupAppType = flip evalStateT 0 . go Nothing
   where

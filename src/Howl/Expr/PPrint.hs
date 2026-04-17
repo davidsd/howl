@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns    #-}
 
+-- | Pretty-printing of expressions using Wolfram Language surface syntax.
 module Howl.Expr.PPrint
   ( Prec(..)
   , pPrintPrec

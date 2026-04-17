@@ -11,7 +11,18 @@ import Data.Map.Strict qualified as Map
 import Data.Sequence   (pattern (:<|))
 import Data.Sequence   qualified as Seq
 import Data.Set        (Set)
-import Howl
+import Howl.Expr
+    ( pattern (:@),
+      pattern ExprInteger,
+      pattern ExprNumeric,
+      binary,
+      pattern Plus,
+      pattern Power,
+      pattern Times,
+      FromExpr(..),
+      ToExpr(..),
+      FromNumeric(..) )
+import Howl.Util (pattern Solo, pattern Pair)
 
 data Power a n = MkPower a n
   deriving (Eq, Ord, Show)

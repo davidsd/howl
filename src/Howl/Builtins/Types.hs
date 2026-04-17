@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE PatternSynonyms #-}
 
+-- | Small helper types shared by builtin definitions.
 module Howl.Builtins.Types
   ( ListOrSolo (..)
   , AList (..)
@@ -9,9 +10,9 @@ module Howl.Builtins.Types
 import Data.Sequence (Seq)
 import Howl.Expr     (FromExpr (..), ToExpr (..), pattern (:@), pattern List)
 
--- | A datatype that matches a single expression e or a list of
--- expressions {e1,...,en}, such that the expressions can all be
--- mapped to the type 'a'.
+-- | A datatype that matches a single expression @e@ or a list of
+-- expressions @{e1,...,en}@, such that the expressions can all be
+-- mapped to the type @a@.
 newtype ListOrSolo a = MkListOrSolo (Seq a)
 
 instance FromExpr a => FromExpr (ListOrSolo a) where
@@ -19,6 +20,7 @@ instance FromExpr a => FromExpr (ListOrSolo a) where
     List :@ es -> mapM fromExpr es
     e          -> fmap pure $ fromExpr e
 
+-- | A list-valued expression whose elements all decode to @a@.
 newtype AList a = MkList { unList :: Seq a }
 
 instance FromExpr a => FromExpr (AList a) where

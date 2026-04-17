@@ -4,6 +4,8 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
+-- | Builtins for scoped constructs such as @Function@, @Let@,
+-- @Module@, and @Table@.
 module Howl.Builtins.Scoped
   ( addScopedBuiltins
   ) where
@@ -82,8 +84,8 @@ introducedVariables = \case
     _                      -> Empty
   _ -> Empty
 
--- | Replace the Symbols in the given Expr with their corresponding
--- Bindings in 'substSet', allowing new local variables introduced in
+-- | Replace the symbols in the given expression with their corresponding
+-- bindings in @substSet@, allowing new local variables introduced in
 -- sub-expressions to shadow the given substitutions.
 --
 -- [NB Shadowing in patterns]: It would be nice if we could implement
@@ -167,10 +169,10 @@ functionDef = \case
         go (h :@ args)                    = go h :@ fmap go args
         go expr                           = expr
 
--- | Note: functionDef is a curried definition: it does NOT match
--- something of the form Function[...]. Thus, we cannot use
--- 'builtinFunctionMaybeM' or 'function'. We need to construct the
--- Decl by hand.
+-- | Note: @functionDef@ is a curried definition: it does not match
+-- something of the form @Function[...]@. Thus, we cannot use
+-- @builtinFunctionMaybeM@ or a plain @def@ helper here; we need to
+-- construct the declaration by hand.
 functionDecl :: Decl
 functionDecl = DownValue "Function" $ BuiltinRule (pure . functionDef)
 
@@ -244,6 +246,14 @@ tableDef body range = case range of
     where
       substX x = applySubstitutionsWithShadowing (singletonSubstitutionSet xVar x) body
 
+-- | Register the scoped builtins.
+--
+-- This defines:
+--
+-- - @Function@
+-- - @Let@
+-- - @Module@
+-- - @Table@
 addScopedBuiltins :: Eval ()
 addScopedBuiltins = do
   modifyAttributes "Function" (setHoldType HoldAll)

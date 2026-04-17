@@ -1,6 +1,8 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TemplateHaskell #-}
 
+-- | Template Haskell helpers for generating cached symbol-expression
+-- pattern synonyms.
 module Howl.Expr.TH
   ( declareExprPattern
   , declareExprPatterns

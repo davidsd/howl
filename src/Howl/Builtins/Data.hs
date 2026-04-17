@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
+-- | Data-structure and list-processing builtins.
 module Howl.Builtins.Data
   ( addDataBuiltins
   ) where
@@ -218,6 +219,30 @@ flattenDef = \case
   ExprApp h cs -> Just $ ExprApp h (Expr.flattenWithHead h cs)
   _            -> Nothing
 
+-- | Register the data and list-processing builtins.
+--
+-- This defines:
+--
+-- - @Map@
+-- - @MapApply@
+-- - @MapAt@
+-- - @Head@
+-- - @Part@
+-- - @Length@
+-- - @Range@
+-- - @Take@
+-- - @Drop@
+-- - @Accumulate@
+-- - @First@
+-- - @Rest@
+-- - @Reverse@
+-- - @Union@
+-- - @Intersection@
+-- - @Ordering@
+-- - @Sort@
+-- - @Flatten@
+-- - @Count@
+-- - @Position@
 addDataBuiltins :: Eval ()
 addDataBuiltins = do
   def "Map" mapDef

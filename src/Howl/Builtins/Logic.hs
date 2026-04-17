@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 
+-- | Logical and comparison builtins.
 module Howl.Builtins.Logic
   ( addLogicBuiltins
   ) where
@@ -92,6 +93,22 @@ equalDef (ExprNumeric a) (ExprNumeric b) = Just $ a == b
 equalDef x y | x == y                    = Just True
 equalDef _ _                             = Nothing
 
+-- | Register the logical and comparison builtins.
+--
+-- This defines:
+--
+-- - @And@
+-- - @Or@
+-- - @Identity@
+-- - @Equal@
+-- - @Greater@
+-- - @Less@
+-- - @GreaterEqual@
+-- - @LessEqual@
+-- - @SameQ@
+-- - @OrderedQ@
+-- - @EvenQ@
+-- - @OddQ@
 addLogicBuiltins :: Eval ()
 addLogicBuiltins = do
   modifyAttributes "And" setFlat

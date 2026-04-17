@@ -5,6 +5,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
+-- | Numeric builtin definitions.
 module Howl.Builtins.Numeric
   ( addNumericBuiltins
   ) where
@@ -64,6 +65,54 @@ defDoubleBinary sym f = do
   modifyAttributes sym setNumericFunction
   def sym f
 
+-- | Register the numeric builtins and mark the appropriate symbols as
+-- numeric functions.
+--
+-- This currently defines:
+--
+-- - @NumericFunctionQ@
+-- - @Abs@
+-- - @AiryAi@
+-- - @ArcSin@
+-- - @ArcCos@
+-- - @ArcTan@
+-- - @ArcSinh@
+-- - @ArcCosh@
+-- - @ArcTanh@
+-- - @ArithmeticGeometricMean@
+-- - @Beta@
+-- - @CubeRoot@
+-- - @Cos@
+-- - @Cosh@
+-- - @Cot@
+-- - @Coth@
+-- - @Csc@
+-- - @Csch@
+-- - @Digamma@
+-- - @ExpIntegralEi@
+-- - @Erf@
+-- - @Erfc@
+-- - @Exp@
+-- - @Exp10@
+-- - @Exp2@
+-- - @Expm1@
+-- - @Gamma@
+-- - @BesselJ0@
+-- - @BesselJ1@
+-- - @Li2@
+-- - @Log@
+-- - @Log10@
+-- - @Log1p@
+-- - @Log2@
+-- - @Max@
+-- - @Min@
+-- - @Sec@
+-- - @Sech@
+-- - @Sin@
+-- - @Sinh@
+-- - @Sqrt@
+-- - @Tan@
+-- - @Tanh@
 addNumericBuiltins :: Eval ()
 addNumericBuiltins = do
   defBigFloatUnary "Abs" Rounded.abs_

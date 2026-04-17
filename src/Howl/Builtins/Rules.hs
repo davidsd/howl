@@ -4,6 +4,7 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
+-- | Builtins for rewrite rules and rule application.
 module Howl.Builtins.Rules
   ( addRulesBuiltins
   ) where
@@ -104,6 +105,15 @@ confirmPatternTest = \case
   Empty         -> Nothing
   test :<| rest -> Just $ And :@ fmap (Expr.unary test) rest
 
+-- | Register the rule-related builtins.
+--
+-- This defines:
+--
+-- - @Rule@
+-- - @RuleDelayed@
+-- - @ReplaceAll@
+-- - @ReplaceRepeated@
+-- - @ConfirmPatternTest@
 addRulesBuiltins :: Eval ()
 addRulesBuiltins = do
   modifyAttributes "Rule"        (setHoldType HoldFirst)

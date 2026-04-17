@@ -1,5 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
 
+-- | Numeric types and conversions used by Howl expressions.
+--
+-- This module defines the 'Numeric' datatype, together with
+-- conversions to and from common Haskell numeric types and MPFR-based
+-- arbitrary-precision floating-point numbers.
 module Howl.Expr.Numeric
   ( Numeric(..)
   , FromNumeric(..)
@@ -22,14 +27,22 @@ import Howl.PPrint            (PPrint (..))
 import Numeric.Rounded.Simple (Rounded)
 import Numeric.Rounded.Simple qualified as Rounded
 
+-- | An arbitrary-precision floating-point number implemented using MPFR.
 type BigFloat = Rounded
+
+-- | The precision of a 'BigFloat'.
 type BigFloatPrecision = Rounded.Precision
 
+-- | A numeric value.
 data Numeric
-  = NInteger  !Integer
-  | NRational !Rational
-  | NDouble   !Double
-  | NBigFloat !BigFloat
+  = -- | An integer.
+    NInteger  !Integer
+  | -- | A rational number.
+    NRational !Rational
+  | -- | A double-precision floating-point number.
+    NDouble   !Double
+  | -- | An MPFR floating-point number with dynamic precision.
+    NBigFloat !BigFloat
   deriving (Eq)
 
 binaryApply
@@ -131,6 +144,7 @@ instance Enum Numeric where
         | x <= xFinal = x : go (x+dx)
         | otherwise = []
 
+-- | A class for extracting Haskell numeric values from a 'Numeric'.
 class FromNumeric a where
   fromNumeric :: Numeric -> Maybe a
 
@@ -157,16 +171,19 @@ instance FromNumeric Double where
 fromDouble :: Double -> Numeric
 fromDouble = NDouble
 
+-- | Convert a 'BigFloat' to a 'Numeric'.
 fromBigFloat :: BigFloat -> Numeric
 fromBigFloat = NBigFloat
 
 defaultRounding :: Rounded.RoundingMode
 defaultRounding = Rounded.TowardNearest
 
+-- | Get the precision of a 'BigFloat'.
 bigFloatPrecision :: BigFloat -> BigFloatPrecision
 bigFloatPrecision = Rounded.precision
 
 {-# INLINE toDouble #-}
+-- | Convert a 'Numeric' to a 'Double'.
 toDouble :: Numeric -> Double
 toDouble = \case
   NInteger x  -> fromIntegral x
@@ -175,6 +192,7 @@ toDouble = \case
   NBigFloat x -> Rounded.toDouble defaultRounding x
 
 {-# INLINE toBigFloat #-}
+-- | Convert a 'Numeric' to a 'BigFloat' with the given precision.
 toBigFloat :: BigFloatPrecision -> Numeric -> BigFloat
 toBigFloat p = \case
   NInteger x  -> Rounded.fromInteger' defaultRounding p x

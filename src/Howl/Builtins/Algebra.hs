@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PatternSynonyms       #-}
 
+-- | Algebraic normalization builtins.
 module Howl.Builtins.Algebra
   ( addAlgebraBuiltins
   , normalizePlus
@@ -56,6 +57,8 @@ addPlusArgument arg plusArgs = case arg of
         addCoeffMap term coeff plusArgs.plusOthers
     }
 
+-- | Normalize the arguments of a @Plus@ expression by combining
+-- numeric terms and like terms.
 normalizePlus :: Seq Expr -> Expr
 normalizePlus initialArgs =
   case allTerms of
@@ -206,6 +209,15 @@ multinomialCoeff xs = case xs of
   Pair x y -> binomial (x + y) y
   _        -> multinomial (Foldable.toList xs)
 
+-- | Register the algebraic normalization builtins.
+--
+-- This defines:
+--
+-- - @Plus@
+-- - @Times@
+-- - @Power@
+-- - @Sqrt@
+-- - @MultinomialPowerExpand@
 addAlgebraBuiltins :: Eval ()
 addAlgebraBuiltins = do
   modifyAttributes "Plus" (setNumericFunction . setFlat . setOrderless)

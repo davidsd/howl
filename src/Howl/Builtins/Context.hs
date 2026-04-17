@@ -4,6 +4,11 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
+-- | Builtins and helpers for working with evaluation contexts.
+--
+-- This module provides functions for parsing and evaluating input,
+-- defining rules with @Set@/@SetDelayed@ semantics, and installing the
+-- standard context-related builtins.
 module Howl.Builtins.Context
   ( LHS (..)
   , addContextBuiltins
@@ -44,10 +49,14 @@ import Howl.Util               (pattern Pair, pattern Solo)
 
 ---------- SetDelayed and Set ----------
 
+-- | A left-hand side that can appear in @Set@ or @SetDelayed@.
 data LHS
-  = LHSSymbol Symbol
-  | LHSPat Expr
-  | LHSTaggedPat Symbol Expr
+  = -- | A plain symbol left-hand side such as @x@.
+    LHSSymbol Symbol
+  | -- | A pattern left-hand side such as @f[x_]@.
+    LHSPat Expr
+  | -- | A tagged pattern left-hand side such as @tag /: f[x_] := rhs@.
+    LHSTaggedPat Symbol Expr
   deriving (Show)
 
 instance FromExpr LHS where
@@ -70,6 +79,7 @@ setPairToDecl lhs rhs = case lhs of
     pat <- compilePat patExpr
     pure $ Just $ UpValue sym (PatRule pat rhs)
 
+-- | Define a rule with @Set@ semantics.
 setDef :: LHS -> Expr -> Eval Expr
 setDef lhs rhs = do
   setPairToDecl lhs rhs >>= \case
@@ -78,6 +88,7 @@ setDef lhs rhs = do
       pure rhs
     Nothing -> pure Null
 
+-- | Define a rule with @SetDelayed@ semantics.
 setDelayedDef :: LHS -> Expr -> Eval ()
 setDelayedDef lhs rhs = setPairToDecl lhs rhs >>= \case
   Just decl -> addDecl decl
@@ -125,22 +136,29 @@ helpDef sym = do
 
 ---------- Building Contexts ----------
 
+-- | Parse and evaluate an expression from 'Text'.
 run :: Text -> Eval Expr
 run input = case parseExprText input of
   Left err   -> emitErrorLine (Text.pack err) >> pure Expr.Null
   Right expr -> eval expr
 
+-- | Parse and evaluate an expression from 'Text', discarding the result.
 run_ :: Text -> Eval ()
 run_ = void . run
 
+-- | Read, parse, and evaluate an expression from a file. The expression
+-- may be a compound expression, e.g. a sequence of semicolon-separated
+-- subexpressions.
 get :: FilePath -> Eval Expr
 get path = readExprFile path >>= \case
   Left err   -> emitErrorLine (Text.pack err) >> pure Expr.Null
   Right expr -> eval expr
 
+-- | Read, parse, and evaluate an expression from a file, discarding the result.
 get_ :: FilePath -> Eval ()
 get_ = void . get
 
+-- | Evaluate an expression and record it in the @In@/@Out@ history.
 evalWithHistory :: Expr -> Eval (Int, Expr)
 evalWithHistory expr = do
   inputCount <- getLineNumber
@@ -166,6 +184,7 @@ negativeLineDef sym i
         ExprApp (ExprSymbol sym) (Solo (ExprInteger (fromIntegral n + i)))
   | otherwise = pure Nothing
 
+-- | Add the standard context-related builtins to the current context.
 addContextBuiltins :: Eval ()
 addContextBuiltins = do
   modifyAttributes "Set" (setHoldType HoldFirst)

@@ -1,5 +1,7 @@
 {-# LANGUAGE NoFieldSelectors #-}
 
+-- | A weak-pointer cache used to avoid re-evaluating expressions that
+-- have already been seen.
 module Howl.Eval.EvalCache
   ( EvalCache
   , newEvalCache
@@ -25,14 +27,18 @@ instance Hashable (SN a) where
 
 type Table = HT.BasicHashTable (SN Expr) (Weak Expr)
 
+-- | A cache of previously seen expressions.
 data EvalCache = EvalCache
   { _ecLock  :: !(MVar ())
   , _ecTable :: !Table
   }
 
+-- | Create a new empty evaluation cache.
 newEvalCache :: IO EvalCache
 newEvalCache = EvalCache <$> newMVar () <*> HT.new
 
+-- | Check whether the given expression is already present in the
+-- cache.
 lookupEvalCache :: EvalCache -> Expr -> IO Bool
 lookupEvalCache (EvalCache lock table) expr0 = do
   !expr <- evaluate expr0
@@ -43,6 +49,7 @@ lookupEvalCache (EvalCache lock table) expr0 = do
       Nothing -> pure ((), False)
       Just _  -> pure ((), True)
 
+-- | Insert an expression into the evaluation cache.
 insertEvalCache :: EvalCache -> Expr -> IO ()
 insertEvalCache (EvalCache lock table) expr0 = do
   !expr <- evaluate expr0

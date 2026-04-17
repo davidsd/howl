@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | Small utility helpers used across the implementation.
 module Howl.Util
   ( splitsK
   , splits1K

@@ -10,11 +10,12 @@ import Data.Aeson                  (ToJSON (..), encode, object, (.=))
 import Data.ByteString.Lazy        qualified as BSL
 import Data.Text                   (Text)
 import Data.Text                   qualified as Text
-import Howl                        (Context, Expr, PPrint (..),
-                                    evalWithHistory, newContextWithBuiltins,
-                                    parseExprText, pattern Null,
-                                    runEvalWithContext)
-import Howl.Eval.Context           (setErrorLineHandler, setOutputLineHandler)
+import Howl                        (Expr, PPrint (..), parseExprText,
+                                    pattern Null)
+import Howl.Builtins              (newContextWithBuiltins)
+import Howl.Builtins.Context       (evalWithHistory)
+import Howl.Eval.Context           (Context, runEvalWithContext,
+                                    setErrorLineHandler, setOutputLineHandler)
 import IHaskell.IPython.EasyKernel (KernelConfig (..), easyKernel)
 import IHaskell.IPython.Types      (DisplayData (..), ExecuteReplyStatus (..),
                                     KernelSpec (..), LanguageInfo (..),

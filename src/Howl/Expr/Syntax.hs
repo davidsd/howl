@@ -5,6 +5,22 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
+-- | Bidirectional pattern synonyms for common Wolfram Language symbol
+-- expressions.
+--
+-- This module exports names such as 'Plus', 'List', and 'Rule' as
+-- bidirectional pattern synonyms. They can be used both for matching
+-- expressions and for constructing them.
+--
+-- For example:
+--
+-- - @Plus :@ Seq.fromList [toExpr 1, "x"]@ represents the Wolfram
+--   Language expression @1 + x@
+-- - @Rule :@ Seq.fromList ["x", toExpr 3]@ represents the Wolfram
+--   Language expression @x -> 3@
+--
+-- Compared to "Howl.Expr", this module focuses on the larger catalog
+-- of named symbol-expression patterns.
 module Howl.Expr.Syntax
   ( pattern Sequence
   , pattern List
@@ -53,6 +69,7 @@ module Howl.Expr.Syntax
   ) where
 
 import Data.Foldable      qualified as Foldable
+import Data.Sequence      (pattern (:<|), pattern Empty)
 import Data.Sequence      qualified as Seq
 import Data.String        (fromString)
 import Howl.Expr.Internal (Expr (..), FromExpr (..), ToExpr (..))
@@ -60,7 +77,7 @@ import Howl.Expr.TH       (declareExprPatterns)
 import Prelude            hiding (False, True)
 import Prelude qualified
 
--- | declareExprPatterns creates bidirectional pattern synonyms Sequence,
+-- declareExprPatterns creates bidirectional pattern synonyms Sequence,
 -- List, etc. The main advantage of these over using the IsString
 -- instance for Expr and writing "Sequence", "List", etc, is that for
 -- the pattern synonyms we call mkSymbol at top level precisely once,
@@ -139,3 +156,27 @@ instance FromExpr a => FromExpr [a] where
     _               -> Nothing
 instance ToExpr a => ToExpr [a] where
   toExpr xs = ExprApp List (Seq.fromList (map toExpr xs))
+
+instance (FromExpr a, FromExpr b) => FromExpr (a, b) where
+  fromExpr = \case
+    ExprApp List (a :<| b :<| Empty) -> (,) <$> fromExpr a <*> fromExpr b
+    _                                -> Nothing
+instance (ToExpr a, ToExpr b) => ToExpr (a, b) where
+  toExpr (a, b) = ExprApp List (Seq.fromList [toExpr a, toExpr b])
+
+instance (FromExpr a, FromExpr b, FromExpr c) => FromExpr (a, b, c) where
+  fromExpr = \case
+    ExprApp List (a :<| b :<| c :<| Empty) ->
+      (,,) <$> fromExpr a <*> fromExpr b <*> fromExpr c
+    _ -> Nothing
+instance (ToExpr a, ToExpr b, ToExpr c) => ToExpr (a, b, c) where
+  toExpr (a, b, c) = ExprApp List (Seq.fromList [toExpr a, toExpr b, toExpr c])
+
+instance (FromExpr a, FromExpr b, FromExpr c, FromExpr d) => FromExpr (a, b, c, d) where
+  fromExpr = \case
+    ExprApp List (a :<| b :<| c :<| d :<| Empty) ->
+      (,,,) <$> fromExpr a <*> fromExpr b <*> fromExpr c <*> fromExpr d
+    _ -> Nothing
+instance (ToExpr a, ToExpr b, ToExpr c, ToExpr d) => ToExpr (a, b, c, d) where
+  toExpr (a, b, c, d) =
+    ExprApp List (Seq.fromList [toExpr a, toExpr b, toExpr c, toExpr d])
