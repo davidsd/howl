@@ -32,7 +32,7 @@ jobs:
         run: cabal update
 
       - name: Build Haddock docs
-        run: cabal haddock --enable-documentation
+        run: cabal haddock lib:howl --enable-documentation
 
       - name: Collect site
         run: |
