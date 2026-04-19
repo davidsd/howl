@@ -41,7 +41,7 @@ jobs:
 
       - name: Collect site
         run: |
-          docdir="$(find dist-newstyle/build -type d -path '*doc/html/*-docs' | head -n 1)"
+          docdir="$(find dist-newstyle/build -type f -name index.html -path '*doc/html/*' | sed 's#/index.html$##' | head -n 1)"
           test -n "$docdir"
           mkdir site
           cp -R "$docdir"/. site/

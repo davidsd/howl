@@ -2,6 +2,8 @@
 
 Howl (**H**askell **O**pen **W**olfram **L**anguage) is an implementation of a microscopic subset of the [Wolfram Language](https://www.wolfram.com/language/) (which powers Mathematica), in Haskell. It is both a Haskell library and executable. As a Haskell library, Howl makes it easy to define replacement rules using Haskell functions, and thereby use Haskell to manipulate algebraic expressions. One can also define replacement rules using the usual Wolfram Language syntax, or a mixture of both languages, see [Builtins.hs](https://github.com/davidsd/howl/blob/main/src/Howl/Builtins.hs) as an example.
 
+Documentation is available at <https://davidsd.github.io/howl/>.
+
 Mathematica is a registered trademark of Wolfram Research, Inc., and Wolfram Language is a trademark of Wolfram Research, Inc.; this project is independent and not affiliated with, endorsed by, or sponsored by Wolfram Research.
 
 ## Installation
