@@ -31,7 +31,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libzmq3-dev
+          sudo apt-get install -y pkg-config libzmq3-dev libmpfr-dev libgmp-dev
 
       - name: Update package index
         run: cabal update
